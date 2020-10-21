@@ -103,6 +103,23 @@ pub trait Artifact: Send + Sync + Upcastable {
             self.table_styles(),
         )
         .map_err(InstantiationError::Link)?;
+
+        let mut thunks = vec![];
+        // ------------
+        for (func_init, func) in imports
+            .host_function_env_initializers
+            .values()
+            .cloned()
+            .zip(imports.functions.values())
+        {
+            let host_env = unsafe {
+                //dbg!(func.extra_data.host_env);
+                func.extra_data.host_env
+            };
+            thunks.push((func_init, host_env));
+        }
+        // ------------
+
         let finished_memories = tunables
             .create_memories(&module, self.memory_styles())
             .map_err(InstantiationError::Link)?
@@ -118,7 +135,7 @@ pub trait Artifact: Send + Sync + Upcastable {
 
         self.register_frame_info();
 
-        InstanceHandle::new(
+        let handle = InstanceHandle::new(
             module,
             self.finished_functions().clone(),
             self.finished_function_call_trampolines().clone(),
@@ -128,8 +145,10 @@ pub trait Artifact: Send + Sync + Upcastable {
             imports,
             self.signatures().clone(),
             host_state,
+            thunks,
         )
-        .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
+        .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?;
+        Ok(handle)
     }
 
     /// Finishes the instantiation of a just created `InstanceHandle`.

@@ -11,8 +11,8 @@ use std::cmp::max;
 use std::fmt;
 use wasmer_vm::{
     raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
-    VMCallerCheckedAnyfunc, VMContext, VMDynamicFunctionContext, VMFunctionBody, VMFunctionKind,
-    VMTrampoline,
+    FunctionExtraData, VMCallerCheckedAnyfunc, VMContext, VMDynamicFunctionContext, VMFunctionBody,
+    VMFunctionKind, VMTrampoline,
 };
 
 /// A function defined in the Wasm module
@@ -85,7 +85,9 @@ impl Function {
         // The engine linker will replace the address with one pointing to a
         // generated dynamic trampoline.
         let address = std::ptr::null() as *const VMFunctionBody;
-        let vmctx = Box::into_raw(Box::new(dynamic_ctx)) as *mut VMContext;
+        let vmctx = FunctionExtraData {
+            host_env: Box::into_raw(Box::new(dynamic_ctx)) as *mut _,
+        };
 
         Self {
             store: store.clone(),
@@ -94,6 +96,7 @@ impl Function {
                 address,
                 kind: VMFunctionKind::Dynamic,
                 vmctx,
+                function_ptr: None,
                 signature: ty.clone(),
                 call_trampoline: None,
             },
@@ -105,12 +108,16 @@ impl Function {
     /// # Example
     ///
     /// ```
-    /// # use wasmer::{Function, FunctionType, Type, Store, Value};
+    /// # use wasmer::{Function, FunctionType, Type, Store, Value, WasmerEnv, Instance};
     /// # let store = Store::default();
     ///
     /// struct Env {
     ///   multiplier: i32,
     /// };
+    /// impl WasmerEnv for Env {
+    ///     fn finish(&mut self, _instance: &Instance) {}
+    ///     fn free(&mut self) {}
+    /// }
     /// let env = Env { multiplier: 2 };
     ///
     /// let signature = FunctionType::new(vec![Type::I32, Type::I32], vec![Type::I32]);
@@ -124,7 +131,7 @@ impl Function {
     pub fn new_with_env<F, Env>(store: &Store, ty: &FunctionType, env: Env, func: F) -> Self
     where
         F: Fn(&mut Env, &[Val]) -> Result<Vec<Val>, RuntimeError> + 'static,
-        Env: Sized + 'static,
+        Env: Sized + crate::WasmerEnv + 'static,
     {
         let dynamic_ctx = VMDynamicFunctionContext::from_context(VMDynamicFunctionWithEnv {
             env: RefCell::new(env),
@@ -135,7 +142,12 @@ impl Function {
         // The engine linker will replace the address with one pointing to a
         // generated dynamic trampoline.
         let address = std::ptr::null() as *const VMFunctionBody;
-        let vmctx = Box::into_raw(Box::new(dynamic_ctx)) as *mut VMContext;
+        let vmctx = FunctionExtraData {
+            host_env: Box::into_raw(Box::new(dynamic_ctx)) as *mut _,
+        };
+        // TODO: look into removing transmute by changing API type signatures
+        let function_ptr = Some(unsafe { std::mem::transmute::<fn(_, _), fn(_, _)>(Env::finish) });
+        //dbg!(function_ptr);
 
         Self {
             store: store.clone(),
@@ -144,6 +156,7 @@ impl Function {
                 address,
                 kind: VMFunctionKind::Dynamic,
                 vmctx,
+                function_ptr,
                 signature: ty.clone(),
                 call_trampoline: None,
             },
@@ -176,7 +189,9 @@ impl Function {
     {
         let function = inner::Function::<Args, Rets>::new(func);
         let address = function.address() as *const VMFunctionBody;
-        let vmctx = std::ptr::null_mut() as *mut _ as *mut VMContext;
+        let vmctx = FunctionExtraData {
+            host_env: std::ptr::null_mut() as *mut _,
+        };
         let signature = function.ty();
 
         Self {
@@ -186,6 +201,9 @@ impl Function {
                 address,
                 vmctx,
                 signature,
+                // TODO: figure out what's going on in this function: it takes an `Env`
+                // param but also marks itself as not having an env
+                function_ptr: None,
                 kind: VMFunctionKind::Static,
                 call_trampoline: None,
             },
@@ -200,12 +218,16 @@ impl Function {
     /// # Example
     ///
     /// ```
-    /// # use wasmer::{Store, Function};
+    /// # use wasmer::{Store, Function, WasmerEnv, Instance};
     /// # let store = Store::default();
     ///
     /// struct Env {
     ///   multiplier: i32,
     /// };
+    /// impl WasmerEnv for Env {
+    ///     fn finish(&mut self, _instance: &Instance) {}
+    ///     fn free(&mut self) {}
+    /// }
     /// let env = Env { multiplier: 2 };
     ///
     /// fn sum_and_multiply(env: &mut Env, a: i32, b: i32) -> i32 {
@@ -219,7 +241,7 @@ impl Function {
         F: HostFunction<Args, Rets, WithEnv, Env>,
         Args: WasmTypeList,
         Rets: WasmTypeList,
-        Env: Sized + 'static,
+        Env: Sized + crate::WasmerEnv + 'static,
     {
         let function = inner::Function::<Args, Rets>::new(func);
         let address = function.address();
@@ -230,7 +252,12 @@ impl Function {
         // In the case of Host-defined functions `VMContext` is whatever environment
         // the user want to attach to the function.
         let box_env = Box::new(env);
-        let vmctx = Box::into_raw(box_env) as *mut _ as *mut VMContext;
+        let vmctx = FunctionExtraData {
+            host_env: Box::into_raw(box_env) as *mut _,
+        };
+        // TODO: look into removing transmute by changing API type signatures
+        let function_ptr = Some(unsafe { std::mem::transmute::<fn(_, _), fn(_, _)>(Env::finish) });
+        //dbg!(function_ptr as usize);
         let signature = function.ty();
 
         Self {
@@ -240,6 +267,7 @@ impl Function {
                 address,
                 kind: VMFunctionKind::Static,
                 vmctx,
+                function_ptr,
                 signature,
                 call_trampoline: None,
             },
@@ -365,7 +393,7 @@ impl Function {
             Self {
                 store: store.clone(),
                 definition: FunctionDefinition::Host(HostFunctionDefinition {
-                    has_env: !wasmer_export.vmctx.is_null(),
+                    has_env: !unsafe { wasmer_export.vmctx.host_env.is_null() },
                 }),
                 exported: wasmer_export,
             }

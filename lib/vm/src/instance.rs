@@ -103,6 +103,17 @@ pub(crate) struct Instance {
     /// Handler run when `SIGBUS`, `SIGFPE`, `SIGILL`, or `SIGSEGV` are caught by the instance thread.
     pub(crate) signal_handler: Cell<Option<Box<SignalHandler>>>,
 
+    /// TODO: document this
+    /// Functions to initialize the host environments in the imports.
+    /// Do we want to drain this? There's probably no reason to keep this memory
+    /// around once we've used it.
+    ///
+    /// Be sure to test with serialize/deserialize and imported functions from other Wasm modules.
+    import_initializers: Vec<(
+        Option<fn(*mut std::ffi::c_void, *const std::ffi::c_void)>,
+        *mut std::ffi::c_void,
+    )>,
+
     /// Additional context used by compiled wasm code. This field is last, and
     /// represents a dynamically-sized array that extends beyond the nominal
     /// end of the struct (similar to a flexible array member).
@@ -142,6 +153,14 @@ impl Instance {
     fn imported_function(&self, index: FunctionIndex) -> &VMFunctionImport {
         let index = usize::try_from(index.as_u32()).unwrap();
         unsafe { &*self.imported_functions_ptr().add(index) }
+    }
+
+    /// TODO: document this
+    fn imported_function_env_initializer(
+        &self,
+        index: FunctionIndex,
+    ) -> Option<fn(*mut std::ffi::c_void, *const std::ffi::c_void)> {
+        self.import_initializers[index.as_u32() as usize].0
     }
 
     /// Return a pointer to the `VMFunctionImport`s.
@@ -294,13 +313,20 @@ impl Instance {
         match export {
             ExportIndex::Function(index) => {
                 let sig_index = &self.module.functions[*index];
-                let (address, vmctx) = if let Some(def_index) = self.module.local_func_index(*index)
-                {
-                    (self.functions[def_index].0 as *const _, self.vmctx_ptr())
-                } else {
-                    let import = self.imported_function(*index);
-                    (import.body, import.vmctx)
-                };
+                let (address, vmctx, function_ptr) =
+                    if let Some(def_index) = self.module.local_func_index(*index) {
+                        (
+                            self.functions[def_index].0 as *const _,
+                            crate::vmcontext::FunctionExtraData {
+                                vmctx: self.vmctx_ptr(),
+                            },
+                            None,
+                        )
+                    } else {
+                        let import = self.imported_function(*index);
+                        let initializer = self.imported_function_env_initializer(*index);
+                        (import.body, import.extra_data, initializer)
+                    };
                 let call_trampoline = Some(self.function_call_trampolines[*sig_index]);
                 let signature = self.module.signatures[*sig_index].clone();
                 ExportFunction {
@@ -312,6 +338,7 @@ impl Instance {
                     kind: VMFunctionKind::Static,
                     signature,
                     vmctx,
+                    function_ptr,
                     call_trampoline,
                 }
                 .into()
@@ -370,28 +397,34 @@ impl Instance {
             None => return Ok(()),
         };
 
-        let (callee_address, callee_vmctx) = match self.module.local_func_index(start_index) {
+        let (callee_address, callee_extra_data) = match self.module.local_func_index(start_index) {
             Some(local_index) => {
                 let body = self
                     .functions
                     .get(local_index)
                     .expect("function index is out of bounds")
                     .0;
-                (body as *const _, self.vmctx_ptr())
+                (
+                    body as *const _,
+                    crate::FunctionExtraData {
+                        vmctx: self.vmctx_ptr(),
+                    },
+                )
             }
             None => {
                 assert_lt!(start_index.index(), self.module.num_imported_functions);
                 let import = self.imported_function(start_index);
-                (import.body, import.vmctx)
+                (import.body, import.extra_data)
             }
         };
 
         // Make the call.
         unsafe {
-            catch_traps(callee_vmctx, || {
-                mem::transmute::<*const VMFunctionBody, unsafe extern "C" fn(*mut VMContext)>(
-                    callee_address,
-                )(callee_vmctx)
+            catch_traps(callee_extra_data, || {
+                mem::transmute::<
+                    *const VMFunctionBody,
+                    unsafe extern "C" fn(crate::FunctionExtraData),
+                >(callee_address)(callee_extra_data)
             })
         }
     }
@@ -561,10 +594,15 @@ impl Instance {
         let type_index = self.signature_id(sig);
 
         let (func_ptr, vmctx) = if let Some(def_index) = self.module.local_func_index(index) {
-            (self.functions[def_index].0 as *const _, self.vmctx_ptr())
+            (
+                self.functions[def_index].0 as *const _,
+                crate::FunctionExtraData {
+                    vmctx: self.vmctx_ptr(),
+                },
+            )
         } else {
             let import = self.imported_function(index);
-            (import.body, import.vmctx)
+            (import.body, import.extra_data)
         };
         VMCallerCheckedAnyfunc {
             func_ptr,
@@ -803,6 +841,10 @@ impl InstanceHandle {
         imports: Imports,
         vmshared_signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
         host_state: Box<dyn Any>,
+        import_initializers: Vec<(
+            Option<fn(*mut std::ffi::c_void, *const std::ffi::c_void)>,
+            *mut std::ffi::c_void,
+        )>,
     ) -> Result<Self, Trap> {
         // TODO: investigate `vmctx_tables` and `vmctx_memories`: both of these
         // appear to be dropped in this function which may cause memory problems
@@ -848,6 +890,7 @@ impl InstanceHandle {
                 passive_data,
                 host_state,
                 signal_handler: Cell::new(None),
+                import_initializers,
                 vmctx: VMContext {},
             };
             let layout = instance.alloc_layout();
@@ -1063,6 +1106,17 @@ impl InstanceHandle {
     /// Return a reference to the contained `Instance`.
     pub(crate) fn instance(&self) -> &Instance {
         unsafe { &*(self.instance as *const Instance) }
+    }
+
+    /// TODO: document this
+    /// Initializes the host environments.
+    pub unsafe fn initialize_host_envs(&self, instance_ptr: *const std::ffi::c_void) {
+        for (func, env) in self.instance().import_initializers.iter() {
+            if let Some(f) = func {
+                dbg!(f, env);
+                f(*env, instance_ptr);
+            }
+        }
     }
 
     /// Deallocates memory associated with this instance.

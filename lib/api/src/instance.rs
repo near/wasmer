@@ -85,11 +85,19 @@ impl Instance {
             })
             .collect::<Exports>();
 
-        Ok(Self {
+        let instance = Self {
             handle,
             module: module.clone(),
             exports,
-        })
+        };
+
+        unsafe {
+            instance
+                .handle
+                .initialize_host_envs(&instance as *const _ as *const _);
+        }
+
+        Ok(instance)
     }
 
     /// Gets the [`Module`] associated with this instance.
