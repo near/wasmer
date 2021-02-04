@@ -1,5 +1,5 @@
 [package]
-name = "wasmer-engine-object-file"
+name = "wasmer-engine-object-file-near"
 version = "1.0.1"
 authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
 description = "Wasmer Object File Engine"
@@ -11,11 +11,11 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-wasmer-types = { path = "../wasmer-types", version = "1.0.1" }
-wasmer-compiler = { path = "../compiler", version = "1.0.1" }
-wasmer-vm = { path = "../vm", version = "1.0.1" }
-wasmer-engine = { path = "../engine", version = "1.0.1" }
-wasmer-object = { path = "../object", version = "1.0.1" }
+wasmer-types = { path = "../wasmer-types", version = "1.0.1", package = "wasmer-types-near" }
+wasmer-compiler = { path = "../compiler", version = "1.0.1", package = "wasmer-compiler-near" }
+wasmer-vm = { path = "../vm", version = "1.0.1", package = "wasmer-vm-near" }
+wasmer-engine = { path = "../engine", version = "1.0.1", package = "wasmer-engine-near" }
+wasmer-object = { path = "../object", version = "1.0.1", package = "wasmer-object-near" }
 serde = { version = "1.0", features = ["derive", "rc"] }
 cfg-if = "0.1"
 tracing = "0.1"

@@ -1,5 +1,5 @@
 [package]
-name = "wasmer-workspace"
+name = "wasmer-workspace-near"
 version = "1.0.1"
 description = "Wasmer workspace"
 authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
@@ -10,21 +10,21 @@ publish = false
 autoexamples = false
 
 [dependencies]
-wasmer = { version = "1.0.1", path = "lib/api", default-features = false }
-wasmer-compiler = { version = "1.0.1", path = "lib/compiler" }
-wasmer-compiler-cranelift = { version = "1.0.1", path = "lib/compiler-cranelift", optional = true }
-wasmer-compiler-singlepass = { version = "1.0.1", path = "lib/compiler-singlepass", optional = true }
-wasmer-compiler-llvm = { version = "1.0.1", path = "lib/compiler-llvm", optional = true }
-wasmer-emscripten = { version = "1.0.1", path = "lib/emscripten", optional = true }
-wasmer-engine = { version = "1.0.1", path = "lib/engine" }
-wasmer-engine-jit = { version = "1.0.1", path = "lib/engine-jit", optional = true }
-wasmer-engine-native = { version = "1.0.1", path = "lib/engine-native", optional = true }
-wasmer-engine-object-file = { version = "1.0.1", path = "lib/engine-object-file", optional = true }
-wasmer-wasi = { version = "1.0.1", path = "lib/wasi", optional = true }
-wasmer-wast = { version = "1.0.1", path = "tests/lib/wast", optional = true }
-wasmer-cache = { version = "1.0.1", path = "lib/cache", optional = true }
-wasmer-types = { version = "1.0.1", path = "lib/wasmer-types" }
-wasmer-middlewares = { version = "1.0.1", path = "lib/middlewares", optional = true }
+wasmer = { version = "1.0.1", path = "lib/api", default-features = false, package = "wasmer-near" }
+wasmer-compiler = { version = "1.0.1", path = "lib/compiler", package = "wasmer-compiler-near" }
+wasmer-compiler-cranelift = { version = "1.0.1", path = "lib/compiler-cranelift", optional = true, package = "wasmer-compiler-cranelift-near" }
+wasmer-compiler-singlepass = { version = "1.0.1", path = "lib/compiler-singlepass", optional = true, package = "wasmer-compiler-singlepass-near" }
+wasmer-compiler-llvm = { version = "1.0.1", path = "lib/compiler-llvm", optional = true, package = "wasmer-compiler-llvm-near" }
+wasmer-emscripten = { version = "1.0.1", path = "lib/emscripten", optional = true, package = "wasmer-emscripten-near" }
+wasmer-engine = { version = "1.0.1", path = "lib/engine", package = "wasmer-engine-near" }
+wasmer-engine-jit = { version = "1.0.1", path = "lib/engine-jit", optional = true, package = "wasmer-engine-jit-near" }
+wasmer-engine-native = { version = "1.0.1", path = "lib/engine-native", optional = true, package = "wasmer-engine-native-near" }
+wasmer-engine-object-file = { version = "1.0.1", path = "lib/engine-object-file", optional = true, package = "wasmer-engine-object-file-near" }
+wasmer-wasi = { version = "1.0.1", path = "lib/wasi", optional = true, package = "wasmer-wasi-near" }
+wasmer-wast = { version = "1.0.1", path = "tests/lib/wast", optional = true, package = "wasmer-wast-near" }
+wasmer-cache = { version = "1.0.1", path = "lib/cache", optional = true, package = "wasmer-cache-near" }
+wasmer-types = { version = "1.0.1", path = "lib/wasmer-types", package = "wasmer-types-near" }
+wasmer-middlewares = { version = "1.0.1", path = "lib/middlewares", optional = true, package = "wasmer-middlewares-near" }
 cfg-if = "1.0"
 
 [workspace]
@@ -67,7 +67,7 @@ anyhow = "1.0"
 blake3 = "0.3"
 criterion = "0.3"
 lazy_static = "1.4"
-wasmer-engine-dummy = { path = "tests/lib/engine-dummy" }
+wasmer-engine-dummy = { path = "tests/lib/engine-dummy", package = "wasmer-engine-dummy-near" }
 tempfile = "3.1"
 
 [features]

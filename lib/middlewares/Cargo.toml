@@ -1,5 +1,5 @@
 [package]
-name = "wasmer-middlewares"
+name = "wasmer-middlewares-near"
 version = "1.0.1"
 authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
 description = "A collection of various useful middlewares"
@@ -11,9 +11,9 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-wasmer = { path = "../api", version = "1.0.1" }
-wasmer-types = { path = "../wasmer-types", version = "1.0.1" }
-wasmer-vm = { path = "../vm", version = "1.0.1" }
+wasmer = { path = "../api", version = "1.0.1", package = "wasmer-near" }
+wasmer-types = { path = "../wasmer-types", version = "1.0.1", package = "wasmer-types-near" }
+wasmer-vm = { path = "../vm", version = "1.0.1", package = "wasmer-vm-near" }
 
 [badges]
 maintenance = { status = "actively-developed" }

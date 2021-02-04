@@ -1,5 +1,5 @@
 [package]
-name = "wasmer-cache"
+name = "wasmer-cache-near"
 version = "1.0.1"
 description = "Cache system for Wasmer WebAssembly runtime"
 categories = ["wasm", "caching"]
@@ -11,7 +11,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-wasmer = { path = "../api", version = "1.0.1", default-features = false }
+wasmer = { path = "../api", version = "1.0.1", default-features = false, package = "wasmer-near" }
 hex = "0.4"
 thiserror = "1"
 blake3 = "0.3"

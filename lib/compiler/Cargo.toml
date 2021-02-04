@@ -1,5 +1,5 @@
 [package]
-name = "wasmer-compiler"
+name = "wasmer-compiler-near"
 version = "1.0.1"
 description = "Base compiler abstraction for Wasmer WebAssembly runtime"
 categories = ["wasm", "no-std"]
@@ -11,8 +11,8 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-wasmer-vm = { path = "../vm", version = "1.0.1" }
-wasmer-types = { path = "../wasmer-types", version = "1.0.1", default-features = false }
+wasmer-vm = { path = "../vm", version = "1.0.1", package = "wasmer-vm-near" }
+wasmer-types = { path = "../wasmer-types", version = "1.0.1", default-features = false, package = "wasmer-types-near" }
 wasmparser = { version = "0.65", optional = true, default-features = false }
 target-lexicon = { version = "0.11", default-features = false }
 wasmer_enumset = "1.0"

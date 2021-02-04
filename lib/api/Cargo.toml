@@ -1,5 +1,5 @@
 [package]
-name = "wasmer"
+name = "wasmer-near"
 version = "1.0.1"
 description = "High-performant WebAssembly runtime"
 categories = ["wasm"]
@@ -11,16 +11,16 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-wasmer-vm = { path = "../vm", version = "1.0.1" }
-wasmer-compiler-singlepass = { path = "../compiler-singlepass", version = "1.0.1", optional = true }
-wasmer-compiler-cranelift = { path = "../compiler-cranelift", version = "1.0.1", optional = true }
-wasmer-compiler-llvm = { path = "../compiler-llvm", version = "1.0.1", optional = true }
-wasmer-compiler = { path = "../compiler", version = "1.0.1" }
-wasmer-derive = { path = "../derive", version = "1.0.1" }
-wasmer-engine = { path = "../engine", version = "1.0.1" }
-wasmer-engine-jit = { path = "../engine-jit", version = "1.0.1", optional = true }
-wasmer-engine-native = { path = "../engine-native", version = "1.0.1", optional = true }
-wasmer-types = { path = "../wasmer-types", version = "1.0.1" }
+wasmer-vm = { path = "../vm", version = "1.0.1", package = "wasmer-vm-near" }
+wasmer-compiler-singlepass = { path = "../compiler-singlepass", version = "1.0.1", optional = true, package = "wasmer-compiler-singlepass-near" }
+wasmer-compiler-cranelift = { path = "../compiler-cranelift", version = "1.0.1", optional = true, package = "wasmer-compiler-cranelift-near" }
+wasmer-compiler-llvm = { path = "../compiler-llvm", version = "1.0.1", optional = true, package = "wasmer-compiler-llvm-near" }
+wasmer-compiler = { path = "../compiler", version = "1.0.1", package = "wasmer-compiler-near" }
+wasmer-derive = { path = "../derive", version = "1.0.1", package = "wasmer-derive-near" }
+wasmer-engine = { path = "../engine", version = "1.0.1", package = "wasmer-engine-near" }
+wasmer-engine-jit = { path = "../engine-jit", version = "1.0.1", optional = true, package = "wasmer-engine-jit-near" }
+wasmer-engine-native = { path = "../engine-native", version = "1.0.1", optional = true, package = "wasmer-engine-native-near" }
+wasmer-types = { path = "../wasmer-types", version = "1.0.1", package = "wasmer-types-near" }
 indexmap = { version = "1.4", features = ["serde-1"] }
 cfg-if = "0.1"
 wat = { version = "1.0", optional = true }

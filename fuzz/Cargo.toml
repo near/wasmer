@@ -1,6 +1,6 @@
 
 [package]
-name = "wasmer-bin-fuzz"
+name = "wasmer-bin-fuzz-near"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false

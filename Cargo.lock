@@ -2374,33 +2374,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e7811dd7f9398f14cc76efd356f98f03aa30419dea46aa810d71e819fc97158"
 
 [[package]]
-name = "wasmer"
-version = "1.0.1"
-dependencies = [
- "anyhow",
- "cfg-if 0.1.10",
- "indexmap",
- "libc",
- "more-asserts",
- "target-lexicon",
- "tempfile",
- "thiserror",
- "wasmer-compiler",
- "wasmer-compiler-cranelift",
- "wasmer-compiler-llvm",
- "wasmer-compiler-singlepass",
- "wasmer-derive",
- "wasmer-engine",
- "wasmer-engine-jit",
- "wasmer-engine-native",
- "wasmer-types",
- "wasmer-vm",
- "wat",
- "winapi",
-]
-
-[[package]]
-name = "wasmer-c-api"
+name = "wasmer-c-api-near"
 version = "1.0.1"
 dependencies = [
  "cbindgen",
@@ -2413,32 +2387,32 @@ dependencies = [
  "serde",
  "thiserror",
  "typetag",
- "wasmer",
- "wasmer-compiler",
- "wasmer-compiler-cranelift",
- "wasmer-compiler-llvm",
- "wasmer-compiler-singlepass",
- "wasmer-emscripten",
- "wasmer-engine",
- "wasmer-engine-jit",
- "wasmer-engine-native",
- "wasmer-engine-object-file",
- "wasmer-types",
- "wasmer-wasi",
+ "wasmer-compiler-cranelift-near",
+ "wasmer-compiler-llvm-near",
+ "wasmer-compiler-near",
+ "wasmer-compiler-singlepass-near",
+ "wasmer-emscripten-near",
+ "wasmer-engine-jit-near",
+ "wasmer-engine-native-near",
+ "wasmer-engine-near",
+ "wasmer-engine-object-file-near",
+ "wasmer-near",
+ "wasmer-types-near",
+ "wasmer-wasi-near",
 ]
 
 [[package]]
-name = "wasmer-cache"
+name = "wasmer-cache-near"
 version = "1.0.1"
 dependencies = [
  "blake3",
  "hex",
  "thiserror",
- "wasmer",
+ "wasmer-near",
 ]
 
 [[package]]
-name = "wasmer-cli"
+name = "wasmer-cli-near"
 version = "1.0.1"
 dependencies = [
  "anyhow",
@@ -2451,43 +2425,26 @@ dependencies = [
  "log",
  "structopt",
  "tempfile",
- "wasmer",
- "wasmer-cache",
- "wasmer-compiler",
- "wasmer-compiler-cranelift",
- "wasmer-compiler-llvm",
- "wasmer-compiler-singlepass",
- "wasmer-emscripten",
- "wasmer-engine",
- "wasmer-engine-jit",
- "wasmer-engine-native",
- "wasmer-engine-object-file",
- "wasmer-types",
- "wasmer-vm",
- "wasmer-wasi",
- "wasmer-wasi-experimental-io-devices",
- "wasmer-wast",
+ "wasmer-cache-near",
+ "wasmer-compiler-cranelift-near",
+ "wasmer-compiler-llvm-near",
+ "wasmer-compiler-near",
+ "wasmer-compiler-singlepass-near",
+ "wasmer-emscripten-near",
+ "wasmer-engine-jit-near",
+ "wasmer-engine-native-near",
+ "wasmer-engine-near",
+ "wasmer-engine-object-file-near",
+ "wasmer-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+ "wasmer-wasi-experimental-io-devices-near",
+ "wasmer-wasi-near",
+ "wasmer-wast-near",
 ]
 
 [[package]]
-name = "wasmer-compiler"
-version = "1.0.1"
-dependencies = [
- "hashbrown 0.9.1",
- "raw-cpuid",
- "serde",
- "serde_bytes",
- "smallvec",
- "target-lexicon",
- "thiserror",
- "wasmer-types",
- "wasmer-vm",
- "wasmer_enumset",
- "wasmparser",
-]
-
-[[package]]
-name = "wasmer-compiler-cranelift"
+name = "wasmer-compiler-cranelift-near"
 version = "1.0.1"
 dependencies = [
  "cranelift-codegen 0.67.0",
@@ -2502,13 +2459,13 @@ dependencies = [
  "smallvec",
  "target-lexicon",
  "tracing",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
 ]
 
 [[package]]
-name = "wasmer-compiler-llvm"
+name = "wasmer-compiler-llvm-near"
 version = "1.0.1"
 dependencies = [
  "byteorder",
@@ -2524,13 +2481,30 @@ dependencies = [
  "semver 0.11.0",
  "smallvec",
  "target-lexicon",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
 ]
 
 [[package]]
-name = "wasmer-compiler-singlepass"
+name = "wasmer-compiler-near"
+version = "1.0.1"
+dependencies = [
+ "hashbrown 0.9.1",
+ "raw-cpuid",
+ "serde",
+ "serde_bytes",
+ "smallvec",
+ "target-lexicon",
+ "thiserror",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+ "wasmer_enumset",
+ "wasmparser",
+]
+
+[[package]]
+name = "wasmer-compiler-singlepass-near"
 version = "1.0.1"
 dependencies = [
  "byteorder",
@@ -2543,13 +2517,13 @@ dependencies = [
  "serde",
  "smallvec",
  "target-lexicon",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
 ]
 
 [[package]]
-name = "wasmer-derive"
+name = "wasmer-derive-near"
 version = "1.0.1"
 dependencies = [
  "compiletest_rs",
@@ -2557,11 +2531,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "wasmer",
+ "wasmer-near",
 ]
 
 [[package]]
-name = "wasmer-emscripten"
+name = "wasmer-emscripten-near"
 version = "1.0.1"
 dependencies = [
  "byteorder",
@@ -2570,11 +2544,59 @@ dependencies = [
  "libc",
  "log",
  "time",
- "wasmer",
+ "wasmer-near",
 ]
 
 [[package]]
-name = "wasmer-engine"
+name = "wasmer-engine-dummy-near"
+version = "1.0.1"
+dependencies = [
+ "bincode",
+ "serde",
+ "serde_bytes",
+ "wasmer-compiler-near",
+ "wasmer-engine-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+]
+
+[[package]]
+name = "wasmer-engine-jit-near"
+version = "1.0.1"
+dependencies = [
+ "bincode",
+ "cfg-if 0.1.10",
+ "region",
+ "serde",
+ "serde_bytes",
+ "wasmer-compiler-near",
+ "wasmer-engine-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+ "winapi",
+]
+
+[[package]]
+name = "wasmer-engine-native-near"
+version = "1.0.1"
+dependencies = [
+ "bincode",
+ "cfg-if 0.1.10",
+ "leb128",
+ "libloading",
+ "serde",
+ "tempfile",
+ "tracing",
+ "wasmer-compiler-near",
+ "wasmer-engine-near",
+ "wasmer-object-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+ "which",
+]
+
+[[package]]
+name = "wasmer-engine-near"
 version = "1.0.1"
 dependencies = [
  "backtrace",
@@ -2587,42 +2609,13 @@ dependencies = [
  "serde_bytes",
  "target-lexicon",
  "thiserror",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-compiler-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
 ]
 
 [[package]]
-name = "wasmer-engine-dummy"
-version = "1.0.1"
-dependencies = [
- "bincode",
- "serde",
- "serde_bytes",
- "wasmer-compiler",
- "wasmer-engine",
- "wasmer-types",
- "wasmer-vm",
-]
-
-[[package]]
-name = "wasmer-engine-jit"
-version = "1.0.1"
-dependencies = [
- "bincode",
- "cfg-if 0.1.10",
- "region",
- "serde",
- "serde_bytes",
- "wasmer-compiler",
- "wasmer-engine",
- "wasmer-types",
- "wasmer-vm",
- "winapi",
-]
-
-[[package]]
-name = "wasmer-engine-native"
+name = "wasmer-engine-object-file-near"
 version = "1.0.1"
 dependencies = [
  "bincode",
@@ -2632,34 +2625,15 @@ dependencies = [
  "serde",
  "tempfile",
  "tracing",
- "wasmer-compiler",
- "wasmer-engine",
- "wasmer-object",
- "wasmer-types",
- "wasmer-vm",
- "which",
+ "wasmer-compiler-near",
+ "wasmer-engine-near",
+ "wasmer-object-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
 ]
 
 [[package]]
-name = "wasmer-engine-object-file"
-version = "1.0.1"
-dependencies = [
- "bincode",
- "cfg-if 0.1.10",
- "leb128",
- "libloading",
- "serde",
- "tempfile",
- "tracing",
- "wasmer-compiler",
- "wasmer-engine",
- "wasmer-object",
- "wasmer-types",
- "wasmer-vm",
-]
-
-[[package]]
-name = "wasmer-integration-tests-cli"
+name = "wasmer-integration-tests-cli-near"
 version = "1.0.1"
 dependencies = [
  "anyhow",
@@ -2667,26 +2641,52 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmer-middlewares"
+name = "wasmer-middlewares-near"
 version = "1.0.1"
 dependencies = [
- "wasmer",
- "wasmer-types",
- "wasmer-vm",
+ "wasmer-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
 ]
 
 [[package]]
-name = "wasmer-object"
+name = "wasmer-near"
+version = "1.0.1"
+dependencies = [
+ "anyhow",
+ "cfg-if 0.1.10",
+ "indexmap",
+ "libc",
+ "more-asserts",
+ "target-lexicon",
+ "tempfile",
+ "thiserror",
+ "wasmer-compiler-cranelift-near",
+ "wasmer-compiler-llvm-near",
+ "wasmer-compiler-near",
+ "wasmer-compiler-singlepass-near",
+ "wasmer-derive-near",
+ "wasmer-engine-jit-near",
+ "wasmer-engine-native-near",
+ "wasmer-engine-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+ "wat",
+ "winapi",
+]
+
+[[package]]
+name = "wasmer-object-near"
 version = "1.0.1"
 dependencies = [
  "object",
  "thiserror",
- "wasmer-compiler",
- "wasmer-types",
+ "wasmer-compiler-near",
+ "wasmer-types-near",
 ]
 
 [[package]]
-name = "wasmer-types"
+name = "wasmer-types-near"
 version = "1.0.1"
 dependencies = [
  "cranelift-entity 0.68.0",
@@ -2695,7 +2695,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmer-vm"
+name = "wasmer-vm-near"
 version = "1.0.1"
 dependencies = [
  "backtrace",
@@ -2708,12 +2708,24 @@ dependencies = [
  "region",
  "serde",
  "thiserror",
- "wasmer-types",
+ "wasmer-types-near",
  "winapi",
 ]
 
 [[package]]
-name = "wasmer-wasi"
+name = "wasmer-wasi-experimental-io-devices-near"
+version = "1.0.1"
+dependencies = [
+ "minifb",
+ "ref_thread_local",
+ "serde",
+ "tracing",
+ "typetag",
+ "wasmer-wasi-near",
+]
+
+[[package]]
+name = "wasmer-wasi-near"
 version = "1.0.1"
 dependencies = [
  "bincode",
@@ -2726,24 +2738,12 @@ dependencies = [
  "time",
  "tracing",
  "typetag",
- "wasmer",
+ "wasmer-near",
  "winapi",
 ]
 
 [[package]]
-name = "wasmer-wasi-experimental-io-devices"
-version = "1.0.1"
-dependencies = [
- "minifb",
- "ref_thread_local",
- "serde",
- "tracing",
- "typetag",
- "wasmer-wasi",
-]
-
-[[package]]
-name = "wasmer-wast"
+name = "wasmer-wast-near"
 version = "1.0.1"
 dependencies = [
  "anyhow",
@@ -2751,13 +2751,13 @@ dependencies = [
  "tempfile",
  "thiserror",
  "typetag",
- "wasmer",
- "wasmer-wasi",
+ "wasmer-near",
+ "wasmer-wasi-near",
  "wast 24.0.0",
 ]
 
 [[package]]
-name = "wasmer-workspace"
+name = "wasmer-workspace-near"
 version = "1.0.1"
 dependencies = [
  "anyhow",
@@ -2770,22 +2770,22 @@ dependencies = [
  "rustc_version 0.3.0",
  "tempfile",
  "test-generator",
- "wasmer",
- "wasmer-cache",
- "wasmer-compiler",
- "wasmer-compiler-cranelift",
- "wasmer-compiler-llvm",
- "wasmer-compiler-singlepass",
- "wasmer-emscripten",
- "wasmer-engine",
- "wasmer-engine-dummy",
- "wasmer-engine-jit",
- "wasmer-engine-native",
- "wasmer-engine-object-file",
- "wasmer-middlewares",
- "wasmer-types",
- "wasmer-wasi",
- "wasmer-wast",
+ "wasmer-cache-near",
+ "wasmer-compiler-cranelift-near",
+ "wasmer-compiler-llvm-near",
+ "wasmer-compiler-near",
+ "wasmer-compiler-singlepass-near",
+ "wasmer-emscripten-near",
+ "wasmer-engine-dummy-near",
+ "wasmer-engine-jit-near",
+ "wasmer-engine-native-near",
+ "wasmer-engine-near",
+ "wasmer-engine-object-file-near",
+ "wasmer-middlewares-near",
+ "wasmer-near",
+ "wasmer-types-near",
+ "wasmer-wasi-near",
+ "wasmer-wast-near",
 ]
 
 [[package]]

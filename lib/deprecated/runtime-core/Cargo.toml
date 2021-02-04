@@ -1,5 +1,5 @@
 [package]
-name = "wasmer-runtime-core"
+name = "wasmer-runtime-core-near"
 version = "0.18.0"
 description = "Wasmer runtime core library (deprecated in favor of wasmer crate)"
 categories = ["wasm"]
@@ -14,16 +14,16 @@ edition = "2018"
 maintenance = { status = "deprecated" }
 
 [dependencies]
-wasmer-types = { path = "../../wasmer-types", version = "1.0.1" }
-wasmer = { path = "../../api", version = "1.0.1", features = ["deprecated"] }
-wasmer-cache = { path = "../../cache", version = "1.0.1" }
-wasmer-compiler = { path = "../../compiler", version = "1.0.1", features = ["translator"] }
-wasmer-compiler-llvm = { path = "../../compiler-llvm", version = "1.0.1", optional = true }
-wasmer-compiler-cranelift = { path = "../../compiler-cranelift", version = "1.0.1", optional = true }
-wasmer-compiler-singlepass = { path = "../../compiler-singlepass", version = "1.0.1", optional = true }
-wasmer-engine = { path = "../../engine", version = "1.0.1" }
-wasmer-engine-jit = { path = "../../engine-jit", version = "1.0.1" }
-wasmer-vm = { path = "../../vm", version = "1.0.1" }
+wasmer-types = { path = "../../wasmer-types", version = "1.0.1", package = "wasmer-types-near" }
+wasmer = { path = "../../api", version = "1.0.1", features = ["deprecated"], package = "wasmer-near" }
+wasmer-cache = { path = "../../cache", version = "1.0.1", package = "wasmer-cache-near" }
+wasmer-compiler = { path = "../../compiler", version = "1.0.1", features = ["translator"], package = "wasmer-compiler-near" }
+wasmer-compiler-llvm = { path = "../../compiler-llvm", version = "1.0.1", optional = true, package = "wasmer-compiler-llvm-near" }
+wasmer-compiler-cranelift = { path = "../../compiler-cranelift", version = "1.0.1", optional = true, package = "wasmer-compiler-cranelift-near" }
+wasmer-compiler-singlepass = { path = "../../compiler-singlepass", version = "1.0.1", optional = true, package = "wasmer-compiler-singlepass-near" }
+wasmer-engine = { path = "../../engine", version = "1.0.1", package = "wasmer-engine-near" }
+wasmer-engine-jit = { path = "../../engine-jit", version = "1.0.1", package = "wasmer-engine-jit-near" }
+wasmer-vm = { path = "../../vm", version = "1.0.1", package = "wasmer-vm-near" }
 lazy_static = "1.4"
 
 [build-dependencies]
