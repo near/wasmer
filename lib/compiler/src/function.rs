@@ -16,6 +16,7 @@ use crate::{CompiledFunctionUnwindInfo, FunctionAddressMap, JumpTableOffsets, Re
 use serde::{Deserialize, Serialize};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
+use abomonation::Abomonation;
 
 /// The frame info for a Compiled function.
 ///
@@ -32,6 +33,8 @@ pub struct CompiledFunctionFrameInfo {
     /// The address map.
     pub address_map: FunctionAddressMap,
 }
+
+impl Abomonation for CompiledFunctionFrameInfo {}
 
 /// The function body.
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]

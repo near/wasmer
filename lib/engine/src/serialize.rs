@@ -18,7 +18,9 @@ impl UnprocessedFunctionFrameInfo {
     pub fn deserialize(&self) -> CompiledFunctionFrameInfo {
         // let r = flexbuffers::Reader::get_root(&self.bytes).expect("Can't deserialize the info");
         // CompiledFunctionFrameInfo::deserialize(r).expect("Can't deserialize the info")
-        bincode::deserialize(&self.bytes).expect("Can't deserialize the info")
+//        bincode::deserialize(&self.bytes).expect("Can't deserialize the info")
+        let mut bytes = self.bytes.clone();
+        unsafe { abomonation::decode::<CompiledFunctionFrameInfo>(&mut bytes) }.unwrap().0.clone()
     }
 
     /// Converts the `CompiledFunctionFrameInfo` to a `UnprocessedFunctionFrameInfo`
@@ -28,7 +30,9 @@ impl UnprocessedFunctionFrameInfo {
         //     .serialize(&mut s)
         //     .expect("Can't serialize the info");
         // let bytes = s.take_buffer();
-        let bytes = bincode::serialize(&processed).expect("Can't serialize the info");
+//        let bytes = bincode::serialize(&processed).expect("Can't serialize the info");
+        let mut bytes = Vec::new();
+        unsafe { abomonation::encode(processed, &mut bytes); }
         Self { bytes }
     }
 }

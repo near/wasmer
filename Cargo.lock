@@ -3,6 +3,12 @@
 version = 3
 
 [[package]]
+name = "abomonation"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56e72913c99b1f927aa7bd59a41518fdd9995f63ffc8760f211609e0241c4fb2"
+
+[[package]]
 name = "abort_on_panic"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2476,6 +2482,7 @@ dependencies = [
 name = "wasmer-compiler"
 version = "1.0.2"
 dependencies = [
+ "abomonation",
  "enumset",
  "hashbrown",
  "serde",
@@ -2578,6 +2585,7 @@ dependencies = [
 name = "wasmer-engine"
 version = "1.0.2"
 dependencies = [
+ "abomonation",
  "backtrace",
  "bincode",
  "lazy_static",
@@ -2610,6 +2618,7 @@ dependencies = [
 name = "wasmer-engine-jit"
 version = "1.0.2"
 dependencies = [
+ "abomonation",
  "bincode",
  "cfg-if 0.1.10",
  "region",
