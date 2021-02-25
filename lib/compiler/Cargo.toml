@@ -22,6 +22,7 @@ thiserror = "1.0"
 serde_bytes = { version = "0.11", optional = true }
 smallvec = "1.6"
 borsh = { git = "https://github.com/near/borsh-rs", rev = "c62cdfbd10d4a17fc877809eba4ccb65e866d5f8", optional = true }
+abomonation = "0.7.3"
 
 [features]
 default = ["std", "enable-serde", "enable-borsh"]
