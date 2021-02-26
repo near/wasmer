@@ -43,6 +43,15 @@ pub fn load_cache(c: &mut Criterion) {
     });
 }
 
+//pub fn clone_vec(c: &mut Criterion) {
+//    let v: Vec<u8> = vec![0u8; 2_usize.pow(20)];
+//    c.bench_function("clone 1mb vec", |b| {
+//        b.iter(|| {
+//            black_box(v.clone());
+//        })
+//    });
+//}
+
 criterion_group! {
     name = benches;
     config = Criterion::default().sample_size(300);

@@ -24,10 +24,33 @@ use wasmer_types::{
 use wasmer_vm::{
     FunctionBodyPtr, MemoryStyle, ModuleInfo, TableStyle, VMSharedSignatureIndex, VMTrampoline,
 };
+use abomonation::abomonated::Abomonated;
+
+pub enum SerializableModuleWrap {
+    Abomonated(Abomonated<SerializableModule, Vec<u8>>),
+    Original(SerializableModule),
+}
+
+use std::ops::{Deref, DerefMut};
+impl Deref for SerializableModuleWrap {
+    type Target = SerializableModule;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Original(m) => m,
+            Self::Abomonated(a) => &*a,
+        }
+    }
+}
+
+impl DerefMut for SerializableModuleWrap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        panic!()
+    }
+}
 
 /// A compiled wasm module, ready to be instantiated.
 pub struct JITArtifact {
-    serializable: SerializableModule,
+    serializable_wrap: SerializableModuleWrap,
     finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
     finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
     finished_dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
@@ -42,6 +65,14 @@ impl JITArtifact {
     /// Check if the provided bytes look like a serialized `JITArtifact`.
     pub fn is_deserializable(bytes: &[u8]) -> bool {
         bytes.starts_with(Self::MAGIC_HEADER)
+    }
+
+    fn serializable(&self) -> &SerializableModule {
+        &*self.serializable_wrap
+    }
+
+    fn serializable_mut(&mut self) -> &mut SerializableModule {
+        &mut *self.serializable_wrap
     }
 
     /// Compile a data buffer into a `JITArtifact`, which may then be instantiated.
@@ -121,7 +152,7 @@ impl JITArtifact {
             compile_info,
             data_initializers,
         };
-        Self::from_parts(&mut inner_jit, serializable)
+        Self::from_parts(&mut inner_jit, SerializableModuleWrap::Original(serializable))
     }
 
     /// Compile a data buffer into a `JITArtifact`, which may then be instantiated.
@@ -140,21 +171,25 @@ impl JITArtifact {
             ));
         }
 
-        let inner_bytes = &bytes[Self::MAGIC_HEADER.len()..];
+        let mut inner_bytes = &bytes[Self::MAGIC_HEADER.len()..];
 
         // let r = flexbuffers::Reader::get_root(bytes).map_err(|e| DeserializeError::CorruptedBinary(format!("{:?}", e)))?;
         // let serializable = SerializableModule::deserialize(r).map_err(|e| DeserializeError::CorruptedBinary(format!("{:?}", e)))?;
-        let serializable: SerializableModule = bincode::deserialize(inner_bytes)
-            .map_err(|e| DeserializeError::CorruptedBinary(format!("{:?}", e)))?;
 
-        Self::from_parts(&mut jit.inner_mut(), serializable).map_err(DeserializeError::Compiler)
+        if let Some(r) = unsafe { Abomonated::new(inner_bytes.to_vec()) } {
+            let serializable = SerializableModuleWrap::Abomonated(r);
+            Self::from_parts(&mut jit.inner_mut(), serializable).map_err(DeserializeError::Compiler)
+        } else {
+            Err(DeserializeError::CorruptedBinary("Abomonation decode failed".to_string()))
+        }
     }
 
     /// Construct a `JITArtifact` from component parts.
     pub fn from_parts(
         inner_jit: &mut JITEngineInner,
-        serializable: SerializableModule,
+        serializable_wrap: SerializableModuleWrap,
     ) -> Result<Self, CompileError> {
+        let serializable = &*serializable_wrap;
         let (
             finished_functions,
             finished_function_call_trampolines,
@@ -224,7 +259,7 @@ impl JITArtifact {
         let signatures = signatures.into_boxed_slice();
 
         Ok(Self {
-            serializable,
+            serializable_wrap,
             finished_functions,
             finished_function_call_trampolines,
             finished_dynamic_function_trampolines,
@@ -243,15 +278,15 @@ impl JITArtifact {
 
 impl Artifact for JITArtifact {
     fn module(&self) -> Arc<ModuleInfo> {
-        self.serializable.compile_info.module.clone()
+        self.serializable().compile_info.module.clone()
     }
 
     fn module_ref(&self) -> &ModuleInfo {
-        &self.serializable.compile_info.module
+        &self.serializable().compile_info.module
     }
 
     fn module_mut(&mut self) -> Option<&mut ModuleInfo> {
-        Arc::get_mut(&mut self.serializable.compile_info.module)
+        Arc::get_mut(&mut self.serializable_mut().compile_info.module)
     }
 
     fn register_frame_info(&self) {
@@ -270,28 +305,28 @@ impl Artifact for JITArtifact {
             .collect::<PrimaryMap<LocalFunctionIndex, _>>()
             .into_boxed_slice();
 
-        let frame_infos = &self.serializable.compilation.function_frame_info;
+        let frame_infos = &self.serializable().compilation.function_frame_info;
         *info = register_frame_info(
-            self.serializable.compile_info.module.clone(),
+            self.serializable().compile_info.module.clone(),
             &finished_function_extents,
             frame_infos.clone(),
         );
     }
 
     fn features(&self) -> &Features {
-        &self.serializable.compile_info.features
+        &self.serializable().compile_info.features
     }
 
     fn data_initializers(&self) -> &[OwnedDataInitializer] {
-        &*self.serializable.data_initializers
+        &*self.serializable().data_initializers
     }
 
     fn memory_styles(&self) -> &PrimaryMap<MemoryIndex, MemoryStyle> {
-        &self.serializable.compile_info.memory_styles
+        &self.serializable().compile_info.memory_styles
     }
 
     fn table_styles(&self) -> &PrimaryMap<TableIndex, TableStyle> {
-        &self.serializable.compile_info.table_styles
+        &self.serializable().compile_info.table_styles
     }
 
     fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
@@ -312,9 +347,10 @@ impl Artifact for JITArtifact {
 
     fn serialize(&self) -> Result<Vec<u8>, SerializeError> {
         // let mut s = flexbuffers::FlexbufferSerializer::new();
-        // self.serializable.serialize(&mut s).map_err(|e| SerializeError::Generic(format!("{:?}", e)));
+        // self.serializable().serialize(&mut s).map_err(|e| SerializeError::Generic(format!("{:?}", e)));
         // Ok(s.take_buffer())
-        let bytes = bincode::serialize(&self.serializable)
+        let mut bytes = Vec::new();
+        unsafe { abomonation::encode(self.serializable(), &mut bytes) }
             .map_err(|e| SerializeError::Generic(format!("{:?}", e)))?;
 
         // Prepend the header.

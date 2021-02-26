@@ -6,6 +6,7 @@ use wasmer_compiler::{
 use wasmer_engine::SerializableFunctionFrameInfo;
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, OwnedDataInitializer, SignatureIndex};
+use abomonation::Abomonation;
 
 // /// The serializable function data
 // #[derive(Serialize, Deserialize)]
@@ -43,3 +44,5 @@ pub struct SerializableModule {
     pub compile_info: CompileModuleInfo,
     pub data_initializers: Box<[OwnedDataInitializer]>,
 }
+
+impl Abomonation for SerializableModule {}
