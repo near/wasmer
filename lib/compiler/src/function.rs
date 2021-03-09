@@ -23,18 +23,23 @@ use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
 ///
 /// This structure is only used for reconstructing
 /// the frame information after a `Trap`.
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
-#[cfg_attr(feature = "enable-borsh", derive(BorshSerialize, BorshDeserialize))]
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct CompiledFunctionFrameInfo {
-    /// The traps (in the function body).
-    ///
-    /// Code offsets of the traps MUST be in ascending order.
-    pub traps: Vec<TrapInformation>,
+//#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
+//#[cfg_attr(feature = "enable-borsh", derive(BorshSerialize, BorshDeserialize))]
+//#[derive(Debug, Clone, PartialEq, Eq, Default)]
+//pub struct CompiledFunctionFrameInfo {
+//    /// The traps (in the function body).
+//    ///
+//    /// Code offsets of the traps MUST be in ascending order.
+//    pub traps: Vec<TrapInformation>,
+//
+//    /// The address map.
+//    pub address_map: FunctionAddressMap,
+//}
+#[macro_use]
+extern crate flatdata;
 
-    /// The address map.
-    pub address_map: FunctionAddressMap,
-}
+include!("./wasmer_cache.rs");
+pub use wasmer_cache::CompiledFunctionFrameInfo;
 
 /// The function body.
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]

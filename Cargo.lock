@@ -259,7 +259,7 @@ dependencies = [
  "serde",
  "serde_json",
  "syn",
- "tempfile",
+ "tempfile 3.1.0",
  "toml",
 ]
 
@@ -756,6 +756,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "flatdata"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c2ca6ba2148cacf9b3a7038bf13a048f2ade4f8b55f87cdd338771d3fc7960f"
+dependencies = [
+ "diff",
+ "memmap",
+ "walkdir",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -980,7 +991,7 @@ dependencies = [
  "regex",
  "rustc_version 0.3.0",
  "target-lexicon",
- "tempfile",
+ "tempfile 3.1.0",
 ]
 
 [[package]]
@@ -1192,7 +1203,7 @@ dependencies = [
  "cc",
  "orbclient",
  "raw-window-handle",
- "tempfile",
+ "tempfile 3.1.0",
  "wayland-client",
  "wayland-cursor",
  "wayland-protocols",
@@ -2041,6 +2052,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tempfile"
+version = "3.2.0"
+source = "git+https://github.com/ailisp/tempfile?rev=6745596c7b21392e66cd0d4d43f7d98154ca7e25#6745596c7b21392e66cd0d4d43f7d98154ca7e25"
+dependencies = [
+ "cfg-if 1.0.0",
+ "libc",
+ "rand 0.8.3",
+ "redox_syscall 0.2.4",
+ "remove_dir_all",
+ "winapi",
+]
+
+[[package]]
 name = "term"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2361,7 +2385,7 @@ dependencies = [
  "libc",
  "more-asserts",
  "target-lexicon",
- "tempfile",
+ "tempfile 3.1.0",
  "thiserror",
  "wasmer-compiler",
  "wasmer-compiler-cranelift",
@@ -2434,7 +2458,7 @@ dependencies = [
  "fern",
  "log",
  "structopt",
- "tempfile",
+ "tempfile 3.1.0",
  "wasmer",
  "wasmer-cache",
  "wasmer-compiler",
@@ -2459,6 +2483,7 @@ version = "1.0.2"
 dependencies = [
  "borsh",
  "enumset",
+ "flatdata",
  "hashbrown",
  "serde",
  "serde_bytes",
@@ -2563,6 +2588,7 @@ dependencies = [
  "backtrace",
  "bincode",
  "borsh",
+ "flatdata",
  "lazy_static",
  "memmap2",
  "more-asserts",
@@ -2570,6 +2596,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "target-lexicon",
+ "tempfile 3.2.0",
  "thiserror",
  "wasmer-compiler",
  "wasmer-types",
@@ -2615,7 +2642,7 @@ dependencies = [
  "leb128",
  "libloading",
  "serde",
- "tempfile",
+ "tempfile 3.1.0",
  "tracing",
  "wasmer-compiler",
  "wasmer-engine",
@@ -2634,7 +2661,7 @@ dependencies = [
  "leb128",
  "libloading",
  "serde",
- "tempfile",
+ "tempfile 3.1.0",
  "tracing",
  "wasmer-compiler",
  "wasmer-engine",
@@ -2648,7 +2675,7 @@ name = "wasmer-integration-tests-cli"
 version = "1.0.2"
 dependencies = [
  "anyhow",
- "tempfile",
+ "tempfile 3.1.0",
 ]
 
 [[package]]
@@ -2735,7 +2762,7 @@ version = "1.0.2"
 dependencies = [
  "anyhow",
  "serde",
- "tempfile",
+ "tempfile 3.1.0",
  "thiserror",
  "typetag",
  "wasmer",
@@ -2755,7 +2782,7 @@ dependencies = [
  "glob",
  "lazy_static",
  "rustc_version 0.3.0",
- "tempfile",
+ "tempfile 3.1.0",
  "test-generator",
  "wasmer",
  "wasmer-cache",

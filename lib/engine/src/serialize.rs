@@ -10,8 +10,9 @@ use wasmer_compiler::CompiledFunctionFrameInfo;
 #[serde(transparent)]
 #[repr(transparent)]
 pub struct UnprocessedFunctionFrameInfo {
-    #[serde(with = "serde_bytes")]
-    bytes: Vec<u8>,
+//    #[serde(with = "serde_bytes")]
+//    bytes: Vec<u8>,
+    cache_name: PathBuf,
 }
 
 impl UnprocessedFunctionFrameInfo {
@@ -23,14 +24,18 @@ impl UnprocessedFunctionFrameInfo {
     }
 
     /// Converts the `CompiledFunctionFrameInfo` to a `UnprocessedFunctionFrameInfo`
-    pub fn serialize(processed: &CompiledFunctionFrameInfo) -> Self {
+    pub fn serialize(processed: &wasmer_cache::CompiledFunctionFrameInfoBuilder) -> Self {
         // let mut s = flexbuffers::FlexbufferSerializer::new();
         // processed
         //     .serialize(&mut s)
         //     .expect("Can't serialize the info");
         // let bytes = s.take_buffer();
-        let bytes = BorshSerialize::try_to_vec(&processed).expect("Can't serialize the info");
-        Self { bytes }
+//        let bytes = BorshSerialize::try_to_vec(&processed).expect("Can't serialize the info");
+//        Self { bytes }
+        let cache_name = tempfile::tempname().unwrap();
+        let storage = flatdata::FileResourceStorage::new(cache_name);
+        storage
+        Self { cache_name }
     }
 }
 
