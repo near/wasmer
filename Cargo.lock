@@ -2438,6 +2438,7 @@ dependencies = [
  "wasmer",
  "wasmer-compiler-singlepass",
  "wasmer-engine-jit",
+ "wasmer-engine-native",
 ]
 
 [[package]]
