@@ -65,26 +65,11 @@ impl ModuleInfoFrameInfo {
         &self.frame_infos.get(local_index).unwrap()
     }
 
-    fn process_function_debug_info(&mut self, local_index: LocalFunctionIndex) {
-        let func = self.frame_infos.get_mut(local_index).unwrap();
-        let processed: CompiledFunctionFrameInfo = match func {
-            SerializableFunctionFrameInfo::Processed(_) => {
-                // This should be a no-op on processed info
-                return;
-            }
-            SerializableFunctionFrameInfo::Unprocessed(unprocessed) => unprocessed.deserialize(),
-        };
-        *func = SerializableFunctionFrameInfo::Processed(processed)
-    }
-
     fn processed_function_frame_info(
         &self,
         local_index: LocalFunctionIndex,
     ) -> &CompiledFunctionFrameInfo {
-        match self.function_debug_info(local_index) {
-            SerializableFunctionFrameInfo::Processed(di) => &di,
-            _ => unreachable!("frame info should already be processed"),
-        }
+        &self.function_debug_info(local_index).frame_info
     }
 
     /// Gets a function given a pc
@@ -181,7 +166,7 @@ impl GlobalFrameInfo {
         let module = self.module_info(pc)?;
         let func = module.function_info(pc)?;
         let extra_func_info = module.function_debug_info(func.local_index);
-        Some(extra_func_info.is_unprocessed())
+        Some(false)
     }
 
     /// Process the frame info in case is not yet processed
@@ -189,7 +174,6 @@ impl GlobalFrameInfo {
         let module = self.module_info_mut(pc)?;
         let func = module.function_info(pc)?;
         let func_local_index = func.local_index;
-        module.process_function_debug_info(func_local_index);
         Some(())
     }
 

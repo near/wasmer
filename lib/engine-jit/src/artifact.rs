@@ -103,7 +103,7 @@ impl JITArtifact {
         let frame_infos = compilation
             .get_frame_info()
             .values()
-            .map(|frame_info| SerializableFunctionFrameInfo::Processed(frame_info.clone()))
+            .map(|frame_info| SerializableFunctionFrameInfo { frame_info: frame_info.clone() })
             .collect::<PrimaryMap<LocalFunctionIndex, _>>();
 
         let serializable_compilation = SerializableCompilation {
