@@ -135,6 +135,13 @@ fn borsh_serialize_index_map<
 
 impl BorshSerialize for ModuleInfo {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        println!("= {}", self.imports.len());
+        println!("= {}", self.exports.len());
+        println!("= {}", self.passive_elements.len());
+        println!("= {}", self.passive_data.len());
+        println!("= {}", self.function_names.len());
+        println!("= {}", self.custom_sections.len());
+
         BorshSerialize::serialize(&self.name, writer)?;
         borsh_serialize_index_map(&self.imports, writer)?;
         borsh_serialize_index_map(&self.exports, writer)?;

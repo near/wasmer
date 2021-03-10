@@ -21,16 +21,16 @@ fn store_cache_one() {
     fs_cache.store(key, &module).unwrap()
 }
 
-#[test]
-fn load_cache_one() {
-    let tmp_dir = TempDir::new("wasmer-cache-bench").unwrap();
-    let mut fs_cache = FileSystemCache::new(tmp_dir.path()).unwrap();
-    let compiler = Singlepass::default();
-    let store = Store::new(&JIT::new(compiler).engine());
-    let module = Module::new(&store, std::fs::read("../../lib/c-api/tests/assets/qjs.wasm").unwrap()).unwrap();
-    let key = Hash::new([0u8; 32]);
-    fs_cache.store(key, &module).unwrap();
-
-    unsafe { fs_cache.load(&store, key.clone()).unwrap() };
-
-}
+//#[test]
+//fn load_cache_one() {
+//    let tmp_dir = TempDir::new("wasmer-cache-bench").unwrap();
+//    let mut fs_cache = FileSystemCache::new(tmp_dir.path()).unwrap();
+//    let compiler = Singlepass::default();
+//    let store = Store::new(&JIT::new(compiler).engine());
+//    let module = Module::new(&store, std::fs::read("../../lib/c-api/tests/assets/qjs.wasm").unwrap()).unwrap();
+//    let key = Hash::new([0u8; 32]);
+//    fs_cache.store(key, &module).unwrap();
+//
+//    unsafe { fs_cache.load(&store, key.clone()).unwrap() };
+//
+//}

@@ -21,9 +21,9 @@ impl UnprocessedFunctionFrameInfo {
         // CompiledFunctionFrameInfo::deserialize(r).expect("Can't deserialize the info")
         let now = std::time::Instant::now();
         let r:CompiledFunctionFrameInfo = BorshDeserialize::deserialize(&mut self.bytes.as_ref()).expect("Can't deserialize the info");
-        if r.traps.len() == 19335000 {
-            println!("{:?}", now.elapsed());
-        }
+//        if r.traps.len() == 19335000 {
+//            println!("{:?}", now.elapsed());
+//        }
         r
     }
 
@@ -34,20 +34,20 @@ impl UnprocessedFunctionFrameInfo {
         //     .serialize(&mut s)
         //     .expect("Can't serialize the info");
         // let bytes = s.take_buffer();
-        if processed.traps.len() == 19335 {
-            let p = processed;
-            let mut processed = p.clone();
-            for _ in 0..999 {
-                processed.traps.extend(p.traps.clone());
-            }
-            println!("{} {}", processed.traps.len(), processed.address_map.instructions.len());
-            use std::fs::File;
-            use std::io::Write;
-            let mut file = File::create("/tmp/CFFI2").unwrap();
-            let bytes = BorshSerialize::try_to_vec(&processed).expect("Can't serialize the info");
-            file.write_all(&bytes).unwrap();
-            return Self { bytes }
-        }
+//        if processed.traps.len() == 19335 {
+//            let p = processed;
+//            let mut processed = p.clone();
+//            for _ in 0..999 {
+//                processed.traps.extend(p.traps.clone());
+//            }
+//            println!("{} {}", processed.traps.len(), processed.address_map.instructions.len());
+//            use std::fs::File;
+//            use std::io::Write;
+//            let mut file = File::create("/tmp/CFFI2").unwrap();
+//            let bytes = BorshSerialize::try_to_vec(&processed).expect("Can't serialize the info");
+//            file.write_all(&bytes).unwrap();
+//            return Self { bytes }
+//        }
         let bytes = BorshSerialize::try_to_vec(&processed).expect("Can't serialize the info");
         Self { bytes }
     }
@@ -136,9 +136,9 @@ impl<'de> Deserialize<'de> for SerializableFunctionFrameInfo {
 impl BorshDeserialize for SerializableFunctionFrameInfo {
     fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
         let u: UnprocessedFunctionFrameInfo = BorshDeserialize::deserialize(buf)?;
-        for _ in 0..100 {
-            let x = u.deserialize();
-        }
+//        for _ in 0..100 {
+//            let x = u.deserialize();
+//        }
 
         let r = Self::Unprocessed(u);
         Ok(r)
