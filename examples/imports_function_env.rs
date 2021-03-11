@@ -21,8 +21,10 @@
 
 use std::sync::{Arc, Mutex};
 use wasmer::{imports, wat2wasm, Function, Instance, Module, Store, WasmerEnv};
-use wasmer_compiler_cranelift::Cranelift;
-use wasmer_engine_jit::JIT;
+// use wasmer_compiler_cranelift::Cranelift;
+// use wasmer_engine_jit::JIT;
+use wasmer_compiler_singlepass::Singlepass;
+use wasmer_engine_native::Native;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Let's declare the Wasm module with the text representation.
@@ -49,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&JIT::new(Cranelift::default()).engine());
+    let store = Store::new(&Native::new(Singlepass::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.

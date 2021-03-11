@@ -20,7 +20,8 @@
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Instance, Module, Store, Value};
-use wasmer_compiler_cranelift::Cranelift;
+// use wasmer_compiler_cranelift::Cranelift;
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_native::Native;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,7 +44,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // In this situation, the compiler is
     // `wasmer_compiler_cranelift`. The compiler is responsible to
     // compile the Wasm module into executable code.
-    let compiler_config = Cranelift::default();
+    // let compiler_config = Cranelift::default();
+    let compiler_config = Singlepass::default();
 
     println!("Creating Native engine...");
     // Define the engine that will drive everything.

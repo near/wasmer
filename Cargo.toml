@@ -164,7 +164,8 @@ required-features = ["cranelift"]
 [[example]]
 name = "engine-native"
 path = "examples/engine_native.rs"
-required-features = ["cranelift"]
+required-features = ["singlepass"]
+# required-features = ["cranelift"]
 
 [[example]]
 name = "engine-headless"
@@ -254,7 +255,8 @@ required-features = ["cranelift"]
 [[example]]
 name = "imported-function-env"
 path = "examples/imports_function_env.rs"
-required-features = ["cranelift"]
+required-features = ["singlepass"]
+# required-features = ["cranelift"]
 
 [[example]]
 name = "hello-world"
