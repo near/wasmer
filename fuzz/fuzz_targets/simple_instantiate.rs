@@ -7,5 +7,5 @@ use wasmer_runtime::{imports, instantiate};
 
 fuzz_target!(|data: &[u8]| {
     let import_object = imports! {};
-    instantiate(data, &import_object);
+    let _ = instantiate(data, &import_object);
 });

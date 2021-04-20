@@ -11,23 +11,35 @@ cargo-fuzz = true
 [dependencies]
 wasmer-runtime = { path = "../lib/runtime" }
 wasmer-runtime-core = { path = "../lib/runtime-core" }
-wasmer = { path = "../" }
+wasmer = { path = "../lib/api" }
+libfuzzer-sys = { git = "https://github.com/rust-fuzz/libfuzzer-sys.git" }
 wasmer-llvm-backend = { path = "../lib/llvm-backend" }
 wasmer-singlepass-backend = { path = "../lib/singlepass-backend" }
-libfuzzer-sys = { git = "https://github.com/rust-fuzz/libfuzzer-sys.git" }
 
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
 
 [[bin]]
+name = "compile"
+path = "fuzz_targets/compile.rs"
+
+[[bin]]
+name = "compile_with_llvm"
+path = "fuzz_targets/compile_with_llvm.rs"
+
+[[bin]]
+name = "diff_compile_backend"
+path = "fuzz_targets/diff_compile_backend.rs"
+
+[[bin]]
 name = "simple_instantiate"
 path = "fuzz_targets/simple_instantiate.rs"
 
 [[bin]]
-name = "validate_wasm"
-path = "fuzz_targets/validate_wasm.rs"
+name = "validate"
+path = "fuzz_targets/validate.rs"
 
 [[bin]]
-name = "compile_wasm"
-path = "fuzz_targets/compile_wasm.rs"
+name = "validate_all_feat"
+path = "fuzz_targets/validate_all_feat.rs"
