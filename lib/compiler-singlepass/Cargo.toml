@@ -12,9 +12,9 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-wasmer-compiler = { path = "../compiler", version = "1.0.2", features = ["translator"], default-features = false }
-wasmer-vm = { path = "../vm", version = "1.0.2" }
-wasmer-types = { path = "../wasmer-types", version = "1.0.2", default-features = false, features = ["std"] }
+wasmer-compiler = { version = "1.0.2", features = ["translator"], default-features = false }
+wasmer-vm = { version = "1.0.2" }
+wasmer-types = { version = "1.0.2", default-features = false, features = ["std"] }
 rayon = { version = "1.5", optional = true }
 hashbrown = { version = "0.9", optional = true }
 serde = { version = "1.0", features = ["derive"] }
