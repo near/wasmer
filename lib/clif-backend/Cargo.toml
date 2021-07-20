@@ -13,7 +13,7 @@ readme = "README.md"
 [dependencies]
 wasmer-runtime-core = { path = "../runtime-core", version = "0.18.0", package = "wasmer-runtime-core-near" }
 cranelift-native = "0.59.0"
-cranelift-codegen = "0.59.0"
+cranelift-codegen = "0.69.0"
 cranelift-entity = "0.59.0"
 cranelift-frontend = { package = "wasmer-clif-fork-frontend", version = "0.59.0" }
 cranelift-wasm = { package = "wasmer-clif-fork-wasm", version = "0.59.0" }
