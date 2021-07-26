@@ -487,7 +487,7 @@ fn chain_signal(signum: ::nix::libc::c_int, siginfo: *mut siginfo_t, ucontext: *
                 SigHandler::SigIgn | SigHandler::SigDfl => {
                     // Reset handler to the old one and redeliver the signal.
                     sigaction(Signal::from_c_int(signum).unwrap(), &action).unwrap();
-                },
+                }
             },
             _ => {}
         }
@@ -523,7 +523,7 @@ unsafe fn install_sighandler() {
             SaFlags::SA_ONSTACK,
             SigSet::empty(),
         );
-        sigaction(SIGINT, &sa_interrupt).unwrap();
+        PREV_SIGNALS[SIGINT as usize] = Some(sigaction(SIGINT, &sa_interrupt).unwrap());
     }
 }
 
