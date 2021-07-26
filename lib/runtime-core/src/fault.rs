@@ -276,7 +276,7 @@ extern "C" fn signal_trap_handler(
     signum: ::nix::libc::c_int,
     siginfo: *mut siginfo_t,
     ucontext: *mut c_void,
-) {
+) -> bool {
     use crate::backend::{Architecture, InlineBreakpointType};
 
     #[cfg(target_arch = "x86_64")]
@@ -285,6 +285,7 @@ extern "C" fn signal_trap_handler(
     #[cfg(target_arch = "aarch64")]
     static ARCH: Architecture = Architecture::Aarch64;
 
+    let mut handled = false;
     let mut should_unwind = false;
     let mut unwind_result: Option<Box<RuntimeError>> = None;
     let get_unwind_result = |uw_result: Option<Box<RuntimeError>>| -> Box<RuntimeError> {
@@ -330,6 +331,7 @@ extern "C" fn signal_trap_handler(
                             }
 
                             fault.ip.set(ip + magic_size);
+                            handled = true;
                             return true;
                         }
                         break;
@@ -342,7 +344,7 @@ extern "C" fn signal_trap_handler(
             begin_unsafe_unwind(get_unwind_result(unwind_result));
         }
         if early_return {
-            return;
+            return handled;
         }
 
         should_unwind = allocate_and_run(TRAP_STACK_SIZE, || {
@@ -445,6 +447,7 @@ extern "C" fn signal_trap_handler(
         if should_unwind {
             begin_unsafe_unwind(get_unwind_result(unwind_result));
         }
+        return handled;
     }
 }
 
@@ -472,17 +475,46 @@ pub fn ensure_sighandler() {
 
 static INSTALL_SIGHANDLER: Once = Once::new();
 
+static mut PREV_SIGNALS: [Option<SigAction>; 32] = [None; 32];
+
+fn chain_signal(signum: ::nix::libc::c_int, siginfo: *mut siginfo_t, ucontext: *mut c_void) {
+    unsafe {
+        let action = PREV_SIGNALS[signum as usize];
+        match action {
+            Some(action) => match action.handler() {
+                SigHandler::SigAction(fun) => fun(signum, siginfo, ucontext),
+                SigHandler::Handler(fun) => fun(signum),
+                SigHandler::SigIgn | SigHandler::SigDfl => {
+                    // Reset handler to the old one and redeliver the signal.
+                    sigaction(Signal::from_c_int(signum).unwrap(), &action).unwrap();
+                },
+            },
+            _ => {}
+        }
+    }
+}
+
+extern "C" fn signal_trap_handler_wrapper(
+    signum: ::nix::libc::c_int,
+    siginfo: *mut siginfo_t,
+    ucontext: *mut c_void,
+) {
+    let handled = signal_trap_handler(signum, siginfo, ucontext);
+    if !handled {
+        chain_signal(signum, siginfo, ucontext);
+    }
+}
+
 unsafe fn install_sighandler() {
     let sa_trap = SigAction::new(
-        SigHandler::SigAction(signal_trap_handler),
+        SigHandler::SigAction(signal_trap_handler_wrapper),
         SaFlags::SA_ONSTACK,
         SigSet::empty(),
     );
-    sigaction(SIGFPE, &sa_trap).unwrap();
-    sigaction(SIGILL, &sa_trap).unwrap();
-    sigaction(SIGSEGV, &sa_trap).unwrap();
-    sigaction(SIGBUS, &sa_trap).unwrap();
-    sigaction(SIGTRAP, &sa_trap).unwrap();
+
+    for signal in vec![SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP] {
+        PREV_SIGNALS[signal as usize] = Some(sigaction(signal, &sa_trap).unwrap());
+    }
 
     #[cfg(feature = "managed")]
     {
