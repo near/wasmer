@@ -78,7 +78,7 @@ pub struct Instance {
 }
 
 impl Instance {
-    pub(crate) fn new(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
+    pub(crate) fn new_without_start_func(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
         // We need the backing and import_backing to create a vm::Ctx, but we need
         // a vm::Ctx to create a backing and an import_backing. The solution is to create an
         // uninitialized vm::Ctx and then initialize it in-place.
@@ -118,32 +118,32 @@ impl Instance {
         // We need to push the code version so that the exception table can be read
         // in the feault handler so that we can report traps correctly
         #[cfg(unix)]
-        {
-            let push_code_version_logic = || {
-                if let Some(msm) = module.runnable_module.get_module_state_map() {
-                    push_code_version(CodeVersion {
-                        baseline: true,
-                        msm,
-                        base: module.runnable_module.get_code()?.as_ptr() as usize,
-                        // convert from a `String` to a static string;
-                        // can't use `Backend` directly because it's defined in `runtime`.
-                        // This is a hack and we need to clean it up.
-                        backend: match module.info.backend.as_ref() {
-                            "llvm" => "llvm",
-                            "cranelift" => "cranelift",
-                            "singlepass" => "singlepass",
-                            "auto" => "auto",
-                            _ => "unknown backend",
-                        },
-                        runnable_module: module.runnable_module.clone(),
-                    });
-                    Some(())
-                } else {
-                    None
-                }
-            };
-            inner.code_version_pushed = push_code_version_logic().is_some();
-        }
+            {
+                let push_code_version_logic = || {
+                    if let Some(msm) = module.runnable_module.get_module_state_map() {
+                        push_code_version(CodeVersion {
+                            baseline: true,
+                            msm,
+                            base: module.runnable_module.get_code()?.as_ptr() as usize,
+                            // convert from a `String` to a static string;
+                            // can't use `Backend` directly because it's defined in `runtime`.
+                            // This is a hack and we need to clean it up.
+                            backend: match module.info.backend.as_ref() {
+                                "llvm" => "llvm",
+                                "cranelift" => "cranelift",
+                                "singlepass" => "singlepass",
+                                "auto" => "auto",
+                                _ => "unknown backend",
+                            },
+                            runnable_module: module.runnable_module.clone(),
+                        });
+                        Some(())
+                    } else {
+                        None
+                    }
+                };
+                inner.code_version_pushed = push_code_version_logic().is_some();
+            }
 
         let instance = Instance {
             module,
@@ -152,6 +152,11 @@ impl Instance {
             import_object: imports.clone(),
         };
 
+        Ok(instance)
+    }
+
+    pub fn call_start_func(self) -> Result<Instance> {
+        let instance = self;
         if let Some(start_index) = instance.module.info.start_func {
             // We know that the start function takes no arguments and returns no values.
             // Therefore, we can call it without doing any signature checking, etc.
@@ -165,7 +170,7 @@ impl Instance {
                 LocalOrImport::Import(import_func_index) => NonNull::new(
                     instance.inner.import_backing.vm_functions[import_func_index].func as *mut _,
                 )
-                .unwrap(),
+                    .unwrap(),
             };
 
             let ctx_ptr = match start_index.local_or_import(&instance.module.info) {
@@ -198,6 +203,11 @@ impl Instance {
         }
 
         Ok(instance)
+    }
+
+    pub(crate) fn new(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
+        let instance = Instance::new_without_start_func(module, imports)?;
+        instance.call_start_func()
     }
 
     /// Load an `Instance` using the given loader.
