@@ -155,7 +155,8 @@ impl Instance {
         Ok(instance)
     }
 
-    pub fn call_start_func(self) -> Result<Instance> {
+    /// Call the start function of the module, if any
+    pub fn call_start_func(&self) -> Result<()> {
         let instance = self;
         if let Some(start_index) = instance.module.info.start_func {
             // We know that the start function takes no arguments and returns no values.
@@ -202,12 +203,13 @@ impl Instance {
             start_func.call()?;
         }
 
-        Ok(instance)
+        Ok(())
     }
 
     pub(crate) fn new(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
         let instance = Instance::new_without_start_func(module, imports)?;
-        instance.call_start_func()
+        instance.call_start_func()?;
+        Ok(instance)
     }
 
     /// Load an `Instance` using the given loader.
