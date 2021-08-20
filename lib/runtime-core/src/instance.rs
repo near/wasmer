@@ -171,7 +171,7 @@ impl Instance {
                 LocalOrImport::Import(import_func_index) => NonNull::new(
                     instance.inner.import_backing.vm_functions[import_func_index].func as *mut _,
                 )
-                    .unwrap(),
+                .unwrap(),
             };
 
             let ctx_ptr = match start_index.local_or_import(&instance.module.info) {
