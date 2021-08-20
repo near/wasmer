@@ -118,32 +118,32 @@ impl Instance {
         // We need to push the code version so that the exception table can be read
         // in the feault handler so that we can report traps correctly
         #[cfg(unix)]
-            {
-                let push_code_version_logic = || {
-                    if let Some(msm) = module.runnable_module.get_module_state_map() {
-                        push_code_version(CodeVersion {
-                            baseline: true,
-                            msm,
-                            base: module.runnable_module.get_code()?.as_ptr() as usize,
-                            // convert from a `String` to a static string;
-                            // can't use `Backend` directly because it's defined in `runtime`.
-                            // This is a hack and we need to clean it up.
-                            backend: match module.info.backend.as_ref() {
-                                "llvm" => "llvm",
-                                "cranelift" => "cranelift",
-                                "singlepass" => "singlepass",
-                                "auto" => "auto",
-                                _ => "unknown backend",
-                            },
-                            runnable_module: module.runnable_module.clone(),
-                        });
-                        Some(())
-                    } else {
-                        None
-                    }
-                };
-                inner.code_version_pushed = push_code_version_logic().is_some();
-            }
+        {
+            let push_code_version_logic = || {
+                if let Some(msm) = module.runnable_module.get_module_state_map() {
+                    push_code_version(CodeVersion {
+                        baseline: true,
+                        msm,
+                        base: module.runnable_module.get_code()?.as_ptr() as usize,
+                        // convert from a `String` to a static string;
+                        // can't use `Backend` directly because it's defined in `runtime`.
+                        // This is a hack and we need to clean it up.
+                        backend: match module.info.backend.as_ref() {
+                            "llvm" => "llvm",
+                            "cranelift" => "cranelift",
+                            "singlepass" => "singlepass",
+                            "auto" => "auto",
+                            _ => "unknown backend",
+                        },
+                        runnable_module: module.runnable_module.clone(),
+                    });
+                    Some(())
+                } else {
+                    None
+                }
+            };
+            inner.code_version_pushed = push_code_version_logic().is_some();
+        }
 
         let instance = Instance {
             module,
