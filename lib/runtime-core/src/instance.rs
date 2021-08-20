@@ -78,7 +78,7 @@ pub struct Instance {
 }
 
 impl Instance {
-    pub(crate) fn new(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
+    pub(crate) fn new_without_start_func(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
         // We need the backing and import_backing to create a vm::Ctx, but we need
         // a vm::Ctx to create a backing and an import_backing. The solution is to create an
         // uninitialized vm::Ctx and then initialize it in-place.
@@ -152,6 +152,12 @@ impl Instance {
             import_object: imports.clone(),
         };
 
+        Ok(instance)
+    }
+
+    /// Call the start function of the module, if any
+    pub fn call_start_func(&self) -> Result<()> {
+        let instance = self;
         if let Some(start_index) = instance.module.info.start_func {
             // We know that the start function takes no arguments and returns no values.
             // Therefore, we can call it without doing any signature checking, etc.
@@ -197,6 +203,12 @@ impl Instance {
             start_func.call()?;
         }
 
+        Ok(())
+    }
+
+    pub(crate) fn new(module: Arc<ModuleInner>, imports: &ImportObject) -> Result<Instance> {
+        let instance = Instance::new_without_start_func(module, imports)?;
+        instance.call_start_func()?;
         Ok(instance)
     }
 

@@ -196,6 +196,12 @@ impl Module {
         Instance::new(Arc::clone(&self.inner), import_object)
     }
 
+    /// Instantiate a WebAssembly module with the provided [`ImportObject`].
+    /// Do not call the `start` function in the WebAssembly module.
+    pub fn instantiate_without_start_func(&self, import_object: &ImportObject) -> error::Result<Instance> {
+        Instance::new_without_start_func(Arc::clone(&self.inner), import_object)
+    }
+
     /// Create a cache artifact from this module.
     pub fn cache(&self) -> Result<Artifact, CacheError> {
         let (backend_metadata, code) = self.inner.cache_gen.generate_cache()?;
