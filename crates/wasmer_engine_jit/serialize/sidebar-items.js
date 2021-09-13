@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["SerializableCompilation","The compilation related data for a serialized modules"],["SerializableModule","Serializable struct that is able to serialize from and to a `JITArtifactInfo`."]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["JumpTable","An opaque reference to a jump table."]],"type":[["JumpTableOffsets","Code offsets for Jump Tables."]]});

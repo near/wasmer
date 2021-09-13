@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["to_compile_error",""]],"struct":[["ArchivedModuleMetadata",""],["ModuleMetadata","Serializable struct that represents the compiled metadata."],["ModuleMetadataResolver",""],["ModuleMetadataSymbolRegistry",""]]});

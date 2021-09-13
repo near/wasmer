@@ -1,6 +1,0 @@
-(function() {var implementors = {};
-implementors["wasmer"] = [{"text":"impl&lt;'a, I&gt; Iterator for ExportsIterator&lt;'a, I&gt; <span class=\"where fmt-newline\">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: Iterator&lt;Item = (&amp;'a String, &amp;'a Extern)&gt; + Sized,&nbsp;</span>","synthetic":false,"types":[]},{"text":"impl Iterator for ImportObjectIterator","synthetic":false,"types":[]}];
-implementors["wasmer_compiler"] = [{"text":"impl&lt;'a&gt; Iterator for Iter&lt;'a&gt;","synthetic":false,"types":[]}];
-implementors["wasmer_vm"] = [{"text":"impl&lt;I:&nbsp;Iterator&lt;Item = ExportType&gt; + Sized&gt; Iterator for ExportsIterator&lt;I&gt;","synthetic":false,"types":[]},{"text":"impl&lt;I:&nbsp;Iterator&lt;Item = ImportType&gt; + Sized&gt; Iterator for ImportsIterator&lt;I&gt;","synthetic":false,"types":[]}];
-implementors["wasmer_wasi"] = [{"text":"impl Iterator for PollEventIter","synthetic":false,"types":[]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

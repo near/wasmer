@@ -1,3 +1,0 @@
-(function() {var implementors = {};
-implementors["wasmer_compiler"] = [{"text":"impl&lt;'a&gt; Extend&lt;Operator&lt;'a&gt;&gt; for MiddlewareReaderState&lt;'a&gt;","synthetic":false,"types":[]},{"text":"impl&lt;'a: 'b, 'b&gt; Extend&lt;&amp;'b Operator&lt;'a&gt;&gt; for MiddlewareReaderState&lt;'a&gt;","synthetic":false,"types":[]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

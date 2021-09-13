@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["TrapCode","A trap code describing the reason for a trap."]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["ArchivableIndexMap","Rkyv Archivable IndexMap"],["ArchivableIndexMapResolver",""],["ArchivedArchivableIndexMap",""],["ArchivedPrimaryMap","PrimaryMap after archive"]]});
