@@ -286,6 +286,24 @@ impl Module {
         }
     }
 
+    pub(crate) fn instantiate_without_start_func(
+        &self,
+        resolver: &dyn Resolver,
+    ) -> Result<InstanceHandle, InstantiationError> {
+        unsafe {
+            let instance_handle = self.artifact.instantiate(
+                self.store.tunables(),
+                resolver,
+                Box::new((self.store.clone(), self.artifact.clone())),
+            )?;
+
+            self.artifact
+                .finish_instantiation_without_start_func(&self.store, &instance_handle)?;
+
+            Ok(instance_handle)
+        }
+    }
+
     /// Returns the name of the current module.
     ///
     /// This name is normally set in the WebAssembly bytecode by some

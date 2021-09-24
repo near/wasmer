@@ -150,6 +150,43 @@ impl Instance {
         Ok(instance)
     }
 
+    /// Similar to new, except it doesn't invoke start function.
+    pub fn new_without_start_func(module: &Module, resolver: &dyn Resolver) -> Result<Self, InstantiationError> {
+        let store = module.store();
+        let handle = module.instantiate(resolver)?;
+        let exports = module
+            .exports()
+            .map(|export| {
+                let name = export.name().to_string();
+                let export = handle.lookup(&name).expect("export");
+                let extern_ = Extern::from_vm_export(store, export.into());
+                (name, extern_)
+            })
+            .collect::<Exports>();
+
+        let instance = Self {
+            handle: Arc::new(Mutex::new(handle)),
+            module: module.clone(),
+            exports,
+        };
+
+        unsafe {
+            instance
+                .handle
+                .lock()
+                .unwrap()
+                .initialize_host_envs::<HostEnvInitError>(&instance as *const _ as *const _)?;
+        }
+
+        Ok(instance)
+    }
+    //
+    // pub fn call_start_func(&self) -> Result<Self, InstantiationError> {
+    //     unsafe {
+    //         self.handle.lock().unwrap().invoke_start_function
+    //     }
+    // }
+
     /// Gets the [`Module`] associated with this instance.
     pub fn module(&self) -> &Module {
         &self.module

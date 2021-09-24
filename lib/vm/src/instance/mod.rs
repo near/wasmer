@@ -1037,6 +1037,21 @@ impl InstanceHandle {
         Ok(())
     }
 
+    /// Similar to finish_instantiation, except it doesn't invoke start function.
+    pub unsafe fn finish_instantiation_without_start_func(
+        &self,
+        trap_handler: &dyn TrapHandler,
+        data_initializers: &[DataInitializer<'_>],
+    ) -> Result<(), Trap> {
+        let instance = self.instance().as_ref();
+
+        // Apply the initializers.
+        initialize_tables(instance)?;
+        initialize_memories(instance, data_initializers)?;
+
+        Ok(())
+    }
+
     /// Return a reference to the vmctx used by compiled wasm code.
     pub fn vmctx(&self) -> &VMContext {
         self.instance().as_ref().vmctx()

@@ -176,6 +176,25 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
             .finish_instantiation(trap_handler, &data_initializers)
             .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
     }
+
+    /// Similar to finish_instantiation, except it doesn't invoke start function.
+    unsafe fn finish_instantiation_without_start_func(
+        &self,
+        trap_handler: &dyn TrapHandler,
+        handle: &InstanceHandle,
+    ) -> Result<(), InstantiationError> {
+        let data_initializers = self
+            .data_initializers()
+            .iter()
+            .map(|init| DataInitializer {
+                location: init.location.clone(),
+                data: &*init.data,
+            })
+            .collect::<Vec<_>>();
+        handle
+            .finish_instantiation_without_start_func(trap_handler, &data_initializers)
+            .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
+    }
 }
 
 // Implementation of `Upcastable` taken from https://users.rust-lang.org/t/why-does-downcasting-not-work-for-subtraits/33286/7 .
