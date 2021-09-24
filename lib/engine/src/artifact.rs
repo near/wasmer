@@ -10,11 +10,11 @@ use wasmer_compiler::Features;
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{
     DataInitializer, FunctionIndex, LocalFunctionIndex, MemoryIndex, ModuleInfo,
-    OwnedDataInitializer, SignatureIndex, TableIndex,
+    OwnedDataInitializer, SignatureIndex, TableIndex, Value
 };
 use wasmer_vm::{
     FuncDataRegistry, FunctionBodyPtr, InstanceAllocator, InstanceHandle, MemoryStyle, TableStyle,
-    TrapHandler, VMSharedSignatureIndex, VMTrampoline,
+    TrapHandler, VMSharedSignatureIndex, VMTrampoline, VMExtern
 };
 
 /// An `Artifact` is the product that the `Engine`
@@ -172,6 +172,33 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
                 data: &*init.data,
             })
             .collect::<Vec<_>>();
+        handle
+            .finish_instantiation(trap_handler, &data_initializers)
+            .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
+    }
+
+    /// Same as finish_instantiation, but must have global based gas counter injected. The global is named "remaining_ops"
+    unsafe fn finish_instantiate_with_remaining_ops(
+        &self,
+        trap_handler: &dyn TrapHandler,
+        handle: &InstanceHandle,
+        remaining_ops: u64,
+    ) -> Result<(), InstantiationError> {
+        let data_initializers = self
+            .data_initializers()
+            .iter()
+            .map(|init| DataInitializer {
+                location: init.location.clone(),
+                data: &*init.data,
+            })
+            .collect::<Vec<_>>();
+
+        let export_ = handle.lookup("remaining_ops").expect("export");
+        match export_ {
+            VMExtern::Global(g) => { g.from.set::<()>(Value::I64(remaining_ops as i64)).expect("Set global gas meter failed"); }
+            _ => { panic!("remaining_ops should be a global"); }
+        }
+
         handle
             .finish_instantiation(trap_handler, &data_initializers)
             .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))

@@ -150,6 +150,38 @@ impl Instance {
         Ok(instance)
     }
 
+    /// Same with new, but must have global based gas counter injected. The global is named "remaining_ops"
+    pub fn new_with_remaining_ops(module: &Module, resolver: &dyn Resolver, remaining_ops: u64) -> Result<Self, InstantiationError> {
+        let store = module.store();
+        let handle = module.instantiate_with_remaining_ops(resolver, remaining_ops)?;
+        let exports = module
+            .exports()
+            .map(|export| {
+                let name = export.name().to_string();
+                let export = handle.lookup(&name).expect("export");
+                let extern_ = Extern::from_vm_export(store, export.into());
+                (name, extern_)
+            })
+            .collect::<Exports>();
+
+        let instance = Self {
+            handle: Arc::new(Mutex::new(handle)),
+            module: module.clone(),
+            exports,
+        };
+
+        unsafe {
+            instance
+                .handle
+                .lock()
+                .unwrap()
+                .initialize_host_envs::<HostEnvInitError>(&instance as *const _ as *const _)?;
+        }
+
+        Ok(instance)
+    }
+
+
     /// Gets the [`Module`] associated with this instance.
     pub fn module(&self) -> &Module {
         &self.module
