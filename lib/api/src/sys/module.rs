@@ -298,10 +298,18 @@ impl Module {
             )?;
 
             self.artifact
-                .finish_instantiation_without_start_func(&self.store, &instance_handle)?;
+                .finish_instantiation_without_start_func(&instance_handle)?;
 
             Ok(instance_handle)
         }
+    }
+
+    pub(crate) fn call_start_func(
+        &self,
+        instance_handle: &InstanceHandle,
+    ) -> Result<(), InstantiationError> {
+        self.artifact.call_start_func(&self.store, &instance_handle)?;
+        Ok(())
     }
 
     /// Returns the name of the current module.

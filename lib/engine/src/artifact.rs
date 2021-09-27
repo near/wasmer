@@ -180,7 +180,6 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
     /// Similar to finish_instantiation, except it doesn't invoke start function.
     unsafe fn finish_instantiation_without_start_func(
         &self,
-        trap_handler: &dyn TrapHandler,
         handle: &InstanceHandle,
     ) -> Result<(), InstantiationError> {
         let data_initializers = self
@@ -192,7 +191,18 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
             })
             .collect::<Vec<_>>();
         handle
-            .finish_instantiation_without_start_func(trap_handler, &data_initializers)
+            .finish_instantiation_without_start_func(&data_initializers)
+            .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
+    }
+
+    /// Call start_func on instance
+    fn call_start_func(
+        &self,
+        trap_handler: &dyn TrapHandler,
+        handle: &InstanceHandle,
+    ) -> Result<(), InstantiationError> {
+        handle
+            .call_start_func(trap_handler)
             .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
     }
 }

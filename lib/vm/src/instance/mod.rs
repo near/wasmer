@@ -1040,7 +1040,6 @@ impl InstanceHandle {
     /// Similar to finish_instantiation, except it doesn't invoke start function.
     pub unsafe fn finish_instantiation_without_start_func(
         &self,
-        trap_handler: &dyn TrapHandler,
         data_initializers: &[DataInitializer<'_>],
     ) -> Result<(), Trap> {
         let instance = self.instance().as_ref();
@@ -1049,6 +1048,16 @@ impl InstanceHandle {
         initialize_tables(instance)?;
         initialize_memories(instance, data_initializers)?;
 
+        Ok(())
+    }
+
+    /// Call start_func on instance
+    pub fn call_start_func(
+        &self,
+        trap_handler: &dyn TrapHandler,
+    ) -> Result<(), Trap> {
+        let instance = self.instance().as_ref();
+        instance.invoke_start_function(trap_handler)?;
         Ok(())
     }
 

@@ -180,12 +180,12 @@ impl Instance {
 
         Ok(instance)
     }
-    //
-    // pub fn call_start_func(&self) -> Result<Self, InstantiationError> {
-    //     unsafe {
-    //         self.handle.lock().unwrap().invoke_start_function
-    //     }
-    // }
+
+    /// Call start_func of the module
+    pub fn call_start_func(&self) -> Result<(), InstantiationError> {
+        self.module.call_start_func(&self.handle.lock().unwrap())?;
+        Ok(())
+    }
 
     /// Gets the [`Module`] associated with this instance.
     pub fn module(&self) -> &Module {
