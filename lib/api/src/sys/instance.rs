@@ -151,7 +151,10 @@ impl Instance {
     }
 
     /// Similar to new, except it doesn't invoke start function.
-    pub fn new_without_start_func(module: &Module, resolver: &dyn Resolver) -> Result<Self, InstantiationError> {
+    pub fn new_without_start_func(
+        module: &Module,
+        resolver: &dyn Resolver,
+    ) -> Result<Self, InstantiationError> {
         let store = module.store();
         let handle = module.instantiate_without_start_func(resolver)?;
         let exports = module

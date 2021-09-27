@@ -308,7 +308,8 @@ impl Module {
         &self,
         instance_handle: &InstanceHandle,
     ) -> Result<(), InstantiationError> {
-        self.artifact.call_start_func(&self.store, &instance_handle)?;
+        self.artifact
+            .call_start_func(&self.store, &instance_handle)?;
         Ok(())
     }
 

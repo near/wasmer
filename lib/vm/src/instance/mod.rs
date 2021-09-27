@@ -1052,10 +1052,7 @@ impl InstanceHandle {
     }
 
     /// Call start_func on instance
-    pub fn call_start_func(
-        &self,
-        trap_handler: &dyn TrapHandler,
-    ) -> Result<(), Trap> {
+    pub fn call_start_func(&self, trap_handler: &dyn TrapHandler) -> Result<(), Trap> {
         let instance = self.instance().as_ref();
         instance.invoke_start_function(trap_handler)?;
         Ok(())
