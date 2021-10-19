@@ -913,14 +913,20 @@ impl InstanceHandle {
         host_state: Box<dyn Any>,
         imported_function_envs: BoxedSlice<FunctionIndex, ImportFunctionEnv>,
     ) -> Result<Self, Trap> {
-        let vmctx_globals = finished_globals
-            .values()
-            .map(|m| m.vmglobal())
-            .collect::<PrimaryMap<LocalGlobalIndex, _>>()
-            .into_boxed_slice();
+        let vmctx_globals = {
+            let _span = tracing::debug_span!(target: "vm", "vmctx_globals").entered();
+
+            finished_globals
+                .values()
+                .map(|m| m.vmglobal())
+                .collect::<PrimaryMap<LocalGlobalIndex, _>>()
+                .into_boxed_slice()
+        };
         let passive_data = RefCell::new(module.passive_data.clone());
 
         let handle = {
+            let _span = tracing::debug_span!(target: "vm", "handle").entered();
+
             let offsets = allocator.offsets().clone();
             // use dummy value to create an instance so we can get the vmctx pointer
             let funcrefs = PrimaryMap::new().into_boxed_slice();
@@ -947,14 +953,18 @@ impl InstanceHandle {
             {
                 let instance = instance_ref.as_mut().unwrap();
                 let vmctx_ptr = instance.vmctx_ptr();
-                instance.funcrefs = build_funcrefs(
-                    &*instance.module,
-                    &imports,
-                    &instance.functions,
-                    func_data_registry,
-                    &vmshared_signatures,
-                    vmctx_ptr,
-                );
+                {
+                    let _span = tracing::debug_span!(target: "vm", "build_funcrefs").entered();
+
+                    instance.funcrefs = build_funcrefs(
+                        &*instance.module,
+                        &imports,
+                        &instance.functions,
+                        func_data_registry,
+                        &vmshared_signatures,
+                        vmctx_ptr,
+                    );
+                }
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
             }
 
@@ -1004,8 +1014,16 @@ impl InstanceHandle {
 
         // Perform infallible initialization in this constructor, while fallible
         // initialization is deferred to the `initialize` method.
-        initialize_passive_elements(instance);
-        initialize_globals(instance);
+        {
+            let _span = tracing::debug_span!(target: "vm", "initialize_passive_elements").entered();
+
+            initialize_passive_elements(instance);
+        }
+        {
+            let _span = tracing::debug_span!(target: "vm", "initialize_globals").entered();
+
+            initialize_globals(instance);
+        }
 
         Ok(handle)
     }
@@ -1464,6 +1482,7 @@ fn build_funcrefs(
 
     // do local functions
     for (local_index, func_ptr) in finished_functions.iter() {
+        // let _span = tracing::debug_span!(target: "vm", "local func").entered();
         let index = module_info.func_index(local_index);
         let sig_index = module_info.functions[index];
         let type_index = vmshared_signatures[sig_index];

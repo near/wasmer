@@ -96,10 +96,17 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
         resolver: &dyn Resolver,
         host_state: Box<dyn Any>,
     ) -> Result<InstanceHandle, InstantiationError> {
-        self.preinstantiate()?;
+        {
+            let _span = tracing::debug_span!(target: "vm", "preinstantiate").entered();
+            self.preinstantiate()?;
+        }
 
-        let module = self.module();
+        let module = {
+            let _span = tracing::debug_span!(target: "vm", "self.module").entered();
+            self.module()
+        };
         let (imports, import_function_envs) = {
+            let _span = tracing::debug_span!(target: "vm", "calc imports").entered();
             let mut imports = resolve_imports(
                 &module,
                 resolver,
@@ -119,38 +126,71 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
         // Get pointers to where metadata about local memories should live in VM memory.
         // Get pointers to where metadata about local tables should live in VM memory.
 
-        let (allocator, memory_definition_locations, table_definition_locations) =
-            InstanceAllocator::new(&*module);
-        let finished_memories = tunables
-            .create_memories(&module, self.memory_styles(), &memory_definition_locations)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-        let finished_tables = tunables
-            .create_tables(&module, self.table_styles(), &table_definition_locations)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-        let finished_globals = tunables
-            .create_globals(&module)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
+        let (allocator, memory_definition_locations, table_definition_locations) = {
+            let _span = tracing::debug_span!(target: "vm", "calc allocator, mem def loc").entered();
+            InstanceAllocator::new(&*module)
+        };
+        let finished_memories = {
+            let _span = tracing::debug_span!(target: "vm", "finished memories").entered();
+            tunables
+                .create_memories(&module, self.memory_styles(), &memory_definition_locations)
+                .map_err(InstantiationError::Link)?
+                .into_boxed_slice()
+        };
+        let finished_tables = {
+            let _span = tracing::debug_span!(target: "vm", "finished tables").entered();
+            tunables
+                .create_tables(&module, self.table_styles(), &table_definition_locations)
+                .map_err(InstantiationError::Link)?
+                .into_boxed_slice()
+        };
+        let finished_globals = {
+            let _span = tracing::debug_span!(target: "vm", "finished globals").entered();
 
-        self.register_frame_info();
+            tunables
+                .create_globals(&module)
+                .map_err(InstantiationError::Link)?
+                .into_boxed_slice()
+        };
 
-        let handle = InstanceHandle::new(
-            allocator,
-            module,
-            self.finished_functions().clone(),
-            self.finished_function_call_trampolines().clone(),
-            finished_memories,
-            finished_tables,
-            finished_globals,
-            imports,
-            self.signatures().clone(),
-            self.func_data_registry(),
-            host_state,
-            import_function_envs,
-        )
-        .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?;
+        {
+            let _span = tracing::debug_span!(target: "vm", "register_frame_info").entered();
+            self.register_frame_info();
+        }
+
+        let handle = {
+            let _span = tracing::debug_span!(target: "vm", "create handle").entered();
+            InstanceHandle::new(
+                allocator,
+                module,
+                {
+                    let _span = tracing::debug_span!(target: "vm", "finished_functions").entered();
+
+                    self.finished_functions().clone()
+                },
+                {
+                    let _span =
+                        tracing::debug_span!(target: "vm", "finished_function_call_trampolines")
+                            .entered();
+                    self.finished_function_call_trampolines().clone()
+                },
+                finished_memories,
+                finished_tables,
+                finished_globals,
+                imports,
+                {
+                    let _span = tracing::debug_span!(target: "vm", "signatures").entered();
+                    self.signatures().clone()
+                },
+                {
+                    let _span = tracing::debug_span!(target: "vm", "func_data_registry").entered();
+                    self.func_data_registry()
+                },
+                host_state,
+                import_function_envs,
+            )
+            .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?
+        };
         Ok(handle)
     }
 

@@ -25,6 +25,8 @@ serde = { version = "1.0", features = ["derive", "rc"] }
 serde_bytes = { version = "0.11" }
 lazy_static = "1.4"
 loupe = "0.1"
+tracing = { version = "0.1", default-features = false, features = ["log"] }
+tracing-span-tree = "0.1"
 
 [badges]
 maintenance = { status = "actively-developed" }

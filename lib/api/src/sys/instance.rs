@@ -113,17 +113,27 @@ impl Instance {
     ///  * Link errors that happen when plugging the imports into the instance
     ///  * Runtime errors that happen when running the module `start` function.
     pub fn new(module: &Module, resolver: &dyn Resolver) -> Result<Self, InstantiationError> {
-        let store = module.store();
-        let handle = module.instantiate(resolver)?;
-        let exports = module
-            .exports()
-            .map(|export| {
-                let name = export.name().to_string();
-                let export = handle.lookup(&name).expect("export");
-                let extern_ = Extern::from_vm_export(store, export.into());
-                (name, extern_)
-            })
-            .collect::<Exports>();
+        let store = {
+            let _span = tracing::debug_span!(target: "vm", "module.store").entered();
+            module.store()
+        };
+        let handle = {
+            let _span = tracing::debug_span!(target: "vm", "module.instantiate").entered();
+            module.instantiate(resolver)?
+        };
+        let exports = {
+            let _span = tracing::debug_span!(target: "vm", "module exports").entered();
+
+            module
+                .exports()
+                .map(|export| {
+                    let name = export.name().to_string();
+                    let export = handle.lookup(&name).expect("export");
+                    let extern_ = Extern::from_vm_export(store, export.into());
+                    (name, extern_)
+                })
+                .collect::<Exports>()
+        };
 
         let instance = Self {
             handle: Arc::new(Mutex::new(handle)),
@@ -139,12 +149,16 @@ impl Instance {
         // This usage is correct because we pass a valid pointer to `instance` and the
         // correct error type returned by `WasmerEnv::init_with_instance` as a generic
         // parameter.
-        unsafe {
-            instance
-                .handle
-                .lock()
-                .unwrap()
-                .initialize_host_envs::<HostEnvInitError>(&instance as *const _ as *const _)?;
+        {
+            let _span = tracing::debug_span!(target: "vm", "initialize_host_envs").entered();
+
+            unsafe {
+                instance
+                    .handle
+                    .lock()
+                    .unwrap()
+                    .initialize_host_envs::<HostEnvInitError>(&instance as *const _ as *const _)?;
+            }
         }
 
         Ok(instance)
