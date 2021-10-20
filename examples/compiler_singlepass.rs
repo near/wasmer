@@ -39,7 +39,7 @@ pub fn many_functions_contract(function_count: u32) -> Vec<u8> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_span_tree::span_tree().enable();
+    tracing_span_tree::span_tree().aggregate(true).enable();
 
     // Let's declare the Wasm module with the text representation.
     let wasm_bytes = many_functions_contract(150_000);

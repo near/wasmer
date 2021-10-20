@@ -1465,35 +1465,68 @@ fn build_funcrefs(
     vmshared_signatures: &BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
     vmctx_ptr: *mut VMContext,
 ) -> BoxedSlice<FunctionIndex, VMFuncRef> {
-    let mut func_refs = PrimaryMap::with_capacity(module_info.functions.len());
+    let mut func_refs = {
+        // let _span = tracing::debug_span!(target: "vm", "create primary map").entered();
+        PrimaryMap::with_capacity(module_info.functions.len())
+    };
 
     // do imported functions
-    for (index, import) in imports.functions.iter() {
-        let sig_index = module_info.functions[index];
-        let type_index = vmshared_signatures[sig_index];
-        let anyfunc = VMCallerCheckedAnyfunc {
-            func_ptr: import.body,
-            type_index,
-            vmctx: import.environment,
-        };
-        let func_ref = func_data_registry.register(anyfunc);
-        func_refs.push(func_ref);
+    {
+        let _span = tracing::debug_span!(target: "vm", "imported functions").entered();
+        for (index, import) in imports.functions.iter() {
+            let sig_index = module_info.functions[index];
+            let type_index = vmshared_signatures[sig_index];
+            let anyfunc = VMCallerCheckedAnyfunc {
+                func_ptr: import.body,
+                type_index,
+                vmctx: import.environment,
+            };
+            let func_ref = func_data_registry.register(anyfunc);
+            func_refs.push(func_ref);
+        }
     }
 
     // do local functions
-    for (local_index, func_ptr) in finished_functions.iter() {
-        // let _span = tracing::debug_span!(target: "vm", "local func").entered();
-        let index = module_info.func_index(local_index);
-        let sig_index = module_info.functions[index];
-        let type_index = vmshared_signatures[sig_index];
-        let anyfunc = VMCallerCheckedAnyfunc {
-            func_ptr: func_ptr.0,
-            type_index,
-            vmctx: VMFunctionEnvironment { vmctx: vmctx_ptr },
-        };
-        let func_ref = func_data_registry.register(anyfunc);
-        func_refs.push(func_ref);
-    }
+    {
+        let _span = tracing::debug_span!(target: "vm", "outside of local func").entered();
 
-    func_refs.into_boxed_slice()
+        for (local_index, func_ptr) in {
+            let _span = tracing::debug_span!(target: "vm", "finished_functions.iter").entered();
+            finished_functions.iter()
+        } {
+            let _span = tracing::debug_span!(target: "vm", "local func").entered();
+            let index = {
+                // let _span = tracing::debug_span!(target: "vm", "index").entered();
+                module_info.func_index(local_index)
+            };
+            let sig_index = {
+                // let _span = tracing::debug_span!(target: "vm", "sig_index").entered();
+
+                module_info.functions[index]
+            };
+            let type_index = {
+                // let _span = tracing::debug_span!(target: "vm", "type_index").entered();
+
+                vmshared_signatures[sig_index]
+            };
+            let anyfunc = VMCallerCheckedAnyfunc {
+                func_ptr: func_ptr.0,
+                type_index,
+                vmctx: VMFunctionEnvironment { vmctx: vmctx_ptr },
+            };
+            let func_ref = {
+                // let _span = tracing::debug_span!(target: "vm", "register").entered();
+                func_data_registry.register(anyfunc)
+            };
+
+            {
+                // let _span = tracing::debug_span!(target: "vm", "push").entered();
+                func_refs.push(func_ref);
+            }
+        }
+    }
+    {
+        // let _span = tracing::debug_span!(target: "vm", "into boxed slice").entered();
+        func_refs.into_boxed_slice()
+    }
 }
