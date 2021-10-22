@@ -1494,7 +1494,7 @@ fn build_funcrefs(
             let _span = tracing::debug_span!(target: "vm", "finished_functions.iter").entered();
             finished_functions.iter()
         } {
-            let _span = tracing::debug_span!(target: "vm", "local func").entered();
+            // let _span = tracing::debug_span!(target: "vm", "local func").entered();
             let index = {
                 // let _span = tracing::debug_span!(target: "vm", "index").entered();
                 module_info.func_index(local_index)

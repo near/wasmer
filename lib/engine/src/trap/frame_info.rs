@@ -63,7 +63,7 @@ pub struct GlobalFrameInfoRegistration {
 #[derive(Debug)]
 struct ModuleInfoFrameInfo {
     start: usize,
-    functions: BTreeMap<usize, FunctionInfo>,
+    functions: Vec<(usize, FunctionInfo)>,
     module: Arc<ModuleInfo>,
     frame_infos: PrimaryMap<LocalFunctionIndex, CompiledFunctionFrameInfo>,
 }
@@ -75,7 +75,7 @@ impl ModuleInfoFrameInfo {
 
     /// Gets a function given a pc
     fn function_info(&self, pc: usize) -> Option<&FunctionInfo> {
-        let (end, func) = self.functions.range(pc..).next()?;
+        let (end, func) = &self.functions[self.functions.partition_point(|(end, _)| pc <= *end)];
         if func.start <= pc && pc <= *end {
             return Some(func);
         } else {
@@ -84,7 +84,7 @@ impl ModuleInfoFrameInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
 struct FunctionInfo {
     start: usize,
     local_index: LocalFunctionIndex,
@@ -201,26 +201,37 @@ pub fn register(
     finished_functions: &BoxedSlice<LocalFunctionIndex, FunctionExtent>,
     frame_infos: PrimaryMap<LocalFunctionIndex, CompiledFunctionFrameInfo>,
 ) -> Option<GlobalFrameInfoRegistration> {
+    let _span = tracing::debug_span!(target: "vm", "inner").entered();
     let mut min = usize::max_value();
     let mut max = 0;
-    let mut functions = BTreeMap::new();
-    for (
-        i,
-        FunctionExtent {
-            ptr: start,
-            length: len,
-        },
-    ) in finished_functions.iter()
+    let mut functions = Vec::with_capacity(finished_functions.len());
     {
-        let start = **start as usize;
-        let end = start + len;
-        min = cmp::min(min, start);
-        max = cmp::max(max, end);
-        let func = FunctionInfo {
-            start,
-            local_index: i,
-        };
-        assert!(functions.insert(end, func).is_none());
+        let _span = tracing::debug_span!(target: "vm", "loop").entered();
+        for (
+            i,
+            FunctionExtent {
+                ptr: start,
+                length: len,
+            },
+        ) in {
+            let _span = tracing::debug_span!(target: "vm", "finished_functions.iter").entered();
+
+            finished_functions.iter()
+        } {
+            let start = **start as usize;
+            let end = start + len;
+            min = cmp::min(min, start);
+            max = cmp::max(max, end);
+            let func = FunctionInfo {
+                start,
+                local_index: i,
+            };
+            functions.push((end, func));
+            // assert!(functions.insert(end, func).is_none());
+        }
+        // TODO: sort should be replaced by a custom implementation, where no equal key should happen, to cover
+        // above `assert!(functions.insert(end, func).is_none())`
+        functions.sort();
     }
     if functions.is_empty() {
         return None;
@@ -229,23 +240,32 @@ pub fn register(
     let mut info = FRAME_INFO.write().unwrap();
     // First up assert that our chunk of jit functions doesn't collide with
     // any other known chunks of jit functions...
-    if let Some((_, prev)) = info.ranges.range(max..).next() {
-        assert!(prev.start > max);
-    }
-    if let Some((prev_end, _)) = info.ranges.range(..=min).next_back() {
-        assert!(*prev_end < min);
+
+    {
+        let _span = tracing::debug_span!(target: "vm", "if let").entered();
+
+        if let Some((_, prev)) = info.ranges.range(max..).next() {
+            assert!(prev.start > max);
+        }
+        if let Some((prev_end, _)) = info.ranges.range(..=min).next_back() {
+            assert!(*prev_end < min);
+        }
     }
 
     // ... then insert our range and assert nothing was there previously
-    let prev = info.ranges.insert(
-        max,
-        ModuleInfoFrameInfo {
-            start: min,
-            functions,
-            module,
-            frame_infos,
-        },
-    );
+    let prev = {
+        let _span = tracing::debug_span!(target: "vm", "ranges.insert").entered();
+
+        info.ranges.insert(
+            max,
+            ModuleInfoFrameInfo {
+                start: min,
+                functions,
+                module,
+                frame_infos,
+            },
+        )
+    };
     assert!(prev.is_none());
     Some(GlobalFrameInfoRegistration { key: max })
 }

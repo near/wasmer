@@ -283,21 +283,33 @@ impl Artifact for UniversalArtifact {
             return;
         }
 
-        let finished_function_extents = self
-            .finished_functions
-            .values()
-            .copied()
-            .zip(self.finished_function_lengths.values().copied())
-            .map(|(ptr, length)| FunctionExtent { ptr, length })
-            .collect::<PrimaryMap<LocalFunctionIndex, _>>()
-            .into_boxed_slice();
+        let finished_function_extents = {
+            let _span = tracing::debug_span!(target: "vm", "finished_function_extents").entered();
+
+            self.finished_functions
+                .values()
+                .copied()
+                .zip(self.finished_function_lengths.values().copied())
+                .map(|(ptr, length)| FunctionExtent { ptr, length })
+                .collect::<PrimaryMap<LocalFunctionIndex, _>>()
+                .into_boxed_slice()
+        };
 
         let frame_infos = &self.serializable.compilation.function_frame_info;
-        *info = register_frame_info(
-            self.serializable.compile_info.module.clone(),
-            &finished_function_extents,
-            frame_infos.clone(),
-        );
+
+        {
+            let _span =
+                tracing::debug_span!(target: "vm", "engine frame_info register fn").entered();
+            *info = register_frame_info(
+                self.serializable.compile_info.module.clone(),
+                &finished_function_extents,
+                {
+                    let _span = tracing::debug_span!(target: "vm", "frame_infos.clone").entered();
+
+                    frame_infos.clone()
+                },
+            )
+        };
     }
 
     fn features(&self) -> &Features {
