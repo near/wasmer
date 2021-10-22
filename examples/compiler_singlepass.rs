@@ -63,6 +63,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _span = tracing::debug_span!(target: "vm", "Instance::new").entered();
         Instance::new(&module, &import_object)?
     };
+
+    println!("Instantiating module... the second time");
+    let instance = {
+        // This one matches NEAR's execution model of initialization
+        let _span = tracing::debug_span!(target: "vm", "Instance::new").entered();
+        Instance::new(&module, &import_object)?
+    };
     let main = instance.exports.get_function("main")?;
 
     println!("Calling `main` function...");
