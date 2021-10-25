@@ -13,7 +13,8 @@ on:
       # this is _not_ a regex, see: https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
       - '[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
-    - 'master'
+    branches:
+      - 'master'
 jobs:
   setup:
     name: Set up
