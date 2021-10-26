@@ -896,7 +896,8 @@ mod tls {
     }
 }
 
-#[cfg(not(unix))]
+/// Per-thread initialization, unneeded on Windows.
+#[cfg(any(not(unix), feature = "avoid-tls-signals"))]
 pub fn lazy_per_thread_init() -> Result<(), Trap> {
     // Unused on Windows
     Ok(())
@@ -908,7 +909,7 @@ pub fn lazy_per_thread_init() -> Result<(), Trap> {
 /// always large enough for our signal handling code. Override it by creating
 /// and registering our own alternate stack that is large enough and has a guard
 /// page.
-#[cfg(unix)]
+#[cfg(all(unix, not(feature = "avoid-tls-signals")))]
 pub fn lazy_per_thread_init() -> Result<(), Trap> {
     use std::cell::RefCell;
     use std::ptr::null_mut;
@@ -1007,4 +1008,29 @@ pub fn lazy_per_thread_init() -> Result<(), Trap> {
             }
         }
     }
+}
+
+extern "C" fn signal_less_trap_handler(pc: *const u8, trap: TrapCode) {
+    let jmp_buf = tls::with(|info| {
+        let backtrace = Backtrace::new_unresolved();
+        let info = info.unwrap();
+        unsafe {
+            (*info.unwind.get())
+                .as_mut_ptr()
+                .write(UnwindReason::WasmTrap {
+                    backtrace,
+                    signal_trap: Some(trap),
+                    pc: pc as usize,
+                });
+            info.jmp_buf.get()
+        }
+    });
+    unsafe {
+        wasmer_unwind(jmp_buf);
+    }
+}
+
+/// Returns pointer to the trap handler used in VMContext.
+pub fn get_trap_handler() -> *const u8 {
+    signal_less_trap_handler as *const u8
 }
