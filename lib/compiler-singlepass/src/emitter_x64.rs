@@ -642,15 +642,18 @@ impl Emitter for Assembler {
     }
 
     fn finalize_function(&mut self) {
-        dynasm!(
-            self
-            ; const_neg_one_32:
-            ; .dword -1
-            ; const_zero_32:
-            ; .dword 0
-            ; const_pos_one_32:
-            ; .dword 1
-        );
+        {
+            // let _span = tracing::debug_span!(target: "vm", "Emitter finalize_function").entered();
+            dynasm!(
+                self
+                ; const_neg_one_32:
+                ; .dword -1
+                ; const_zero_32:
+                ; .dword 0
+                ; const_pos_one_32:
+                ; .dword 1
+            );
+        }
     }
 
     fn emit_u64(&mut self, x: u64) {

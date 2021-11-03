@@ -21,6 +21,8 @@ cfg-if = "1.0"
 leb128 = "0.2"
 rkyv = "0.6.1"
 loupe = "0.1"
+tracing = { version = "0.1", default-features = false, features = ["log"] }
+tracing-subscriber = { version = "0.2", default-features = false, features = ["env-filter", "fmt"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["winnt", "impl-default"] }

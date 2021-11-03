@@ -18,24 +18,39 @@
 //!
 //! Ready?
 
+use std::fmt::Write;
 use wasmer::{imports, wat2wasm, Instance, Module, Store, Value};
 use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_dylib::Dylib;
 
+pub fn many_functions_contract(function_count: u32) -> Vec<u8> {
+    let mut functions = String::new();
+    for i in 0..function_count {
+        writeln!(
+            &mut functions,
+            "(func
+            i32.const {}
+            drop
+            return)",
+            i
+        )
+        .unwrap();
+    }
+
+    let code = format!(
+        r#"(module
+        (export "main" (func 0))
+        {})"#,
+        functions
+    );
+    wat2wasm(code.as_bytes()).unwrap().to_vec()
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_span_tree::span_tree().aggregate(true).enable();
+
     // Let's declare the Wasm module with the text representation.
-    let wasm_bytes = wat2wasm(
-        r#"
-(module
-  (type $sum_t (func (param i32 i32) (result i32)))
-  (func $sum_f (type $sum_t) (param $x i32) (param $y i32) (result i32)
-    local.get $x
-    local.get $y
-    i32.add)
-  (export "sum" (func $sum_f)))
-"#
-        .as_bytes(),
-    )?;
+    let wasm_bytes = many_functions_contract(150_000);
 
     // Define a compiler configuration.
     //
@@ -61,7 +76,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // text is transformed into Wasm bytes (if necessary), and then
     // compiled to executable code by the compiler, which is then
     // stored into a shared object by the engine.
-    let module = Module::new(&store, wasm_bytes)?;
+    let module = {
+        let _span = tracing::debug_span!(target: "vm", "Module::new (compile)").entered();
+        Module::new(&store, wasm_bytes)?
+    };
 
     // Congrats, the Wasm module is compiled! Now let's execute it for
     // the sake of having a complete example.
@@ -72,7 +90,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Instantiating module...");
     // And here we go again. Let's instantiate the Wasm module.
-    let instance = Instance::new(&module, &import_object)?;
+    let instance = {
+        let _span = tracing::debug_span!(target: "vm", "Instance::new").entered();
+        Instance::new(&module, &import_object)?
+    };
+
+    println!("Instantiating module... the second time");
+    let instance = {
+        // This one matches NEAR's execution model of initialization
+        let _span = tracing::debug_span!(target: "vm", "Instance::new").entered();
+        Instance::new(&module, &import_object)?
+    };
 
     println!("Calling `sum` function...");
     // The Wasm module exports a function called `sum`.

@@ -8635,43 +8635,56 @@ impl<'a> FuncGen<'a> {
 
     pub fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
         // Generate actual code for special labels.
-        self.assembler
-            .emit_label(self.special_labels.integer_division_by_zero);
-        self.emit_trap(TrapCode::IntegerDivisionByZero);
+        {
+            let _span = tracing::debug_span!(target: "vm", "emits").entered();
 
-        self.assembler
-            .emit_label(self.special_labels.integer_overflow);
-        self.emit_trap(TrapCode::IntegerOverflow);
+            self.assembler
+                .emit_label(self.special_labels.integer_division_by_zero);
+            self.emit_trap(TrapCode::IntegerDivisionByZero);
 
-        self.assembler
-            .emit_label(self.special_labels.bad_conversion_to_integer);
-        self.emit_trap(TrapCode::BadConversionToInteger);
+            self.assembler
+                .emit_label(self.special_labels.integer_overflow);
+            self.emit_trap(TrapCode::IntegerOverflow);
 
-        self.assembler
-            .emit_label(self.special_labels.heap_access_oob);
-        self.emit_trap(TrapCode::HeapAccessOutOfBounds);
+            self.assembler
+                .emit_label(self.special_labels.bad_conversion_to_integer);
+            self.emit_trap(TrapCode::BadConversionToInteger);
 
-        self.assembler
-            .emit_label(self.special_labels.table_access_oob);
-        self.emit_trap(TrapCode::TableAccessOutOfBounds);
+            self.assembler
+                .emit_label(self.special_labels.heap_access_oob);
+            self.emit_trap(TrapCode::HeapAccessOutOfBounds);
 
-        self.assembler
-            .emit_label(self.special_labels.indirect_call_null);
-        self.emit_trap(TrapCode::IndirectCallToNull);
+            self.assembler
+                .emit_label(self.special_labels.table_access_oob);
+            self.emit_trap(TrapCode::TableAccessOutOfBounds);
 
-        self.assembler.emit_label(self.special_labels.bad_signature);
-        self.emit_trap(TrapCode::BadSignature);
+            self.assembler
+                .emit_label(self.special_labels.indirect_call_null);
+            self.emit_trap(TrapCode::IndirectCallToNull);
+
+            self.assembler.emit_label(self.special_labels.bad_signature);
+            self.emit_trap(TrapCode::BadSignature);
+        }
 
         // Notify the assembler backend to generate necessary code at end of function.
-        self.assembler.finalize_function();
-
+        {
+            let _span = tracing::debug_span!(target: "vm", "finalize_function").entered();
+            self.assembler.finalize_function();
+        }
         let body_len = self.assembler.get_offset().0;
         let instructions_address_map = self.instructions_address_map;
-        let address_map = get_function_address_map(instructions_address_map, data, body_len);
+        let address_map = {
+            let _span = tracing::debug_span!(target: "vm", "get_function_address_map").entered();
+
+            get_function_address_map(instructions_address_map, data, body_len)
+        };
 
         CompiledFunction {
             body: FunctionBody {
-                body: self.assembler.finalize().unwrap().to_vec(),
+                body: {
+                    let _span = tracing::debug_span!(target: "vm", "assembler finalize").entered();
+                    self.assembler.finalize().unwrap().to_vec()
+                },
                 unwind_info: None,
             },
             relocations: self.relocations,

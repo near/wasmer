@@ -121,7 +121,10 @@ impl Engine for UniversalEngine {
         binary: &[u8],
         tunables: &dyn Tunables,
     ) -> Result<Arc<dyn Artifact>, CompileError> {
-        Ok(Arc::new(UniversalArtifact::new(&self, binary, tunables)?))
+        Ok(Arc::new({
+            let _span = tracing::debug_span!(target: "vm", "UniversalArtifact::new").entered();
+            UniversalArtifact::new(&self, binary, tunables)?
+        }))
     }
 
     /// Compile a WebAssembly binary

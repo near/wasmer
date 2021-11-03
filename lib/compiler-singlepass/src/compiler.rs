@@ -87,51 +87,90 @@ impl Compiler for SinglepassCompiler {
             .collect::<Vec<_>>()
             .into_iter()
             .collect();
-        let functions = function_body_inputs
-            .iter()
-            .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
-            .into_par_iter_if_rayon()
-            .map(|(i, input)| {
-                let middleware_chain = self
-                    .config
-                    .middlewares
-                    .generate_function_middleware_chain(i);
-                let mut reader =
-                    MiddlewareBinaryReader::new_with_offset(input.data, input.module_offset);
-                reader.set_middleware_chain(middleware_chain);
+        let functions = {
+            let _span = tracing::debug_span!(target: "vm", "process functions").entered();
 
-                // This local list excludes arguments.
-                let mut locals = vec![];
-                let num_locals = reader.read_local_count()?;
-                for _ in 0..num_locals {
-                    let (count, ty) = reader.read_local_decl()?;
-                    for _ in 0..count {
-                        locals.push(ty);
-                    }
-                }
+            function_body_inputs
+                .iter()
+                .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
+                .into_par_iter_if_rayon()
+                .map(|(i, input)| {
+                    let _span =
+                        tracing::debug_span!(target: "vm", "process function closure").entered();
+                    let generator = {
+                        let _span =
+                            tracing::debug_span!(target: "vm", "process function closure remaining")
+                                .entered();
+                        let middleware_chain = {
+                            // let _span = tracing::debug_span!(target: "vm", "middleware_chain").entered();
 
-                let mut generator = FuncGen::new(
-                    module,
-                    &self.config,
-                    &vmoffsets,
-                    &memory_styles,
-                    &table_styles,
-                    i,
-                    &locals,
-                )
-                .map_err(to_compile_error)?;
+                            self.config
+                                .middlewares
+                                .generate_function_middleware_chain(i)
+                        };
+                        let mut reader = {
+                            // let _span = tracing::debug_span!(target: "vm", "reader").entered();
 
-                while generator.has_control_frames() {
-                    generator.set_srcloc(reader.original_position() as u32);
-                    let op = reader.read_operator()?;
-                    generator.feed_operator(op).map_err(to_compile_error)?;
-                }
+                            MiddlewareBinaryReader::new_with_offset(input.data, input.module_offset)
+                        };
+                        {
+                            // let _span = tracing::debug_span!(target: "vm", "set_middleware_chain").entered();
 
-                Ok(generator.finalize(&input))
-            })
-            .collect::<Result<Vec<CompiledFunction>, CompileError>>()?
-            .into_iter()
-            .collect::<PrimaryMap<LocalFunctionIndex, CompiledFunction>>();
+                            reader.set_middleware_chain(middleware_chain);
+                        }
+
+                        // This local list excludes arguments.
+                        let mut locals = vec![];
+                        {
+                            // let _span = tracing::debug_span!(target: "vm", "locals").entered();
+
+                            let num_locals = reader.read_local_count()?;
+                            for _ in 0..num_locals {
+                                let (count, ty) = reader.read_local_decl()?;
+                                for _ in 0..count {
+                                    locals.push(ty);
+                                }
+                            }
+                        }
+
+                        let mut generator = {
+                            // let _span = tracing::debug_span!(target: "vm", "generator").entered();
+
+                            FuncGen::new(
+                                module,
+                                &self.config,
+                                &vmoffsets,
+                                &memory_styles,
+                                &table_styles,
+                                i,
+                                &locals,
+                            )
+                            .map_err(to_compile_error)?
+                        };
+
+                        {
+                            // let _span = tracing::debug_span!(target: "vm", "control_frames").entered();
+
+                            while generator.has_control_frames() {
+                                generator.set_srcloc(reader.original_position() as u32);
+                                let op = reader.read_operator()?;
+                                generator.feed_operator(op).map_err(to_compile_error)?;
+                            }
+                        }
+                        generator
+                    };
+
+                    Ok({
+                        let _span =
+                            tracing::debug_span!(target: "vm", "codegen finalize").entered();
+                        generator.finalize(&input)
+                    })
+                    // Err(CompileError::Resource("".to_string()))
+                })
+                .collect::<Result<Vec<CompiledFunction>, CompileError>>()?
+                .into_iter()
+                .collect::<PrimaryMap<LocalFunctionIndex, CompiledFunction>>()
+        };
 
         let function_call_trampolines = module
             .signatures

@@ -130,8 +130,14 @@ impl Module {
     /// the WebAssembly text format (if the "wat" feature is enabled for
     /// this crate).
     pub fn from_binary(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
-        Self::validate(store, binary)?;
-        unsafe { Self::from_binary_unchecked(store, binary) }
+        {
+            let _span = tracing::debug_span!(target: "vm", "validate").entered();
+            Self::validate(store, binary)?
+        };
+        {
+            let _span = tracing::debug_span!(target: "vm", "from_binary_unchecked").entered();
+            unsafe { Self::from_binary_unchecked(store, binary) }
+        }
     }
 
     /// Creates a new WebAssembly module skipping any kind of validation.
@@ -160,8 +166,14 @@ impl Module {
     }
 
     fn compile(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
-        let artifact = store.engine().compile(binary, store.tunables())?;
-        Ok(Self::from_artifact(store, artifact))
+        let artifact = {
+            let _span = tracing::debug_span!(target: "vm", "compile to artifact").entered();
+            store.engine().compile(binary, store.tunables())?
+        };
+        {
+            let _span = tracing::debug_span!(target: "vm", "module from artifact").entered();
+            Ok(Self::from_artifact(store, artifact))
+        }
     }
 
     /// Serializes a module into a binary representation that the `Engine`
