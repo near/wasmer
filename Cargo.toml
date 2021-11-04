@@ -28,6 +28,8 @@ wasmer-types = { version = "2.0.0", path = "lib/types", package = "wasmer-types-
 wasmer-middlewares = { version = "2.0.0", path = "lib/middlewares", optional = true }
 cfg-if = "1.0"
 tracing-span-tree = "0.1"
+tracing-tracy = "0.7"
+tracy-client = "0.12"
 
 [workspace]
 members = [

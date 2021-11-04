@@ -39,7 +39,13 @@ pub fn many_functions_contract(function_count: u32) -> Vec<u8> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_span_tree::span_tree().aggregate(true).enable();
+    use tracing_subscriber::layer::SubscriberExt;
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::new()),
+    )
+    .expect("set up the subscriber");
+    // tracing_span_tree::span_tree().aggregate(true).enable();
 
     // Let's declare the Wasm module with the text representation.
     let wasm_bytes = many_functions_contract(150_000);
@@ -55,8 +61,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Let's compile the Wasm module.
     // let guard = pprof::ProfilerGuard::new(100).unwrap();
     let module = {
-        let _span = tracing::debug_span!(target: "vm", "Module::new (compile)").entered();
-
+        // let _span = tracing::debug_span!(target: "vm", "Module::new (compile)").entered();
+        let _span = tracy_client::span!("some span");
         Module::new(&store, wasm_bytes)?
     };
     // if let Ok(report) = guard.report().build() {

@@ -2474,6 +2474,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-tracy"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdcf4f5adcab8f7fafa89e40d6f6f2bb273be690d3dc6710b25e5ed6e06a9879"
+dependencies = [
+ "tracing-core",
+ "tracing-subscriber",
+ "tracy-client",
+]
+
+[[package]]
 name = "tracing-wasm"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2482,6 +2493,24 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "tracy-client"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a49133e2b4f358ddf7aff5288e0120eeb90d1a5200033fbc2ac4735347fc2b9c"
+dependencies = [
+ "tracy-client-sys",
+]
+
+[[package]]
+name = "tracy-client-sys"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6226e4e77f0d46ce7ebb0a4b1daa82790035248b75bbf605b932a1d7b3b22b6d"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -3223,6 +3252,8 @@ dependencies = [
  "tracing",
  "tracing-span-tree",
  "tracing-subscriber",
+ "tracing-tracy",
+ "tracy-client",
  "wasi-test-generator",
  "wasmer-cache",
  "wasmer-compiler-cranelift",
