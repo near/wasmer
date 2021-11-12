@@ -466,7 +466,7 @@ impl<'a> FuncGen<'a> {
                     Location::GPR(current_burnt_reg),
                     Location::Memory(base_reg, gas_limit_offset),
                 );
-                // Write new gas counter unconditionally, so that runtime can sort out limits case. .
+                // Write new gas counter unconditionally, so that runtime can sort out limits case.
                 self.assembler.emit_mov(
                     Size::S64,
                     Location::GPR(current_burnt_reg),
