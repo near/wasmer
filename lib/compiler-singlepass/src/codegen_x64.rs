@@ -2,6 +2,7 @@ use crate::address_map::get_function_address_map;
 use crate::config::{Intrinsic, IntrinsicKind};
 use crate::{common_decl::*, config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
 use dynasmrt::{x64::Assembler, DynamicLabel};
+use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
 use std::collections::HashMap;
 use std::iter;
@@ -2037,7 +2038,7 @@ impl<'a> FuncGen<'a> {
             let value = &module.imports[key];
             match value {
                 ImportIndex::Function(index) => {
-                    result.insert( *index, key.1.clone());
+                    result.insert(*index, key.1.clone());
                 }
                 _ => {
                     // Non-function import.

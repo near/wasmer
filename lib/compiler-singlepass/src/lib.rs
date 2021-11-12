@@ -19,6 +19,3 @@ mod x64_decl;
 
 pub use crate::compiler::SinglepassCompiler;
 pub use crate::config::Singlepass;
-
-#[macro_use]
-extern crate memoffset;
