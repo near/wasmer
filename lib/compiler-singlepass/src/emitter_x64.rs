@@ -40,6 +40,7 @@ pub enum Condition {
     NotEqual,
     Signed,
     Carry,
+    Overflow,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -842,6 +843,7 @@ impl Emitter for Assembler {
             Condition::NotEqual => jmp_op!(jne, self, label),
             Condition::Signed => jmp_op!(js, self, label),
             Condition::Carry => jmp_op!(jc, self, label),
+            Condition::Overflow => jmp_op!(jo, self, label),
         }
     }
     fn emit_jmp_location(&mut self, loc: Location) {
@@ -865,6 +867,7 @@ impl Emitter for Assembler {
             Condition::NotEqual => dynasm!(self ; setne Rb(dst as u8)),
             Condition::Signed => dynasm!(self ; sets Rb(dst as u8)),
             Condition::Carry => dynasm!(self ; setc Rb(dst as u8)),
+            Condition::Overflow => dynasm!(self ; seto Rb(dst as u8)),
             _ => panic!("singlepass can't emit SET {:?} {:?}", condition, dst),
         }
     }
