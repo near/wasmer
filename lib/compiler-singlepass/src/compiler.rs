@@ -59,7 +59,7 @@ impl Compiler for SinglepassCompiler {
         &self,
         target: &Target,
         compile_info: &CompileModuleInfo,
-        _module_translation: &ModuleTranslationState,
+        module_translation: &ModuleTranslationState,
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'_>>,
     ) -> Result<Compilation, CompileError> {
         if target.triple().operating_system == OperatingSystem::Windows {
@@ -109,9 +109,16 @@ impl Compiler for SinglepassCompiler {
                     }
                 }
 
-                let mut generator =
-                    FuncGen::new(module, &self.config, &vmoffsets, &table_styles, i, &locals)
-                        .map_err(to_compile_error)?;
+                let mut generator = FuncGen::new(
+                    module,
+                    module_translation,
+                    &self.config,
+                    &vmoffsets,
+                    &table_styles,
+                    i,
+                    &locals,
+                )
+                .map_err(to_compile_error)?;
 
                 while generator.has_control_frames() {
                     generator.set_srcloc(reader.original_position() as u32);

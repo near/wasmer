@@ -102,5 +102,7 @@ pub fn translate_module<'data>(
         }
     }
 
+    module_translation_state.build_import_map(&environ.module);
+
     Ok(module_translation_state)
 }
