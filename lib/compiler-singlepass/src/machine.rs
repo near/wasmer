@@ -97,6 +97,16 @@ impl Machine {
         gpr
     }
 
+    /// Obtain ownership of the specified GPR if not already in use.
+    pub fn acquire_unused_gpr(&mut self, gpr: GPR) -> Option<GPR> {
+        if !self.used_gprs.contains(&gpr) {
+            self.used_gprs.insert(gpr);
+            Some(gpr)
+        } else {
+            None
+        }
+    }
+
     /// Picks an unused XMM register.
     ///
     /// This method does not mark the register as used.

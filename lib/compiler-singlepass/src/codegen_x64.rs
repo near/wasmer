@@ -421,6 +421,7 @@ impl<'a> FuncGen<'a> {
                 let count_location = params[0];
                 // We need RAX for computations here.
                 let rax_gpr = self.machine.reserve_unused_temp_gpr(GPR::RAX);
+                let rdx_gpr = self.machine.acquire_unused_gpr(GPR::RDX);
                 let rax_loc = Location::GPR(rax_gpr);
                 let base_reg = self.machine.acquire_temp_gpr().unwrap();
                 // Load gas counter base.
@@ -440,13 +441,19 @@ impl<'a> FuncGen<'a> {
                 // where SRC must be a register or a memory location. We always have
                 // `opcode_cost_offset` in a memory location, so we should use that as the memory
                 // operand.
-                self.assembler.emit_push(Size::S64, Location::GPR(GPR::RDX));
+                if rdx_gpr.is_none() {
+                    self.assembler.emit_push(Size::S64, Location::GPR(GPR::RDX));
+                }
                 if count_location != rax_loc {
                     self.assembler.emit_mov(Size::S64, count_location, rax_loc);
                 }
                 self.assembler
                     .emit_mul(Size::S64, Location::Memory(base_reg, opcode_cost_offset));
-                self.assembler.emit_pop(Size::S64, Location::GPR(GPR::RDX));
+                if let Some(rdx) = rdx_gpr {
+                    self.machine.release_temp_gpr(rdx);
+                } else {
+                    self.assembler.emit_pop(Size::S64, Location::GPR(GPR::RDX));
+                }
                 self.assembler
                     .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
                 self.assembler.emit_add(
