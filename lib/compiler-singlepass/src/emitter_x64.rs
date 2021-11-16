@@ -101,6 +101,7 @@ pub trait Emitter {
     fn emit_neg(&mut self, sz: Size, value: Location);
     fn emit_imul(&mut self, sz: Size, src: Location, dst: Location);
     fn emit_imul_imm32_gpr64(&mut self, src: u32, dst: GPR);
+    fn emit_mul(&mut self, sz: Size, src: Location);
     fn emit_div(&mut self, sz: Size, divisor: Location);
     fn emit_idiv(&mut self, sz: Size, divisor: Location);
     fn emit_shl(&mut self, sz: Size, src: Location, dst: Location);
@@ -956,6 +957,11 @@ impl Emitter for Assembler {
             binop_mem_gpr!(imul, self, sz, src, dst, {
                 panic!("singlepass can't emit IMUL {:?} {:?} {:?}", sz, src, dst)
             })
+        });
+    }
+    fn emit_mul(&mut self, sz: Size, mul: Location) {
+        unop_gpr_or_mem!(mul, self, sz, mul, {
+            panic!("singlepass can't emit MUL {:?} {:?}", sz, mul)
         });
     }
     fn emit_imul_imm32_gpr64(&mut self, src: u32, dst: GPR) {

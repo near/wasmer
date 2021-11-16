@@ -419,6 +419,9 @@ impl<'a> FuncGen<'a> {
                 assert_eq!(opcode_cost_offset, 16);
                 assert_eq!(params.len(), 1);
                 let count_location = params[0];
+                // We need RAX for computations here.
+                let rax_gpr = self.machine.reserve_unused_temp_gpr(GPR::RAX);
+                let rax_loc = Location::GPR(rax_gpr);
                 let base_reg = self.machine.acquire_temp_gpr().unwrap();
                 // Load gas counter base.
                 self.assembler.emit_mov(
@@ -429,56 +432,49 @@ impl<'a> FuncGen<'a> {
                     ),
                     Location::GPR(base_reg),
                 );
-                let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
-                // Read current gas counter.
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(base_reg, counter_offset),
-                    Location::GPR(current_burnt_reg),
-                );
-                // Read opcode cost.
-                let count_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(base_reg, opcode_cost_offset),
-                    Location::GPR(count_reg),
-                );
-                // Multiply instruction count by opcode cost.
-                match count_location {
-                    Location::Imm32(imm) => self.assembler.emit_imul_imm32_gpr64(imm, count_reg),
-                    _ => self.assembler.emit_imul(
-                        Size::S32,
-                        count_location,
-                        Location::GPR(count_reg),
-                    ),
+
+                // Prepare the registers for the `mul` instruction. `MUL SRC` does effectively a
+                //
+                //   RDX:RAX ← RAX ∗ SRC;
+                //
+                // where SRC must be a register or a memory location. We always have
+                // `opcode_cost_offset` in a memory location, so we should use that as the memory
+                // operand.
+                self.assembler.emit_push(Size::S64, Location::GPR(GPR::RDX));
+                if count_location != rax_loc {
+                    self.assembler.emit_mov(Size::S64, count_location, rax_loc);
                 }
-                // Compute new cost.
+                self.assembler
+                    .emit_mul(Size::S64, Location::Memory(base_reg, opcode_cost_offset));
+                self.assembler.emit_pop(Size::S64, Location::GPR(GPR::RDX));
+                self.assembler
+                    .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
                 self.assembler.emit_add(
                     Size::S64,
-                    Location::GPR(count_reg),
-                    Location::GPR(current_burnt_reg),
+                    Location::Memory(base_reg, counter_offset),
+                    rax_loc,
                 );
                 self.assembler
                     .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
+
                 // Compare with the limit.
                 self.assembler.emit_cmp(
                     Size::S64,
-                    Location::GPR(current_burnt_reg),
+                    rax_loc,
                     Location::Memory(base_reg, gas_limit_offset),
                 );
                 // Write new gas counter unconditionally, so that runtime can sort out limits case.
                 self.assembler.emit_mov(
                     Size::S64,
-                    Location::GPR(current_burnt_reg),
+                    rax_loc,
                     Location::Memory(base_reg, counter_offset),
                 );
+                self.machine.release_temp_gpr(base_reg);
+                self.machine.release_temp_gpr(rax_gpr);
                 self.assembler.emit_jmp(
                     Condition::BelowEqual,
                     self.special_labels.gas_limit_exceeded,
                 );
-                self.machine.release_temp_gpr(base_reg);
-                self.machine.release_temp_gpr(current_burnt_reg);
-                self.machine.release_temp_gpr(count_reg);
             }
         }
         Ok(())

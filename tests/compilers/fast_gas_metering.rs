@@ -257,5 +257,5 @@ fn test_gas_intrinsic_large_opcode_cost() {
         .expect("expected function zoo");
     dbg!(gas_counter.burnt());
     let _e = peach.call(&[]).err().expect("error calling function");
-    assert_eq!(gas_counter.burnt(), 0x100_0000_0000);
+    assert_eq!(gas_counter.burnt(), 0x1_0000_0000_0000);
 }
