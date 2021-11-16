@@ -61,6 +61,15 @@ fn get_module(store: &Store) -> Module {
                 br 0
             end
         )
+        (func (export "peach") (local i32)
+            loop
+                i32.const 256
+                local.set 0
+                local.get 0
+                call 2
+                br 0
+            end
+        )
     "#;
 
     Module::new(&store, &wat).unwrap()
@@ -213,4 +222,40 @@ fn test_gas_intrinsic_default() {
     let _e = foo_func.call(&[]);
     // Ensure "func" and "has" was called.
     assert_eq!(HITS.load(SeqCst), 5);
+}
+
+#[test]
+fn test_gas_intrinsic_large_opcode_cost() {
+    let store = get_store();
+    let mut gas_counter = FastGasCounter::new(0x1_0000_0000_0000, 0x100_0000);
+    let module = get_module(&store);
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::new_with_counter(ptr::addr_of_mut!(gas_counter)) },
+        &imports! {
+            "host" => {
+                "func" => Function::new(&store, FunctionType::new(vec![], vec![]), |_values| {
+                    Ok(vec![])
+                }),
+                "has" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |_| {
+                    Ok(vec![])
+                }),
+                "gas" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |_| {
+                    // It shall be never called, as call is intrinsified.
+                    assert!(false);
+                    Ok(vec![])
+                }),
+            },
+        },
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    dbg!(gas_counter.burnt());
+    let peach = instance
+        .exports
+        .get_function("peach")
+        .expect("expected function zoo");
+    dbg!(gas_counter.burnt());
+    let _e = peach.call(&[]).err().expect("error calling function");
+    assert_eq!(gas_counter.burnt(), 0x100_0000_0000);
 }
