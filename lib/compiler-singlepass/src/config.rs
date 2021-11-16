@@ -2,7 +2,9 @@
 #![allow(unused_imports, dead_code)]
 
 use crate::compiler::SinglepassCompiler;
+use crate::emitter_x64::Location;
 use loupe::MemoryUsage;
+use smallvec::SmallVec;
 use std::sync::Arc;
 use wasmer_compiler::{Compiler, CompilerConfig, CpuFeature, ModuleMiddleware, Target};
 use wasmer_types::{Features, FunctionType, Type};
@@ -94,5 +96,16 @@ impl CompilerConfig for Singlepass {
 impl Default for Singlepass {
     fn default() -> Singlepass {
         Self::new()
+    }
+}
+
+impl Intrinsic {
+    pub(crate) fn is_params_ok(&self, params: &SmallVec<[Location; 8]>) -> bool {
+        match self.kind {
+            IntrinsicKind::Gas => match params[0] {
+                Location::Imm32(value) => value < i32::MAX as u32,
+                _ => false,
+            },
+        }
     }
 }

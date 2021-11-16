@@ -66,6 +66,30 @@ fn get_module(store: &Store) -> Module {
     Module::new(&store, &wat).unwrap()
 }
 
+fn get_module_tricky_arg(store: &Store) -> Module {
+    let wat = r#"
+        (import "host" "func" (func))
+        (import "host" "gas" (func (param i32)))
+        (memory $mem 1)
+        (export "memory" (memory $mem))
+        (func $get_gas (param i32) (result i32)
+         i32.const 1
+         get_local 0
+         i32.add)
+        (func (export "foo")
+            i32.const 1000000000
+            call $get_gas
+            call 1
+        )
+        (func (export "zoo")
+            i32.const -2
+            call 1
+        )
+    "#;
+
+    Module::new(&store, &wat).unwrap()
+}
+
 fn get_store() -> Store {
     let compiler = Singlepass::default();
     let store = Store::new(&Universal::new(compiler).engine());
@@ -213,4 +237,60 @@ fn test_gas_intrinsic_default() {
     let _e = foo_func.call(&[]);
     // Ensure "func" and "has" was called.
     assert_eq!(HITS.load(SeqCst), 5);
+}
+
+#[test]
+fn test_gas_intrinsic_tricky() {
+    let store = get_store();
+    let mut gas_counter = FastGasCounter::new(500, 300000000);
+    let module = get_module_tricky_arg(&store);
+    static BURNT_GAS: AtomicUsize = AtomicUsize::new(0);
+    static HITS: AtomicUsize = AtomicUsize::new(0);
+    let instance = Instance::new(
+        &module,
+        &imports! {
+            "host" => {
+                "func" => Function::new(&store, FunctionType::new(vec![], vec![]), |_values| {
+                    HITS.fetch_add(1, SeqCst);
+                    Ok(vec![])
+                }),
+                "gas" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |arg| {
+                    // It shall be called, as tricky call is not intrinsified.
+                    HITS.fetch_add(1, SeqCst);
+                    match arg[0] {
+                        Value::I32(arg) => {
+                            BURNT_GAS.fetch_add(arg as usize, SeqCst);
+                        },
+                        _ => {
+                            assert!(false)
+                        }
+                    }
+                    Ok(vec![])
+                }),
+            },
+        },
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    let foo_func = instance
+        .exports
+        .get_function("foo")
+        .expect("expected function foo");
+
+    let _e = foo_func.call(&[]);
+
+    assert_eq!(BURNT_GAS.load(SeqCst), 1000000001);
+    // Ensure "gas" was called.
+    assert_eq!(HITS.load(SeqCst), 1);
+
+    let zoo_func = instance
+        .exports
+        .get_function("zoo")
+        .expect("expected function zoo");
+
+    let _e = zoo_func.call(&[]);
+    // We decremented gas by two.
+    assert_eq!(BURNT_GAS.load(SeqCst), 999999999);
+    // Ensure "gas" was called.
+    assert_eq!(HITS.load(SeqCst), 2);
 }
