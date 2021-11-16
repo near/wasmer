@@ -324,7 +324,7 @@ impl<'a> FuncGen<'a> {
             }
         }
 
-        if let Some(intrinsic) = self.check_intrinsic(function_index) {
+        if let Some(intrinsic) = self.check_intrinsic(function_index, &params) {
             self.emit_intrinsic(intrinsic, &params)?
         } else {
             let reloc_at = self.assembler.get_offset().0 + self.assembler.arch_mov64_imm_offset();
@@ -386,7 +386,11 @@ impl<'a> FuncGen<'a> {
         Ok(())
     }
 
-    fn check_intrinsic(&mut self, index: usize) -> Option<Intrinsic> {
+    fn check_intrinsic(
+        &mut self,
+        index: usize,
+        params: &SmallVec<[Location; 8]>,
+    ) -> Option<Intrinsic> {
         let function_index = FunctionIndex::new(index);
         let signature_index = self.module.functions[function_index];
         let signature = &self.module.signatures[signature_index];
@@ -398,7 +402,10 @@ impl<'a> FuncGen<'a> {
         // TODO: can keep intrinsics in above map, but not sure if we'll have
         //   significant amount of them to make it important.
         for intrinsic in &self.config.intrinsics {
-            if intrinsic.name == *import_name && intrinsic.signature == *signature {
+            if intrinsic.name == *import_name
+                && intrinsic.signature == *signature
+                && intrinsic.is_params_ok(params)
+            {
                 return Some(intrinsic.clone());
             }
         }
@@ -448,11 +455,7 @@ impl<'a> FuncGen<'a> {
                 // Multiply instruction count by opcode cost.
                 match count_location {
                     Location::Imm32(imm) => self.assembler.emit_imul_imm32_gpr64(imm, count_reg),
-                    _ => self.assembler.emit_imul(
-                        Size::S32,
-                        count_location,
-                        Location::GPR(count_reg),
-                    ),
+                    _ => assert!(false),
                 }
                 // Compute new cost.
                 self.assembler.emit_add(
