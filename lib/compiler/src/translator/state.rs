@@ -3,8 +3,9 @@
 
 use crate::{wasm_unsupported, WasmResult};
 use std::boxed::Box;
+use std::collections::HashMap;
 use wasmer_types::entity::PrimaryMap;
-use wasmer_types::SignatureIndex;
+use wasmer_types::{FunctionIndex, ImportIndex, ModuleInfo, SignatureIndex};
 
 /// Map of signatures to a function's parameter and return types.
 pub(crate) type WasmTypes =
@@ -23,6 +24,9 @@ pub struct ModuleTranslationState {
     /// This is used for translating multi-value Wasm blocks inside functions,
     /// which are encoded to refer to their type signature via index.
     pub(crate) wasm_types: WasmTypes,
+
+    /// Imported functions names map.
+    pub import_map: HashMap<FunctionIndex, String>,
 }
 
 impl ModuleTranslationState {
@@ -30,6 +34,22 @@ impl ModuleTranslationState {
     pub fn new() -> Self {
         Self {
             wasm_types: PrimaryMap::new(),
+            import_map: HashMap::new(),
+        }
+    }
+
+    /// Build map of imported functions names for intrinsification.
+    pub fn build_import_map(&mut self, module: &ModuleInfo) {
+        for key in module.imports.keys() {
+            let value = &module.imports[key];
+            match value {
+                ImportIndex::Function(index) => {
+                    self.import_map.insert(*index, key.1.clone());
+                }
+                _ => {
+                    // Non-function import.
+                }
+            }
         }
     }
 

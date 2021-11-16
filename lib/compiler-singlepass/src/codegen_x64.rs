@@ -4,19 +4,18 @@ use crate::{common_decl::*, config::Singlepass, emitter_x64::*, machine::Machine
 use dynasmrt::{x64::Assembler, DynamicLabel};
 use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
-use std::collections::HashMap;
 use std::iter;
 use wasmer_compiler::wasmparser::{
     MemoryImmediate, Operator, Type as WpType, TypeOrFuncType as WpTypeOrFuncType,
 };
 use wasmer_compiler::{
     CompiledFunction, CompiledFunctionFrameInfo, CustomSection, CustomSectionProtection,
-    FunctionBody, FunctionBodyData, InstructionAddressMap, Relocation, RelocationKind,
-    RelocationTarget, SectionBody, SectionIndex, SourceLoc,
+    FunctionBody, FunctionBodyData, InstructionAddressMap, ModuleTranslationState, Relocation,
+    RelocationKind, RelocationTarget, SectionBody, SectionIndex, SourceLoc,
 };
 use wasmer_types::{
     entity::{EntityRef, PrimaryMap, SecondaryMap},
-    FastGasCounter, FunctionType, ImportIndex,
+    FastGasCounter, FunctionType,
 };
 use wasmer_types::{
     FunctionIndex, GlobalIndex, LocalFunctionIndex, LocalMemoryIndex, MemoryIndex, ModuleInfo,
@@ -29,6 +28,9 @@ pub struct FuncGen<'a> {
     // Immutable properties assigned at creation time.
     /// Static module information.
     module: &'a ModuleInfo,
+
+    /// State of module translation.
+    module_translation_state: &'a ModuleTranslationState,
 
     /// ModuleInfo compilation config.
     config: &'a Singlepass,
@@ -88,9 +90,6 @@ pub struct FuncGen<'a> {
     ///
     // Ordered by increasing InstructionAddressMap::srcloc.
     instructions_address_map: Vec<InstructionAddressMap>,
-
-    /// Imported functions names map.
-    import_map: HashMap<FunctionIndex, String>,
 }
 
 struct SpecialLabelSet {
@@ -392,7 +391,10 @@ impl<'a> FuncGen<'a> {
         let signature_index = self.module.functions[function_index];
         let signature = &self.module.signatures[signature_index];
         // Returns None if not imported.
-        let import_name = self.import_map.get(&function_index)?;
+        let import_name = self
+            .module_translation_state
+            .import_map
+            .get(&function_index)?;
         // TODO: can keep intrinsics in above map, but not sure if we'll have
         //   significant amount of them to make it important.
         for intrinsic in &self.config.intrinsics {
@@ -1969,6 +1971,7 @@ impl<'a> FuncGen<'a> {
 
     pub fn new(
         module: &'a ModuleInfo,
+        module_translation_state: &'a ModuleTranslationState,
         config: &'a Singlepass,
         vmoffsets: &'a VMOffsets,
         _table_styles: &'a PrimaryMap<TableIndex, TableStyle>,
@@ -2009,6 +2012,7 @@ impl<'a> FuncGen<'a> {
 
         let mut fg = FuncGen {
             module,
+            module_translation_state,
             config,
             vmoffsets,
             // table_styles,
@@ -2026,26 +2030,9 @@ impl<'a> FuncGen<'a> {
             special_labels,
             src_loc: 0,
             instructions_address_map: vec![],
-            import_map: FuncGen::build_import_map(module),
         };
         fg.emit_head()?;
         Ok(fg)
-    }
-
-    fn build_import_map(module: &'a ModuleInfo) -> HashMap<FunctionIndex, String> {
-        let mut result = HashMap::<FunctionIndex, String>::new();
-        for key in module.imports.keys() {
-            let value = &module.imports[key];
-            match value {
-                ImportIndex::Function(index) => {
-                    result.insert(*index, key.1.clone());
-                }
-                _ => {
-                    // Non-function import.
-                }
-            }
-        }
-        result
     }
 
     pub fn has_control_frames(&self) -> bool {
