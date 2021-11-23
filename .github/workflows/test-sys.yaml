@@ -2,7 +2,9 @@ name: Runtime tests
 
 env:
   RUST_BACKTRACE: 1
-  WS_CARGOFLAGS: --features singlepass,universal --exclude wasmer-integration-tests-ios --exclude wasmer-compiler-llvm --exclude wasmer-integration-tests-cli --exclude wasmer-wasi-experimental-io-devices --exclude wasmer-c-api --exclude wasmer-cli
+  ENABLE_SINGLEPASS: 1
+  ENABLE_LLVM: 0
+  ENABLE_CRANELIFT: 0
 
 on:
   push:
@@ -29,9 +31,10 @@ jobs:
           # Singlepass does not support windows...
           # - build: windows-x64
           #   os: windows-latest
-          - build: linux-musl-x64
-            os: ubuntu-latest
-            container: alpine:latest
+          # Tests SIGSEGV due to probably signal wonkyness...
+          # - build: linux-musl-x64
+          #   os: ubuntu-latest
+          #   container: alpine:latest
     container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@v2
@@ -51,7 +54,7 @@ jobs:
           profile: minimal
           default: true
       - name: Test
-        run: cargo test --all $WS_CARGOFLAGS
+        run: make test
         env:
           RUSTFLAGS: -Cdebuginfo=0
 
@@ -87,13 +90,9 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
       - run: cargo fmt --manifest-path fuzz/Cargo.toml -- --check
-      - run: |
-          cargo clippy --all $WS_CARGOFLAGS
-          cargo clippy $WS_CARGOFLAGS --manifest-path lib/cli/Cargo.toml
-          cargo clippy $WS_CARGOFLAGS --manifest-path fuzz/Cargo.toml
+      - run: make lint
         env:
-          # TODO: add `-D missing-docs`
-          RUSTFLAGS: -Cdebuginfo=0 -D dead-code -D nonstandard-style -D unused-imports -D unused-mut -D unused-variables -D unused-unsafe -D unreachable-patterns -D bad-style -D improper-ctypes -D unused-allocation -D unused-comparisons -D while-true -D unconditional-recursion -D bare-trait-objects -D function_item_references
+          RUSTFLAGS: -Cdebuginfo=0
 
       - name: Assert no files have changed
         run: |

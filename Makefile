@@ -1,4 +1,4 @@
-SHELL=/bin/bash
+SHELL=/usr/bin/env bash
 
 
 #####
@@ -106,7 +106,7 @@ ENABLE_LLVM ?=
 ENABLE_SINGLEPASS ?=
 
 # Which compilers we build. These have dependencies that may not be on the system.
-compilers := 
+compilers :=
 
 ##
 # Cranelift
@@ -265,7 +265,7 @@ comma := ,
 
 # Define the compiler Cargo features for all crates.
 compiler_features := --features $(subst $(space),$(comma),$(compilers))
-capi_compilers_engines_exclude := 
+capi_compilers_engines_exclude :=
 
 # Define the compiler Cargo features for the C API. It always excludes
 # LLVM for the moment because it causes the linker to fail since LLVM is not statically linked.
