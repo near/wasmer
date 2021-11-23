@@ -45,7 +45,7 @@ impl<'a> binemit::RelocSink for RelocSink<'a> {
         } else if let ExternalName::LibCall(libcall) = *name {
             match libcall {
                 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-                LibCall::Probestack => {
+                ir::LibCall::Probestack => {
                     self.func_relocs.push(Relocation {
                         kind: RelocationKind::X86CallPCRel4,
                         reloc_target: RelocationTarget::CustomSection(
