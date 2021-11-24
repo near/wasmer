@@ -72,6 +72,8 @@ pub struct CompilerOptions {
 
 #[cfg(feature = "compiler")]
 impl CompilerOptions {
+    // depending on compiler flags some branches may end up the same
+    #[allow(clippy::if_same_then_else)]
     fn get_compiler(&self) -> Result<CompilerType> {
         if self.cranelift {
             Ok(CompilerType::Cranelift)
