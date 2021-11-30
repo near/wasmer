@@ -2669,7 +2669,7 @@ dependencies = [
  "thiserror",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.78.2",
+ "wasmparser",
 ]
 
 [[package]]
@@ -2853,7 +2853,7 @@ dependencies = [
  "wasmer-engine-universal-near",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.78.2",
+ "wasmparser",
  "wat",
  "winapi",
 ]
@@ -3024,12 +3024,6 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.78.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52144d4c78e5cf8b055ceab8e5fa22814ce4315d6002ad32cfd914f37c12fd65"
-
-[[package]]
-name = "wasmparser"
 version = "0.80.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be92b6dcaa5af4b2a176b29be3bf1402fab9e69d313141185099c7d1684f2dca"
@@ -3041,7 +3035,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f62f18810edc34db799bcb3d555835b2eecc9b6b221f8ee74fdb5aae0bffa176"
 dependencies = [
  "anyhow",
- "wasmparser 0.80.1",
+ "wasmparser",
 ]
 
 [[package]]
