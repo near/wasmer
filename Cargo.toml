@@ -129,6 +129,10 @@ split-debuginfo = "unpacked"
 name = "static_and_dynamic_functions"
 harness = false
 
+[[bench]]
+name = "many_functions"
+harness = false
+
 [[example]]
 name = "early-exit"
 path = "examples/early_exit.rs"
