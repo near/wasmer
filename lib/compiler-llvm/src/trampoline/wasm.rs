@@ -14,6 +14,7 @@ use inkwell::{
     AddressSpace, DLLStorageClass,
 };
 use std::cmp;
+use std::convert::TryFrom;
 use std::convert::TryInto;
 use wasmer_compiler::{CompileError, FunctionBody, RelocationTarget};
 use wasmer_types::{FunctionType, LocalFunctionIndex};
@@ -47,9 +48,10 @@ impl FuncTrampoline {
         let module = self.ctx.create_module("");
         let target_machine = &self.target_machine;
         let target_triple = target_machine.get_triple();
+        let target_data = target_machine.get_target_data();
         module.set_triple(&target_triple);
-        module.set_data_layout(&target_machine.get_target_data().get_data_layout());
-        let intrinsics = Intrinsics::declare(&module, &self.ctx);
+        module.set_data_layout(&target_data.get_data_layout());
+        let intrinsics = Intrinsics::declare(&module, &self.ctx, &target_data);
 
         let (callee_ty, callee_attrs) =
             self.abi
@@ -176,10 +178,11 @@ impl FuncTrampoline {
         let function = CompiledKind::DynamicFunctionTrampoline(ty.clone());
         let module = self.ctx.create_module("");
         let target_machine = &self.target_machine;
+        let target_data = target_machine.get_target_data();
         let target_triple = target_machine.get_triple();
         module.set_triple(&target_triple);
-        module.set_data_layout(&target_machine.get_target_data().get_data_layout());
-        let intrinsics = Intrinsics::declare(&module, &self.ctx);
+        module.set_data_layout(&target_data.get_data_layout());
+        let intrinsics = Intrinsics::declare(&module, &self.ctx, &target_data);
 
         let (trampoline_ty, trampoline_attrs) =
             self.abi
@@ -346,7 +349,8 @@ impl FuncTrampoline {
             args_vec.push(arg.into());
         }
 
-        let call_site = builder.build_call(func_ptr, args_vec.as_slice().into(), "call");
+        let callable_func = inkwell::values::CallableValue::try_from(func_ptr).unwrap();
+        let call_site = builder.build_call(callable_func, args_vec.as_slice().into(), "call");
         for (attr, attr_loc) in func_attrs {
             call_site.add_attribute(*attr_loc, *attr);
         }
@@ -441,7 +445,8 @@ impl FuncTrampoline {
             .into_pointer_value();
 
         let values_ptr = builder.build_pointer_cast(values, intrinsics.i128_ptr_ty, "");
-        builder.build_call(callee, &[vmctx.into(), values_ptr.into()], "");
+        let callable_func = inkwell::values::CallableValue::try_from(callee).unwrap();
+        builder.build_call(callable_func, &[vmctx.into(), values_ptr.into()], "");
 
         if func_sig.results().is_empty() {
             builder.build_return(None);

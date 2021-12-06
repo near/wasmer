@@ -2073,7 +2073,7 @@ pub fn path_rename(
 
     let source_entry = match &mut state.fs.inodes[source_parent_inode].kind {
         Kind::Dir { entries, .. } => {
-            wasi_try!(entries.remove(&source_entry_name), __WASI_EINVAL)
+            wasi_try!(entries.remove(&source_entry_name), __WASI_ENOENT)
         }
         Kind::Root { .. } => return __WASI_ENOTCAPABLE,
         Kind::Symlink { .. } | Kind::File { .. } | Kind::Buffer { .. } => {
@@ -2322,6 +2322,7 @@ pub fn path_unlink_file(
 /// Output:
 /// - `u32 nevents`
 ///     The number of events seen
+#[cfg(not(feature = "js"))]
 pub fn poll_oneoff(
     env: &WasiEnv,
     in_: WasmPtr<__wasi_subscription_t, Array>,
@@ -2507,6 +2508,17 @@ pub fn poll_oneoff(
     }
     out_ptr.set(events_seen as u32);
     __WASI_ESUCCESS
+}
+
+#[cfg(feature = "js")]
+pub fn poll_oneoff(
+    env: &WasiEnv,
+    in_: WasmPtr<__wasi_subscription_t, Array>,
+    out_: WasmPtr<__wasi_event_t, Array>,
+    nsubscriptions: u32,
+    nevents: WasmPtr<u32>,
+) -> __wasi_errno_t {
+    unimplemented!();
 }
 
 pub fn proc_exit(env: &WasiEnv, code: __wasi_exitcode_t) {

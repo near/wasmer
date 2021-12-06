@@ -59,6 +59,11 @@ pub enum InstantiationError {
     #[error(transparent)]
     Start(RuntimeError),
 
+    /// The module was compiled with a CPU feature that is not available on
+    /// the current host.
+    #[error("missing requires CPU features: {0:?}")]
+    CpuFeature(String),
+
     /// Error occurred when initializing the host environment.
     #[error(transparent)]
     HostEnvInitialization(HostEnvInitError),
@@ -69,6 +74,7 @@ impl From<wasmer_engine::InstantiationError> for InstantiationError {
         match other {
             wasmer_engine::InstantiationError::Link(e) => Self::Link(e),
             wasmer_engine::InstantiationError::Start(e) => Self::Start(e),
+            wasmer_engine::InstantiationError::CpuFeature(e) => Self::CpuFeature(e),
         }
     }
 }
@@ -113,7 +119,10 @@ impl Instance {
     /// Those are, as defined by the spec:
     ///  * Link errors that happen when plugging the imports into the instance
     ///  * Runtime errors that happen when running the module `start` function.
-    pub fn new(module: &Module, resolver: &dyn Resolver) -> Result<Self, InstantiationError> {
+    pub fn new(
+        module: &Module,
+        resolver: &(dyn Resolver + Send + Sync),
+    ) -> Result<Self, InstantiationError> {
         Instance::new_with_config(module, InstanceConfig::default(), resolver)
     }
 

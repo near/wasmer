@@ -1,6 +1,6 @@
 [package]
 name = "wasmer-compiler-llvm"
-version = "2.0.0"
+version = "2.1.0"
 description = "LLVM compiler for Wasmer WebAssembly runtime"
 categories = ["wasm"]
 keywords = ["wasm", "webassembly", "compiler", "llvm"]
@@ -17,7 +17,7 @@ wasmer-vm = { path = "../vm", version = "2.0.0", package = "wasmer-vm-near" }
 wasmer-types = { path = "../types", version = "2.0.0", package = "wasmer-types-near" }
 target-lexicon = { version = "0.12.2", default-features = false }
 smallvec = "1.6"
-object = { version = "0.26", default-features = false, features = ["read"] }
+object = { version = "0.27", default-features = false, features = ["read"] }
 libc = { version = "^0.2", default-features = false }
 byteorder = "1"
 itertools = "0.10"
@@ -25,10 +25,10 @@ rayon = "1.5"
 loupe = "0.1"
 
 [dependencies.inkwell]
-package = "wasmer_inkwell"
-version = "0.2.0-alpha.2"
+package = "inkwell"
+version = "0.1.0-beta.4"
 default-features = false
-features = ["llvm11-0", "target-x86", "target-aarch64"]
+features = ["llvm12-0", "target-x86", "target-aarch64"]
 
 [build-dependencies]
 cc = "1.0"

@@ -12,9 +12,10 @@ use wasmer::*;
 #[cfg(feature = "compiler")]
 use wasmer_compiler::CompilerConfig;
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, StructOpt, Default)]
 /// The compiler and engine options
 pub struct StoreOptions {
+    #[cfg(feature = "compiler")]
     #[structopt(flatten)]
     compiler: CompilerOptions,
 
@@ -43,7 +44,8 @@ pub struct StoreOptions {
     object_file: bool,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[cfg(feature = "compiler")]
+#[derive(Debug, Clone, StructOpt, Default)]
 /// The compiler options
 pub struct CompilerOptions {
     /// Use Singlepass compiler.
@@ -63,6 +65,7 @@ pub struct CompilerOptions {
     enable_verifier: bool,
 
     /// LLVM debug directory, where IR and object files will be written to.
+    #[cfg(feature = "llvm")]
     #[structopt(long, parse(from_os_str))]
     llvm_debug_dir: Option<PathBuf>,
 

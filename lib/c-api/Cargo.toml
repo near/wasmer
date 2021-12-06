@@ -1,6 +1,6 @@
 [package]
 name = "wasmer-c-api"
-version = "2.0.3"
+version = "2.1.0"
 description = "Wasmer C API library"
 categories = ["wasm", "api-bindings"]
 keywords = ["wasm", "webassembly", "runtime"]
@@ -42,7 +42,6 @@ serde = { version = "1", optional = true, features = ["derive"] }
 thiserror = "1"
 typetag = { version = "0.1", optional = true }
 paste = "1.0"
-rayon = "1.5"
 
 [dev-dependencies]
 field-offset = "0.3.3"

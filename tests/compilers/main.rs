@@ -6,6 +6,7 @@
 extern crate compiler_test_derive;
 
 mod config;
+mod deterministic;
 mod fast_gas_metering;
 mod imports;
 mod issues;

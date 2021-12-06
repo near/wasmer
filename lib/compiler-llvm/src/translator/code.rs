@@ -24,6 +24,7 @@ use smallvec::SmallVec;
 use crate::abi::{get_abi, Abi};
 use crate::config::{CompiledKind, LLVM};
 use crate::object_file::{load_object_file, CompiledFunction};
+use std::convert::TryFrom;
 use wasmer_compiler::wasmparser::{MemoryImmediate, Operator};
 use wasmer_compiler::{
     wptype_to_type, CompileError, FunctionBinaryReader, FunctionBodyData, MiddlewareBinaryReader,
@@ -82,8 +83,9 @@ impl FuncTranslator {
 
         let target_machine = &self.target_machine;
         let target_triple = target_machine.get_triple();
+        let target_data = target_machine.get_target_data();
         module.set_triple(&target_triple);
-        module.set_data_layout(&target_machine.get_target_data().get_data_layout());
+        module.set_data_layout(&target_data.get_data_layout());
         let wasm_fn_type = wasm_module
             .signatures
             .get(wasm_module.functions[func_index])
@@ -91,7 +93,7 @@ impl FuncTranslator {
 
         // TODO: pointer width
         let offsets = VMOffsets::new(8, &wasm_module);
-        let intrinsics = Intrinsics::declare(&module, &self.ctx);
+        let intrinsics = Intrinsics::declare(&module, &self.ctx, &target_data);
         let (func_type, func_attrs) =
             self.abi
                 .func_type_to_llvm(&self.ctx, &intrinsics, Some(&offsets), wasm_fn_type)?;
@@ -1620,8 +1622,12 @@ impl<'ctx, 'a> LLVMFunctionCodeGenerator<'ctx, 'a> {
                         };
                         let case_index_literal =
                             self.context.i32_type().const_int(case_index as u64, false);
-
-                        for (phi, value) in frame.phis().iter().zip(args.iter()) {
+                        let phis = if frame.is_loop() {
+                            frame.loop_body_phis()
+                        } else {
+                            frame.phis()
+                        };
+                        for (phi, value) in phis.iter().zip(args.iter()) {
                             phi.add_incoming(&[(value, current_block)]);
                         }
 
@@ -2225,8 +2231,9 @@ impl<'ctx, 'a> LLVMFunctionCodeGenerator<'ctx, 'a> {
                 }
                 */
 
+                let callable_func = inkwell::values::CallableValue::try_from(func).unwrap();
                 let call_site = self.builder.build_call(
-                    func,
+                    callable_func,
                     params
                         .iter()
                         .copied()
@@ -2517,8 +2524,10 @@ impl<'ctx, 'a> LLVMFunctionCodeGenerator<'ctx, 'a> {
                     }
                 }
                 */
+                let callable_func =
+                    inkwell::values::CallableValue::try_from(typed_func_ptr).unwrap();
                 let call_site = self.builder.build_call(
-                    typed_func_ptr,
+                    callable_func,
                     params
                         .iter()
                         .copied()
@@ -10910,8 +10919,9 @@ impl<'ctx, 'a> LLVMFunctionCodeGenerator<'ctx, 'a> {
                 let memory_index = MemoryIndex::from_u32(mem);
                 let delta = self.state.pop1()?;
                 let grow_fn_ptr = self.ctx.memory_grow(memory_index, self.intrinsics);
+                let callable_func = inkwell::values::CallableValue::try_from(grow_fn_ptr).unwrap();
                 let grow = self.builder.build_call(
-                    grow_fn_ptr,
+                    callable_func,
                     &[
                         vmctx.as_basic_value_enum().into(),
                         delta.into(),
@@ -10924,8 +10934,9 @@ impl<'ctx, 'a> LLVMFunctionCodeGenerator<'ctx, 'a> {
             Operator::MemorySize { mem, mem_byte: _ } => {
                 let memory_index = MemoryIndex::from_u32(mem);
                 let size_fn_ptr = self.ctx.memory_size(memory_index, self.intrinsics);
+                let callable_func = inkwell::values::CallableValue::try_from(size_fn_ptr).unwrap();
                 let size = self.builder.build_call(
-                    size_fn_ptr,
+                    callable_func,
                     &[
                         vmctx.as_basic_value_enum().into(),
                         self.intrinsics.i32_ty.const_int(mem.into(), false).into(),

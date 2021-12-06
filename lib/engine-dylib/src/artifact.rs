@@ -3,6 +3,7 @@
 
 use crate::engine::{DylibEngine, DylibEngineInner};
 use crate::serialize::{ArchivedModuleMetadata, ModuleMetadata};
+use enumset::EnumSet;
 use libloading::{Library, Symbol as LibrarySymbol};
 use loupe::MemoryUsage;
 use std::error::Error;
@@ -17,8 +18,8 @@ use tracing::log::error;
 #[cfg(feature = "compiler")]
 use tracing::trace;
 use wasmer_compiler::{
-    Architecture, CompileError, CompiledFunctionFrameInfo, Features, FunctionAddressMap,
-    OperatingSystem, Symbol, SymbolRegistry, Triple,
+    Architecture, CompileError, CompiledFunctionFrameInfo, CpuFeature, Features,
+    FunctionAddressMap, OperatingSystem, Symbol, SymbolRegistry, Triple,
 };
 #[cfg(feature = "compiler")]
 use wasmer_compiler::{
@@ -209,6 +210,7 @@ impl DylibArtifact {
             prefix: engine_inner.get_prefix(&data),
             data_initializers,
             function_body_lengths,
+            cpu_features: target.cpu_features().as_u64(),
         };
 
         let serialized_data = metadata.serialize()?;
@@ -308,7 +310,18 @@ impl DylibArtifact {
         let ios_compile_target = target_triple.operating_system == OperatingSystem::Ios;
         let ios_sdk_flag = {
             if ios_compile_target {
-                "-isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
+                if target_triple.architecture == Architecture::X86_64 {
+                    "-isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk"
+                } else {
+                    "-isysroot/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
+                }
+            } else {
+                ""
+            }
+        };
+        let ios_sdk_lib = {
+            if ios_compile_target {
+                "-lSystem"
             } else {
                 ""
             }
@@ -331,6 +344,7 @@ impl DylibArtifact {
                 "-nodefaultlibs".to_string(),
                 "-nostdlib".to_string(),
                 ios_sdk_flag.to_string(),
+                ios_sdk_lib.to_string(),
             ]
         } else {
             // We are explicit on the target when the host system is
@@ -785,6 +799,10 @@ impl Artifact for DylibArtifact {
 
     fn features(&self) -> &Features {
         &self.metadata.compile_info.features
+    }
+
+    fn cpu_features(&self) -> enumset::EnumSet<CpuFeature> {
+        EnumSet::from_u64(self.metadata.cpu_features)
     }
 
     fn data_initializers(&self) -> &[OwnedDataInitializer] {

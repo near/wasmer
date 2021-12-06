@@ -169,7 +169,7 @@ pub struct WasiFs {
     /// for fds still open after the file has been deleted
     pub orphan_fds: HashMap<Inode, InodeVal>,
     #[cfg_attr(feature = "enable-serde", serde(skip, default = "default_fs_backing"))]
-    fs_backing: Box<dyn FileSystem>,
+    pub fs_backing: Box<dyn FileSystem>,
 }
 
 /// Returns the default filesystem backing
@@ -325,7 +325,8 @@ impl WasiFs {
                         | __WASI_RIGHT_SOCK_SHUTDOWN;
                 }
                 if *write {
-                    rights |= __WASI_RIGHT_FD_FDSTAT_SET_FLAGS
+                    rights |= __WASI_RIGHT_FD_DATASYNC
+                        | __WASI_RIGHT_FD_FDSTAT_SET_FLAGS
                         | __WASI_RIGHT_FD_WRITE
                         | __WASI_RIGHT_FD_SYNC
                         | __WASI_RIGHT_FD_ALLOCATE
@@ -766,7 +767,7 @@ impl WasiFs {
                                 .fs_backing
                                 .symlink_metadata(&file)
                                 .ok()
-                                .ok_or(__WASI_EINVAL)?;
+                                .ok_or(__WASI_ENOENT)?;
                             let file_type = metadata.file_type();
                             // we want to insert newly opened dirs and files, but not transient symlinks
                             // TODO: explain why (think about this deeply when well rested)
@@ -894,7 +895,7 @@ impl WasiFs {
                         {
                             cur_inode = *entry;
                         } else {
-                            return Err(__WASI_EINVAL);
+                            return Err(__WASI_ENOENT);
                         }
                     }
                     Kind::File { .. } => {

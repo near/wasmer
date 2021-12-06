@@ -96,8 +96,10 @@ pub(crate) struct Instance {
     /// get removed. A missing entry is considered equivalent to an empty slice.
     passive_data: RefCell<HashMap<DataIndex, Arc<[u8]>>>,
 
-    /// TODO: document this
-    funcref_backings: BoxedSlice<FunctionIndex, Box<VMCallerCheckedAnyfunc>>,
+    /// Mapping of function indices to their func ref backing data. `VMFuncRef`s
+    /// will point to elements here for functions defined or imported by this
+    /// instance.
+    funcrefs: BoxedSlice<FunctionIndex, VMCallerCheckedAnyfunc>,
 
     /// Hosts can store arbitrary per-instance information here.
     host_state: Box<dyn Any>,
@@ -648,8 +650,7 @@ impl Instance {
         if index == FunctionIndex::reserved_value() {
             return VMFuncRef::null();
         }
-        let entry: &VMCallerCheckedAnyfunc = &*self.funcref_backings[index];
-        VMFuncRef(entry as *const VMCallerCheckedAnyfunc)
+        VMFuncRef(&self.funcrefs[index])
     }
 
     /// The `table.init` operation: initializes a portion of a table with a
@@ -828,9 +829,9 @@ impl Instance {
         if src
             .checked_add(len)
             .map_or(true, |n| n as usize > data.len())
-            || dst
-                .checked_add(len)
-                .map_or(true, |m| m > memory.current_length)
+            || dst.checked_add(len).map_or(true, |m| {
+                usize::try_from(m).unwrap() > memory.current_length
+            })
         {
             return Err(Trap::lib(TrapCode::HeapAccessOutOfBounds));
         }
@@ -932,7 +933,7 @@ impl InstanceHandle {
         let handle = {
             let offsets = allocator.offsets().clone();
             // use dummy value to create an instance so we can get the vmctx pointer
-            let funcref_backings = PrimaryMap::new().into_boxed_slice();
+            let funcrefs = PrimaryMap::new().into_boxed_slice();
             // Create the `Instance`. The unique, the One.
             let instance = Instance {
                 module,
@@ -946,7 +947,7 @@ impl InstanceHandle {
                 passive_elements: Default::default(),
                 passive_data,
                 host_state,
-                funcref_backings,
+                funcrefs,
                 imported_function_envs,
                 vmctx: VMContext {},
             };
@@ -957,7 +958,7 @@ impl InstanceHandle {
             {
                 let instance = instance_ref.as_mut().unwrap();
                 let vmctx_ptr = instance.vmctx_ptr();
-                instance.funcref_backings = build_funcrefs(
+                instance.funcrefs = build_funcrefs(
                     &*instance.module,
                     &imports,
                     &instance.functions,
@@ -1454,7 +1455,7 @@ fn build_funcrefs(
     finished_functions: &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
     vmshared_signatures: &BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
     vmctx_ptr: *mut VMContext,
-) -> BoxedSlice<FunctionIndex, Box<VMCallerCheckedAnyfunc>> {
+) -> BoxedSlice<FunctionIndex, VMCallerCheckedAnyfunc> {
     let mut func_refs = PrimaryMap::with_capacity(module_info.functions.len());
 
     // do imported functions
@@ -1466,7 +1467,7 @@ fn build_funcrefs(
             type_index,
             vmctx: import.environment,
         };
-        func_refs.push(Box::new(anyfunc));
+        func_refs.push(anyfunc);
     }
 
     // do local functions
@@ -1479,7 +1480,7 @@ fn build_funcrefs(
             type_index,
             vmctx: VMFunctionEnvironment { vmctx: vmctx_ptr },
         };
-        func_refs.push(Box::new(anyfunc));
+        func_refs.push(anyfunc);
     }
 
     func_refs.into_boxed_slice()

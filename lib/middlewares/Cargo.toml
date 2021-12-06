@@ -1,6 +1,6 @@
 [package]
 name = "wasmer-middlewares"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
 description = "A collection of various useful middlewares"
 license = "MIT OR Apache-2.0 WITH LLVM-exception"

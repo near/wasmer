@@ -2,7 +2,6 @@
 singlepass spec::multi_value # Singlepass has not implemented multivalue (functions that returns "structs"/"tuples")
 singlepass spec::simd # Singlepass doesn't support yet SIMD (no one asked for this feature)
 
-singlepass+windows * # We might need to add support for Windows calling convention from host to wasm (Company showed interest to sponsor)
 singlepass+dylib * # It needs to add support for PIC in Singlepass. Not implemented at the moment
 windows+dylib * # This might be trivial to fix?
 musl+dylib * # Dynamic loading not supported in Musl
@@ -52,6 +51,7 @@ llvm+dylib+macos+aarch64 * # Tests seem to be randomly failing
 # https://github.com/rust-lang/backtrace-rs/issues/356
 cranelift+aarch64 spec::skip_stack_guard_page # This is skipped for ARM, not fully fixed yet
 llvm+aarch64      spec::skip_stack_guard_page # This is skipped for ARM, not fully fixed yet
+singlepass+windows spec::skip_stack_guard_page # Needs investigation.
 cranelift+windows spec::skip_stack_guard_page # Needs investigation. Issue: `STATUS_ACCESS_VIOLATION` trap happened
 cranelift+macos   spec::skip_stack_guard_page # Needs investigation. process didn't exit successfully: (signal: 6, SIGABRT: process abort signal)
 llvm+macos        spec::skip_stack_guard_page # Needs investigation. process didn't exit successfully: (signal: 6, SIGABRT: process abort signal)
@@ -73,6 +73,9 @@ cranelift spec::simd::simd_i32x4_trunc_sat_f64x2
 cranelift spec::simd::simd_i64x2_extmul_i32x4
 cranelift spec::simd::simd_i8x16_arith2
 cranelift spec::simd::simd_int_to_int_extend
+
+# Windows doesn't overcommit and fails to allocate 4GB of memory
+windows wasmer::max_size_of_memory
 
 # Frontends
 
@@ -127,33 +130,8 @@ wasitests::unstable::mem_fs::fd_close
 wasitests::unstable::host_fs::poll_oneoff
 wasitests::unstable::mem_fs::poll_oneoff
 
-## Failing due to different line endings on Windows
-## we need a better solution to this problem:
-
-windows wasitests::snapshot1::host_fs::file_metadata
-windows wasitests::snapshot1::host_fs::fseek
-windows wasitests::snapshot1::host_fs::path_link
-windows wasitests::snapshot1::host_fs::path_symlink
-windows wasitests::snapshot1::host_fs::mapdir_with_leading_slash
-windows wasitests::unstable::host_fs::fd_pread
-windows wasitests::unstable::host_fs::fd_read
-windows wasitests::unstable::host_fs::file_metadata
-windows wasitests::unstable::host_fs::fseek
-windows wasitests::unstable::host_fs::path_link
-windows wasitests::unstable::host_fs::path_symlink
-windows wasitests::unstable::host_fs::mapdir_with_leading_slash
-windows wasitests::snapshot1::mem_fs::file_metadata
-windows wasitests::snapshot1::mem_fs::fseek
-windows wasitests::snapshot1::mem_fs::path_link
-windows wasitests::snapshot1::mem_fs::path_symlink
-windows wasitests::snapshot1::mem_fs::mapdir_with_leading_slash
-windows wasitests::unstable::mem_fs::fd_pread
-windows wasitests::unstable::mem_fs::fd_read
-windows wasitests::unstable::mem_fs::file_metadata
-windows wasitests::unstable::mem_fs::fseek
-windows wasitests::unstable::mem_fs::path_link
-windows wasitests::unstable::mem_fs::path_symlink
-windows wasitests::unstable::mem_fs::mapdir_with_leading_slash
+### randomly failed, mainly on windows but also on macos, due to a race condition when concurently testing multiple compiler / engines
+wasitests::snapshot1::host_fs::fd_rename_path
 
 # This tests are disabled for now
 wasitests::unstable::host_fs::unix_open_special_files

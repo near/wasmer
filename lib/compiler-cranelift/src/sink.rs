@@ -5,7 +5,6 @@ use cranelift_codegen::binemit;
 use cranelift_codegen::ir::{self, ExternalName};
 use cranelift_entity::EntityRef as CraneliftEntityRef;
 use wasmer_compiler::{JumpTable, Relocation, RelocationTarget, TrapInformation};
-#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use wasmer_compiler::{RelocationKind, SectionIndex};
 use wasmer_types::entity::EntityRef;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, ModuleInfo};
@@ -22,8 +21,7 @@ pub(crate) struct RelocSink<'a> {
     pub func_relocs: Vec<Relocation>,
 
     /// The section where the probestack trampoline call is located
-    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-    pub probestack_trampoline_relocation_target: SectionIndex,
+    pub probestack_trampoline_relocation_target: Option<SectionIndex>,
 }
 
 impl<'a> binemit::RelocSink for RelocSink<'a> {
@@ -43,13 +41,12 @@ impl<'a> binemit::RelocSink for RelocSink<'a> {
                     .expect("The provided function should be local"),
             )
         } else if let ExternalName::LibCall(libcall) = *name {
-            match libcall {
-                #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-                ir::LibCall::Probestack => {
+            match (libcall, self.probestack_trampoline_relocation_target) {
+                (ir::LibCall::Probestack, Some(probestack_trampoline_relocation_target)) => {
                     self.func_relocs.push(Relocation {
                         kind: RelocationKind::X86CallPCRel4,
                         reloc_target: RelocationTarget::CustomSection(
-                            self.probestack_trampoline_relocation_target,
+                            probestack_trampoline_relocation_target,
                         ),
                         offset: offset,
                         addend: addend,
@@ -98,8 +95,7 @@ impl<'a> RelocSink<'a> {
     pub fn new(
         module: &'a ModuleInfo,
         func_index: FunctionIndex,
-        #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
-        probestack_trampoline_relocation_target: SectionIndex,
+        probestack_trampoline_relocation_target: Option<SectionIndex>,
     ) -> Self {
         let local_func_index = module
             .local_func_index(func_index)
@@ -108,7 +104,6 @@ impl<'a> RelocSink<'a> {
             module,
             local_func_index,
             func_relocs: Vec::new(),
-            #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
             probestack_trampoline_relocation_target,
         }
     }
