@@ -3,6 +3,7 @@
 
 use crate::common::WasmFeatures;
 use anyhow::Result;
+#[cfg(feature = "llvm")]
 use std::path::PathBuf;
 use std::string::ToString;
 #[allow(unused_imports)]
