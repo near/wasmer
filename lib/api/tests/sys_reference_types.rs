@@ -7,7 +7,6 @@ mod sys {
     use wasmer::*;
 
     #[test]
-    #[ignore]
     fn func_ref_passed_and_returned() -> Result<()> {
         let store = Store::default();
         let wat = r#"(module
@@ -57,7 +56,6 @@ mod sys {
     }
 
     #[test]
-    #[ignore]
     fn func_ref_passed_and_called() -> Result<()> {
         let store = Store::default();
         let wat = r#"(module
@@ -128,7 +126,6 @@ mod sys {
 
     #[cfg(feature = "experimental-reference-types-extern-ref")]
     #[test]
-    #[ignore]
     fn extern_ref_passed_and_returned() -> Result<()> {
         let store = Store::default();
         let wat = r#"(module
@@ -239,7 +236,6 @@ mod sys {
 
     #[cfg(feature = "experimental-reference-types-extern-ref")]
     #[test]
-    #[ignore]
     fn refs_in_globals() -> Result<()> {
         let store = Store::default();
         let wat = r#"(module
@@ -306,7 +302,6 @@ mod sys {
 
     #[cfg(feature = "experimental-reference-types-extern-ref")]
     #[test]
-    #[ignore]
     fn extern_ref_ref_counting_table_basic() -> Result<()> {
         let store = Store::default();
         let wat = r#"(module
