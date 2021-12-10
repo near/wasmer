@@ -10,6 +10,9 @@ license = "MIT OR Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
 edition = "2018"
 
+[lib]
+name = "wasmer_compiler"
+
 [dependencies]
 wasmer-vm = { path = "../vm", package = "wasmer-vm-near", version = "=2.1.1" }
 wasmer-types = { path = "../types", package = "wasmer-types-near", version = "=2.1.1", default-features = false }
