@@ -101,16 +101,6 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
         host_state: Box<dyn Any>,
         config: InstanceConfig,
     ) -> Result<InstanceHandle, InstantiationError> {
-        // Validate the CPU features this module was compiled with against the
-        // host CPU features.
-        let host_cpu_features = CpuFeature::for_host();
-        if !host_cpu_features.is_superset(self.cpu_features()) {
-            Err(InstantiationError::CpuFeature(format!(
-                "{:?}",
-                self.cpu_features().difference(host_cpu_features)
-            )))?;
-        }
-
         self.preinstantiate()?;
         let module = self.module();
         let (imports, import_function_envs) = {
