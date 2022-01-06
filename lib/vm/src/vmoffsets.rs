@@ -491,9 +491,7 @@ impl VMOffsets {
     ///
     /// [`VMContext`]: crate::vmcontext::VMContext
     pub fn size_of_vmctx(&self) -> u32 {
-        self.vmctx_stack_limit_pointer()
-            .checked_add(8)
-            .unwrap()
+        self.vmctx_stack_limit_pointer().checked_add(8).unwrap()
     }
 
     /// Return the offset to [`VMSharedSignatureIndex`] index `index`.

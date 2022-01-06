@@ -413,7 +413,6 @@ impl Instance {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_pointer()) }
     }
 
-
     /// Invoke the WebAssembly start function of the instance, if one is present.
     fn invoke_start_function(&self, trap_handler: &dyn TrapHandler) -> Result<(), Trap> {
         let start_index = match self.module.start_function {

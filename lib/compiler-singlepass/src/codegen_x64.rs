@@ -1952,8 +1952,11 @@ impl<'a> FuncGen<'a> {
                 ),
                 Location::GPR(limit_reg),
             );
-            self.assembler
-                .emit_add(Size::S32, Location::Imm32(locals as u32), Location::GPR(limit_reg));
+            self.assembler.emit_add(
+                Size::S32,
+                Location::Imm32(locals as u32),
+                Location::GPR(limit_reg),
+            );
             self.assembler.emit_cmp(
                 Size::S32,
                 Location::Memory(
@@ -1962,14 +1965,15 @@ impl<'a> FuncGen<'a> {
                 ),
                 Location::GPR(limit_reg),
             );
-            self.assembler.emit_jmp(Condition::AboveEqual, self.special_labels.stack_overflow);
+            self.assembler
+                .emit_jmp(Condition::AboveEqual, self.special_labels.stack_overflow);
             self.assembler.emit_mov(
                 Size::S32,
                 Location::GPR(limit_reg),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
                     self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
-                )
+                ),
             );
             self.machine.release_temp_gpr(limit_reg);
         }
@@ -8830,27 +8834,14 @@ impl<'a> FuncGen<'a> {
 
         let locals = self.local_types.len() + self.signature.params().len();
         if locals > 0 {
-            let limit_reg = self.machine.acquire_temp_gpr().unwrap();
-            // Load current stack limits.
-            self.assembler.emit_mov(
+            self.assembler.emit_sub(
                 Size::S32,
+                Location::Imm32(locals as u32),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
                     self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
                 ),
-                Location::GPR(limit_reg),
             );
-            self.assembler
-                .emit_sub(Size::S32, Location::Imm32(locals as u32), Location::GPR(limit_reg));
-            self.assembler.emit_mov(
-                Size::S32,
-                Location::GPR(limit_reg),
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
-                )
-            );
-            self.machine.release_temp_gpr(limit_reg);
         }
 
         // Notify the assembler backend to generate necessary code at end of function.

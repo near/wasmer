@@ -15,10 +15,10 @@ mod middlewares;
 // mod multi_value_imports;
 mod native_functions;
 mod serialize;
+mod stack_limiter;
 mod traps;
 mod wasi;
 mod wast;
-mod stack_limiter;
 
 pub use crate::config::{Compiler, Config, Engine};
 pub use crate::wasi::run_wasi;
