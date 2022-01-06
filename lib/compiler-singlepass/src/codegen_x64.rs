@@ -107,6 +107,7 @@ struct SpecialLabelSet {
     indirect_call_null: DynamicLabel,
     bad_signature: DynamicLabel,
     gas_limit_exceeded: DynamicLabel,
+    stack_overflow: DynamicLabel,
 }
 
 /// Metadata about a floating-point value.
@@ -1931,7 +1932,6 @@ impl<'a> FuncGen<'a> {
         self.assembler.emit_push(Size::S64, Location::GPR(GPR::RBP));
         self.assembler
             .emit_mov(Size::S64, Location::GPR(GPR::RSP), Location::GPR(GPR::RBP));
-
         // Initialize locals.
         self.locals = self.machine.init_locals(
             &mut self.assembler,
@@ -1939,6 +1939,40 @@ impl<'a> FuncGen<'a> {
             self.signature.params().len(),
             self.calling_convention,
         );
+
+        let locals = self.local_types.len() + self.signature.params().len();
+        if locals > 0 {
+            let limit_reg = self.machine.acquire_temp_gpr().unwrap();
+            // Load current stack limits.
+            self.assembler.emit_mov(
+                Size::S32,
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
+                ),
+                Location::GPR(limit_reg),
+            );
+            self.assembler
+                .emit_add(Size::S32, Location::Imm32(locals as u32), Location::GPR(limit_reg));
+            self.assembler.emit_cmp(
+                Size::S32,
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_stack_limit_pointer() as i32,
+                ),
+                Location::GPR(limit_reg),
+            );
+            self.assembler.emit_jmp(Condition::AboveEqual, self.special_labels.stack_overflow);
+            self.assembler.emit_mov(
+                Size::S32,
+                Location::GPR(limit_reg),
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
+                )
+            );
+            self.machine.release_temp_gpr(limit_reg);
+        }
 
         // Mark vmctx register. The actual loading of the vmctx value is handled by init_local.
         self.machine.state.register_values
@@ -2030,6 +2064,7 @@ impl<'a> FuncGen<'a> {
             indirect_call_null: assembler.get_label(),
             bad_signature: assembler.get_label(),
             gas_limit_exceeded: assembler.get_label(),
+            stack_overflow: assembler.get_label(),
         };
 
         let mut fg = FuncGen {
@@ -8788,6 +8823,35 @@ impl<'a> FuncGen<'a> {
         self.assembler
             .emit_label(self.special_labels.gas_limit_exceeded);
         self.emit_trap(TrapCode::GasExceeded);
+
+        self.assembler
+            .emit_label(self.special_labels.stack_overflow);
+        self.emit_trap(TrapCode::StackOverflow);
+
+        let locals = self.local_types.len() + self.signature.params().len();
+        if locals > 0 {
+            let limit_reg = self.machine.acquire_temp_gpr().unwrap();
+            // Load current stack limits.
+            self.assembler.emit_mov(
+                Size::S32,
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
+                ),
+                Location::GPR(limit_reg),
+            );
+            self.assembler
+                .emit_sub(Size::S32, Location::Imm32(locals as u32), Location::GPR(limit_reg));
+            self.assembler.emit_mov(
+                Size::S32,
+                Location::GPR(limit_reg),
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
+                )
+            );
+            self.machine.release_temp_gpr(limit_reg);
+        }
 
         // Notify the assembler backend to generate necessary code at end of function.
         self.assembler.finalize_function();

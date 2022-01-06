@@ -699,7 +699,12 @@ pub struct InstanceConfig {
     pub gas_counter: *mut FastGasCounter,
     #[loupe(skip)]
     default_gas_counter: Option<Rc<UnsafeCell<FastGasCounter>>>,
+    /// Stack limit, in 8-byte slots.
+    pub stack_limit: u32,
 }
+
+// Default stack limit, in 64-bit stack slots.
+const DEFAULT_STACK_LIMIT: u32 = 100 * 1024;
 
 impl InstanceConfig {
     /// Create default instance configuration.
@@ -712,6 +717,7 @@ impl InstanceConfig {
         Self {
             gas_counter: result.get(),
             default_gas_counter: Some(result),
+            stack_limit: DEFAULT_STACK_LIMIT,
         }
     }
 
@@ -722,6 +728,21 @@ impl InstanceConfig {
         Self {
             gas_counter,
             default_gas_counter: None,
+            stack_limit: DEFAULT_STACK_LIMIT,
+        }
+    }
+
+    /// Create instance configuration with given stack limit.
+    pub unsafe fn new_with_stack_limit(stack_limit: u32) -> Self {
+        let result = Rc::new(UnsafeCell::new(FastGasCounter {
+            burnt_gas: 0,
+            gas_limit: u64::MAX,
+            opcode_cost: 0,
+        }));
+        Self {
+            gas_counter: result.get(),
+            default_gas_counter: Some(result),
+            stack_limit,
         }
     }
 }

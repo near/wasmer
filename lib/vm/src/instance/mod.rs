@@ -408,6 +408,12 @@ impl Instance {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_gas_limiter_pointer()) }
     }
 
+    /// Return a pointer to stack limit.
+    pub fn stack_limit_ptr(&self) -> *mut u32 {
+        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_pointer()) }
+    }
+
+
     /// Invoke the WebAssembly start function of the instance, if one is present.
     fn invoke_start_function(&self, trap_handler: &dyn TrapHandler) -> Result<(), Trap> {
         let start_index = match self.module.start_function {
@@ -967,6 +973,7 @@ impl InstanceHandle {
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
                 *(instance.gas_counter_ptr()) = instance_config.gas_counter;
+                *(instance.stack_limit_ptr()) = instance_config.stack_limit;
             }
 
             Self {
