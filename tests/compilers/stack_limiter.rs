@@ -130,3 +130,47 @@ fn stack_limit_no_args() {
         _ => assert!(false),
     }
 }
+
+#[test]
+fn deep_but_sane() {
+    let wat = r#"
+        (func $foo (param $p0 i32) (result i32)
+            local.get $p0
+            i32.const 1
+            i32.sub
+            local.set $p0
+            block $B0
+                local.get $p0
+                i32.const 0
+                i32.le_s
+                br_if $B0
+                local.get $p0
+                call $foo
+                drop
+            end
+            local.get $p0
+        )
+        (func (export "main")
+            i32.const 1000
+            call $foo
+            drop
+        )
+    "#;
+
+    let store = get_store();
+    let module = Module::new(&store, &wat).unwrap();
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::default() },
+        &imports! {},
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    let main_func = instance
+        .exports
+        .get_function("main")
+        .expect("expected function main");
+
+    let e = main_func.call(&[]);
+    assert!(e.is_ok());
+}
