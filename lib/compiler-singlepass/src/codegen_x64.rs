@@ -8823,7 +8823,6 @@ impl<'a> FuncGen<'a> {
 
         self.assembler
             .emit_label(self.special_labels.stack_overflow);
-        self.assembler.emit_ud2();
         self.emit_trap(TrapCode::StackOverflow);
 
         // Notify the assembler backend to generate necessary code at end of function.
