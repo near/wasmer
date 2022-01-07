@@ -1940,8 +1940,10 @@ impl<'a> FuncGen<'a> {
                     self.vmoffsets.vmctx_stack_limit_pointer() as i32,
                 ),
             );
+            // Carry flag is set when the subtraction is considered to “overflow” for an unsigned
+            // result.
             self.assembler
-                .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
+                .emit_jmp(Condition::Carry, self.special_labels.stack_overflow);
         } else {
             self.assembler.emit_add(
                 Size::S32,
