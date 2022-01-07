@@ -15,7 +15,7 @@ fn stack_limit_hit() {
     (module
     (type (;0;) (func))
     (func (;0;) (type 0)
-      (local f64 <many times>)
+      (local f64 <32750 times>)
        local.get 1
        local.get 0
        f64.copysign
@@ -50,4 +50,50 @@ fn stack_limit_hit() {
         }
         _ => assert!(false),
     }
+}
+
+#[test]
+fn stack_limit_ok() {
+    let wat = r#"
+        (memory (;0;) 1000 10000)
+        (func $foo
+            (local f64)
+            i32.const 0
+            i32.const 1
+            i32.add
+            drop
+        )
+        (func (export "main")
+            (local $v0 i32)
+            i32.const 1000000
+            local.set $v0
+            loop $L0
+                local.get $v0
+                i32.const 1
+                i32.sub
+                local.set $v0
+                call $foo
+                local.get $v0
+                i32.const 0
+                i32.gt_s
+                br_if $L0
+            end
+        )
+    "#;
+
+    let store = get_store();
+    let module = Module::new(&store, &wat).unwrap();
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::new_with_stack_limit(1000) },
+        &imports! {},
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    let main_func = instance
+        .exports
+        .get_function("main")
+        .expect("expected function main");
+    let e = main_func.call(&[]);
+    assert!(e.is_ok());
 }

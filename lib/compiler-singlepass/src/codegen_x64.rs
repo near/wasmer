@@ -1925,25 +1925,12 @@ impl<'a> FuncGen<'a> {
         id
     }
 
-    fn emit_head(&mut self) -> Result<(), CodegenError> {
-        // TODO: Patchpoint is not emitted for now, and ARM trampoline is not prepended.
-
-        // Normal x86 entry prologue.
-        self.assembler.emit_push(Size::S64, Location::GPR(GPR::RBP));
-        self.assembler
-            .emit_mov(Size::S64, Location::GPR(GPR::RSP), Location::GPR(GPR::RBP));
-        // Initialize locals.
-        self.locals = self.machine.init_locals(
-            &mut self.assembler,
-            self.local_types.len(),
-            self.signature.params().len(),
-            self.calling_convention,
-        );
-
+    fn emit_stack_check(&mut self, enter: bool ) {
         let locals = self.local_types.len() + self.signature.params().len();
-        if locals > 0 {
+        if locals == 0 { return }
+        if enter {
             let limit_reg = self.machine.acquire_temp_gpr().unwrap();
-            // Load current stack limits.
+            // Load current stack height.
             self.assembler.emit_mov(
                 Size::S32,
                 Location::Memory(
@@ -1976,13 +1963,39 @@ impl<'a> FuncGen<'a> {
                 ),
             );
             self.machine.release_temp_gpr(limit_reg);
+
+        } else {
+            self.assembler.emit_sub(
+                Size::S32,
+                Location::Imm32(locals as u32),
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
+                ),
+            );
         }
+    }
+
+    fn emit_head(&mut self) -> Result<(), CodegenError> {
+        // TODO: Patchpoint is not emitted for now, and ARM trampoline is not prepended.
+
+        // Normal x86 entry prologue.
+        self.assembler.emit_push(Size::S64, Location::GPR(GPR::RBP));
+        self.assembler
+            .emit_mov(Size::S64, Location::GPR(GPR::RSP), Location::GPR(GPR::RBP));
+        // Initialize locals.
+        self.locals = self.machine.init_locals(
+            &mut self.assembler,
+            self.local_types.len(),
+            self.signature.params().len(),
+            self.calling_convention,
+        );
 
         // Mark vmctx register. The actual loading of the vmctx value is handled by init_local.
         self.machine.state.register_values
             [X64Register::GPR(Machine::get_vmctx_reg()).to_index().0] = MachineValue::Vmctx;
 
-        // TODO: Explicit stack check is not supported for now.
+        self.emit_stack_check(true);
         let diff = self.machine.state.diff(&new_machine_state());
         let state_diff_id = self.fsm.diffs.len();
         self.fsm.diffs.push(diff);
@@ -6764,6 +6777,8 @@ impl<'a> FuncGen<'a> {
             Operator::End => {
                 let frame = self.control_stack.pop().unwrap();
 
+                self.emit_stack_check(false);
+
                 if !was_unreachable && !frame.returns.is_empty() {
                     let loc = *self.value_stack.last().unwrap();
                     if frame.returns[0].is_float() {
@@ -8830,19 +8845,8 @@ impl<'a> FuncGen<'a> {
 
         self.assembler
             .emit_label(self.special_labels.stack_overflow);
+        self.assembler.emit_ud2();
         self.emit_trap(TrapCode::StackOverflow);
-
-        let locals = self.local_types.len() + self.signature.params().len();
-        if locals > 0 {
-            self.assembler.emit_sub(
-                Size::S32,
-                Location::Imm32(locals as u32),
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_pointer() as i32 + 4,
-                ),
-            );
-        }
 
         // Notify the assembler backend to generate necessary code at end of function.
         self.assembler.finalize_function();
