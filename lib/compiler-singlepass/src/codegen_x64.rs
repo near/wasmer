@@ -441,7 +441,7 @@ impl<'a> FuncGen<'a> {
                     Size::S64,
                     Location::Memory(
                         Machine::get_vmctx_reg(),
-                        self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
+                        self.vmoffsets.vmctx_gas_limiter_pointer_begin() as i32,
                     ),
                     Location::GPR(base_reg),
                 );
@@ -1937,7 +1937,7 @@ impl<'a> FuncGen<'a> {
                 Location::Imm32(locals as u32),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_pointer() as i32,
+                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
                 ),
             );
             // Carry flag is set when the subtraction is considered to “overflow” for an unsigned
@@ -1950,7 +1950,7 @@ impl<'a> FuncGen<'a> {
                 Location::Imm32(locals as u32),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_pointer() as i32,
+                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
                 ),
             );
         }
