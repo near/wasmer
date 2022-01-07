@@ -480,7 +480,6 @@ impl VMOffsets {
     }
 
     /// The offset of the stack limit.
-    /// First 4 bytes is the limit, next 4 bytes - the current value.
     pub fn vmctx_stack_limit_pointer(&self) -> u32 {
         self.vmctx_gas_limiter_pointer()
             .checked_add(u32::from(self.pointer_size))
@@ -491,7 +490,7 @@ impl VMOffsets {
     ///
     /// [`VMContext`]: crate::vmcontext::VMContext
     pub fn size_of_vmctx(&self) -> u32 {
-        self.vmctx_stack_limit_pointer().checked_add(8).unwrap()
+        self.vmctx_stack_limit_pointer().checked_add(4).unwrap()
     }
 
     /// Return the offset to [`VMSharedSignatureIndex`] index `index`.
