@@ -54,7 +54,8 @@ fn stack_limit_hit() {
 #[test]
 #[ignore = "stack checks currently do not handle the operand stack"]
 fn stack_limit_operand_stack() {
-    let wat = format!(r#"
+    let wat = format!(
+        r#"
         (func $foo (param $depth i32)
             block
                 (br_if 1 (i32.eq (local.get $depth) (i32.const 0)))
