@@ -111,11 +111,8 @@ fn stack_limit_no_args() {
 
     let store = get_store();
     let module = Module::new(&store, &wat).unwrap();
-    let instance = Instance::new_with_config(
-        &module,
-        unsafe { InstanceConfig::default() },
-        &imports! {},
-    );
+    let instance =
+        Instance::new_with_config(&module, unsafe { InstanceConfig::default() }, &imports! {});
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
@@ -159,11 +156,8 @@ fn deep_but_sane() {
 
     let store = get_store();
     let module = Module::new(&store, &wat).unwrap();
-    let instance = Instance::new_with_config(
-        &module,
-        unsafe { InstanceConfig::default() },
-        &imports! {},
-    );
+    let instance =
+        Instance::new_with_config(&module, unsafe { InstanceConfig::default() }, &imports! {});
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance

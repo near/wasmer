@@ -1925,7 +1925,7 @@ impl<'a> FuncGen<'a> {
         id
     }
 
-    fn emit_stack_check(&mut self, enter: bool ) {
+    fn emit_stack_check(&mut self, enter: bool) {
         // `local_types` include parameters as well.
         let locals = self.local_types.len()
             // we add 1 to ensure that deep recursion is prohibited even for local and argument free
@@ -1942,7 +1942,6 @@ impl<'a> FuncGen<'a> {
             );
             self.assembler
                 .emit_jmp(Condition::Overflow, self.special_labels.stack_overflow);
-
         } else {
             self.assembler.emit_add(
                 Size::S32,
