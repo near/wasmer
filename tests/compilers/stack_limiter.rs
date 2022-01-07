@@ -33,7 +33,7 @@ fn stack_limit_hit() {
     let module = Module::new(&store, &wasm).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::new_with_stack_limit(100000) },
+        unsafe { InstanceConfig::default().with_stack_limit(100000) },
         &imports! {},
     );
     assert!(instance.is_ok());
@@ -52,39 +52,87 @@ fn stack_limit_hit() {
 }
 
 #[test]
-fn stack_limit_ok() {
-    let wat = r#"
-        (memory (;0;) 1000 10000)
-        (func $foo
-            (local f64)
-            i32.const 0
-            i32.const 1
-            i32.add
-            drop
-        )
-        (func (export "main")
-            (local $v0 i32)
-            i32.const 1000000
-            local.set $v0
-            loop $L0
-                local.get $v0
+#[ignore = "stack checks currently do not handle the operand stack"]
+fn stack_limit_operand_stack() {
+    let wat = format!(r#"
+        (func $foo (param $depth i32)
+            block
+                (br_if 1 (i32.eq (local.get $depth) (i32.const 0)))
+                local.get $depth
                 i32.const 1
                 i32.sub
-                local.set $v0
+                local.set $depth
+                {extra_operand_stack}
+                local.get $depth
                 call $foo
-                local.get $v0
-                i32.const 0
-                i32.gt_s
-                br_if $L0
+                {depopulate_operand_stack}
             end
         )
-    "#;
+        (func (export "main")
+            (call $foo (i32.const 1000))
+        )
+    "#,
+        extra_operand_stack = "local.get $depth\n".repeat(10000),
+        depopulate_operand_stack = "drop\n".repeat(10000)
+    );
 
     let store = get_store();
     let module = Module::new(&store, &wat).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::new_with_stack_limit(1000) },
+        unsafe { InstanceConfig::default().with_stack_limit(1000) },
+        &imports! {},
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    let main_func = instance
+        .exports
+        .get_function("main")
+        .expect("expected function main");
+    match main_func.call(&[]) {
+        Err(err) => {
+            let trap = err.to_trap().unwrap();
+            assert_eq!(trap, TrapCode::StackOverflow);
+        }
+        _ => assert!(false),
+    }
+}
+
+const OK_WAT: &str = r#"
+    (memory (;0;) 1000 10000)
+    (func $foo
+        (local f64)
+        i32.const 0
+        i32.const 1
+        i32.add
+        drop
+    )
+    (func (export "main")
+        (local $v0 i32)
+        i32.const 1000000
+        local.set $v0
+        loop $L0
+            local.get $v0
+            i32.const 1
+            i32.sub
+            local.set $v0
+            call $foo
+            local.get $v0
+            i32.const 0
+            i32.gt_s
+            br_if $L0
+        end
+    )
+"#;
+
+#[test]
+fn stack_limit_ok() {
+    let wat = OK_WAT;
+    let store = get_store();
+    let module = Module::new(&store, &wat).unwrap();
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::default().with_stack_limit(1000) },
         &imports! {},
     );
     assert!(instance.is_ok());
@@ -95,6 +143,25 @@ fn stack_limit_ok() {
         .expect("expected function main");
     let e = main_func.call(&[]);
     assert!(e.is_ok());
+}
+
+#[test]
+fn stack_limit_huge_limit() {
+    let wat = OK_WAT;
+    let store = get_store();
+    let module = Module::new(&store, &wat).unwrap();
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::default().with_stack_limit(0xFFFF_FFFF) },
+        &imports! {},
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    let main_func = instance
+        .exports
+        .get_function("main")
+        .expect("expected function main");
+    main_func.call(&[]).unwrap();
 }
 
 #[test]
@@ -110,8 +177,11 @@ fn stack_limit_no_args() {
 
     let store = get_store();
     let module = Module::new(&store, &wat).unwrap();
-    let instance =
-        Instance::new_with_config(&module, unsafe { InstanceConfig::default() }, &imports! {});
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::default().with_stack_limit(1000) },
+        &imports! {},
+    );
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
