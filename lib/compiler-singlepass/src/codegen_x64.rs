@@ -1941,7 +1941,7 @@ impl<'a> FuncGen<'a> {
                 ),
             );
             self.assembler
-                .emit_jmp(Condition::Overflow, self.special_labels.stack_overflow);
+                .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
         } else {
             self.assembler.emit_add(
                 Size::S32,
