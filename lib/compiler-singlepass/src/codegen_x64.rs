@@ -1926,8 +1926,11 @@ impl<'a> FuncGen<'a> {
     }
 
     fn emit_stack_check(&mut self, enter: bool ) {
-        let locals = self.local_types.len() + self.signature.params().len();
-        if locals == 0 { return }
+        // `local_types` include parameters as well.
+        let locals = self.local_types.len()
+            // we add 1 to ensure that deep recursion is prohibited even for local and argument free
+            // functions, as they still use stack space for the return address.
+            + 1;
         if enter {
             self.assembler.emit_sub(
                 Size::S32,

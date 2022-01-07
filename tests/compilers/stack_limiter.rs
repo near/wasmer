@@ -97,3 +97,36 @@ fn stack_limit_ok() {
     let e = main_func.call(&[]);
     assert!(e.is_ok());
 }
+
+#[test]
+fn stack_limit_no_args() {
+    let wat = r#"
+        (func $foo
+            call $foo
+        )
+        (func (export "main")
+            call $foo
+        )
+    "#;
+
+    let store = get_store();
+    let module = Module::new(&store, &wat).unwrap();
+    let instance = Instance::new_with_config(
+        &module,
+        unsafe { InstanceConfig::default() },
+        &imports! {},
+    );
+    assert!(instance.is_ok());
+    let instance = instance.unwrap();
+    let main_func = instance
+        .exports
+        .get_function("main")
+        .expect("expected function main");
+    match main_func.call(&[]) {
+        Err(err) => {
+            let trap = err.to_trap().unwrap();
+            assert_eq!(trap, TrapCode::StackOverflow);
+        }
+        _ => assert!(false),
+    }
+}
