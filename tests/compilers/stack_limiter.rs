@@ -10,8 +10,7 @@ fn get_store() -> Store {
 
 #[test]
 fn stack_limit_hit() {
-    /**
-     * This contracts is
+    /* This contracts is
     (module
     (type (;0;) (func))
     (func (;0;) (type 0)
