@@ -724,26 +724,16 @@ impl InstanceConfig {
     /// Create instance configuration with an external gas counter, unsafe as it creates
     /// an alias on raw memory of gas_counter. This memory could be accessed until
     /// instance configured with this `InstanceConfig` exists.
-    pub unsafe fn new_with_counter(gas_counter: *mut FastGasCounter) -> Self {
-        Self {
-            gas_counter,
-            default_gas_counter: None,
-            stack_limit: DEFAULT_STACK_LIMIT,
-        }
+    pub unsafe fn with_counter(mut self, gas_counter: *mut FastGasCounter) -> Self {
+        self.gas_counter = gas_counter;
+        self.default_gas_counter = None;
+        self
     }
 
     /// Create instance configuration with given stack limit.
-    pub unsafe fn new_with_stack_limit(stack_limit: u32) -> Self {
-        let result = Rc::new(UnsafeCell::new(FastGasCounter {
-            burnt_gas: 0,
-            gas_limit: u64::MAX,
-            opcode_cost: 0,
-        }));
-        Self {
-            gas_counter: result.get(),
-            default_gas_counter: Some(result),
-            stack_limit,
-        }
+    pub unsafe fn with_stack_limit(mut self, stack_limit: u32) -> Self {
+        self.stack_limit = stack_limit;
+        self
     }
 }
 
