@@ -469,7 +469,7 @@ impl VMOffsets {
     }
 
     /// The offset of the gas limiter pointer.
-    pub fn vmctx_gas_limiter_pointer_begin(&self) -> u32 {
+    pub fn vmctx_gas_limiter_pointer(&self) -> u32 {
         self.vmctx_trap_handler_begin()
             .checked_add(if self.has_trap_handlers {
                 u32::from(self.pointer_size)
@@ -480,8 +480,8 @@ impl VMOffsets {
     }
 
     /// The offset of the stack limit.
-    pub fn vmctx_stack_limit_begin(&self) -> u32 {
-        self.vmctx_gas_limiter_pointer_begin()
+    pub fn vmctx_stack_limit_pointer(&self) -> u32 {
+        self.vmctx_gas_limiter_pointer()
             .checked_add(u32::from(self.pointer_size))
             .unwrap()
     }
@@ -490,7 +490,7 @@ impl VMOffsets {
     ///
     /// [`VMContext`]: crate::vmcontext::VMContext
     pub fn size_of_vmctx(&self) -> u32 {
-        self.vmctx_stack_limit_begin().checked_add(4).unwrap()
+        self.vmctx_stack_limit_pointer().checked_add(4).unwrap()
     }
 
     /// Return the offset to [`VMSharedSignatureIndex`] index `index`.

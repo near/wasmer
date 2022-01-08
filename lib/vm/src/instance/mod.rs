@@ -404,13 +404,13 @@ impl Instance {
     }
 
     /// Return a pointer to the gas limiter.
-    pub fn gas_counter_pointer_ptr(&self) -> *mut *const FastGasCounter {
-        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_gas_limiter_pointer_begin()) }
+    pub fn gas_counter_ptr(&self) -> *mut *const FastGasCounter {
+        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_gas_limiter_pointer()) }
     }
 
     /// Return a pointer to stack limit.
     pub fn stack_limit_ptr(&self) -> *mut u32 {
-        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_begin()) }
+        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_pointer()) }
     }
 
     /// Invoke the WebAssembly start function of the instance, if one is present.
@@ -971,7 +971,7 @@ impl InstanceHandle {
                     vmctx_ptr,
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
-                *(instance.gas_counter_pointer_ptr()) = instance_config.gas_counter;
+                *(instance.gas_counter_ptr()) = instance_config.gas_counter;
                 *(instance.stack_limit_ptr()) = instance_config.stack_limit;
             }
 
