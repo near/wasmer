@@ -732,6 +732,7 @@ impl InstanceConfig {
 
     /// Create instance configuration with given stack limit.
     pub unsafe fn with_stack_limit(mut self, stack_limit: u32) -> Self {
+        assert!(stack_limit <= i32::MAX as u32);
         self.stack_limit = stack_limit;
         self
     }

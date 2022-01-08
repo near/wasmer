@@ -153,7 +153,7 @@ fn stack_limit_huge_limit() {
     let module = Module::new(&store, &wat).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::default().with_stack_limit(0xFFFF_FFFF) },
+        unsafe { InstanceConfig::default().with_stack_limit(0x7FFF_FFFF) },
         &imports! {},
     );
     assert!(instance.is_ok());
