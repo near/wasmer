@@ -52,7 +52,6 @@ fn stack_limit_hit() {
 }
 
 #[test]
-#[ignore = "stack checks currently do not handle the operand stack"]
 fn stack_limit_operand_stack() {
     let wat = format!(
         r#"

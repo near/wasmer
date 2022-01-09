@@ -1,9 +1,10 @@
 use crate::address_map::get_function_address_map;
 use crate::config::{Intrinsic, IntrinsicKind};
 use crate::{common_decl::*, config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
-use dynasmrt::{x64::X64Relocation, DynamicLabel, VecAssembler};
+use dynasmrt::{x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, VecAssembler};
 use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
+use std::cmp::max;
 use std::iter;
 use wasmer_compiler::wasmparser::{
     MemoryImmediate, Operator, Type as WpType, TypeOrFuncType as WpTypeOrFuncType,
@@ -64,6 +65,12 @@ pub struct FuncGen<'a> {
 
     /// Value stack.
     value_stack: Vec<Location>,
+
+    /// Max stack depth.
+    max_stack_depth: usize,
+
+    /// Location to patch when we know the max stack depth.
+    stack_check_offset: AssemblyOffset,
 
     /// Metadata about floating point values on the stack.
     fp_stack: Vec<FloatValue>,
@@ -268,7 +275,15 @@ impl<'a> FuncGen<'a> {
         loc
     }
 
+    fn update_max_stack_depth(&mut self) {
+        self.max_stack_depth = max(
+            self.max_stack_depth,
+            self.value_stack.len() + self.fp_stack.len(),
+        );
+    }
+
     fn pop_value_released(&mut self) -> Location {
+        self.update_max_stack_depth();
         let loc = self
             .value_stack
             .pop()
@@ -315,6 +330,7 @@ impl<'a> FuncGen<'a> {
         //
         // Canonicalization state will be lost across function calls, so early canonicalization
         // is necessary here.
+        self.update_max_stack_depth();
         while let Some(fp) = self.fp_stack.last() {
             if fp.depth >= self.value_stack.len() {
                 let index = fp.depth - self.value_stack.len();
@@ -1925,34 +1941,50 @@ impl<'a> FuncGen<'a> {
         id
     }
 
-    fn emit_stack_check(&mut self, enter: bool) {
-        // `local_types` include parameters as well.
-        let locals = self.local_types.len()
-            // we add 4 to ensure that deep recursion is prohibited even for local and argument free
-            // functions, as they still use stack space for the saved frame base and return address,
-            // along with spill area for callee-saved registers.
-            + 4;
+    fn emit_stack_check(&mut self, enter: bool, depth: usize) {
         if enter {
+            // Here we must use value we do not yet know, so we write 0x7fff_ffff and patch it later.
             self.assembler.emit_sub(
                 Size::S32,
-                Location::Imm32(locals as u32),
+                Location::Imm32(0x7fff_ffff),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
                     self.vmoffsets.vmctx_stack_limit_pointer() as i32,
                 ),
             );
+            // TODO: make it cleaner, now we assume instruction with 32-bit immediate at the end.
+            // Recheck offsets, if change above instruction to anything else.
+            self.stack_check_offset = AssemblyOffset(self.assembler.offset().0 - 4);
             self.assembler
                 .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
         } else {
+            {
+                // Patch earlier stack checker with now known max stack depth.
+                assert!(self.stack_check_offset.0 > 0);
+                let mut alter = self.assembler.alter();
+                alter.goto(self.stack_check_offset);
+                alter.push_u32(depth as u32);
+            }
             self.assembler.emit_add(
                 Size::S32,
-                Location::Imm32(locals as u32),
+                Location::Imm32(depth as u32),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
                     self.vmoffsets.vmctx_stack_limit_pointer() as i32,
                 ),
             );
         }
+    }
+
+    fn emit_function_stack_check(&mut self, enter: bool) {
+        // `local_types` include parameters as well.
+        let depth = self.local_types.len()
+            + self.max_stack_depth
+            // we add 4 to ensure that deep recursion is prohibited even for local and argument free
+            // functions, as they still use stack space for the saved frame base and return address,
+            // along with spill area for callee-saved registers.
+            + 4;
+        self.emit_stack_check(enter, depth);
     }
 
     fn emit_head(&mut self) -> Result<(), CodegenError> {
@@ -1974,7 +2006,7 @@ impl<'a> FuncGen<'a> {
         self.machine.state.register_values
             [X64Register::GPR(Machine::get_vmctx_reg()).to_index().0] = MachineValue::Vmctx;
 
-        self.emit_stack_check(true);
+        self.emit_function_stack_check(true);
         let diff = self.machine.state.diff(&new_machine_state());
         let state_diff_id = self.fsm.diffs.len();
         self.fsm.diffs.push(diff);
@@ -2074,6 +2106,8 @@ impl<'a> FuncGen<'a> {
             locals: vec![], // initialization deferred to emit_head
             local_types,
             value_stack: vec![],
+            max_stack_depth: 0,
+            stack_check_offset: AssemblyOffset(0),
             fp_stack: vec![],
             control_stack: vec![],
             machine: Machine::new(),
@@ -5631,12 +5665,14 @@ impl<'a> FuncGen<'a> {
                     }
                 }
 
+                self.update_max_stack_depth();
+
                 let mut frame = self.control_stack.last_mut().unwrap();
 
                 let released: &[Location] = &self.value_stack[frame.value_stack_depth..];
                 self.machine
                     .release_locations(&mut self.assembler, released);
-                self.value_stack.truncate(frame.value_stack_depth);
+                self.value_stack.truncate(frame.fp_stack_depth);
                 self.fp_stack.truncate(frame.fp_stack_depth);
 
                 match frame.if_else {
@@ -6756,8 +6792,6 @@ impl<'a> FuncGen<'a> {
             Operator::End => {
                 let frame = self.control_stack.pop().unwrap();
 
-                self.emit_stack_check(false);
-
                 if !was_unreachable && !frame.returns.is_empty() {
                     let loc = *self.value_stack.last().unwrap();
                     if frame.returns[0].is_float() {
@@ -6795,6 +6829,8 @@ impl<'a> FuncGen<'a> {
 
                 if self.control_stack.is_empty() {
                     self.assembler.emit_label(frame.label);
+                    self.update_max_stack_depth();
+                    self.emit_function_stack_check(false);
                     self.machine.finalize_locals(
                         &mut self.assembler,
                         &self.locals,
@@ -6823,6 +6859,7 @@ impl<'a> FuncGen<'a> {
                     let released = &self.value_stack[frame.value_stack_depth..];
                     self.machine
                         .release_locations(&mut self.assembler, released);
+                    self.update_max_stack_depth();
                     self.value_stack.truncate(frame.value_stack_depth);
                     self.fp_stack.truncate(frame.fp_stack_depth);
 
