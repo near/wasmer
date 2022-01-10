@@ -1949,7 +1949,7 @@ impl<'a> FuncGen<'a> {
                 Location::Imm32(0x7fff_ffff),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_pointer() as i32,
+                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
                 ),
             );
             // TODO: make it cleaner, now we assume instruction with 32-bit immediate at the end.
@@ -1963,6 +1963,7 @@ impl<'a> FuncGen<'a> {
                 assert!(self.stack_check_offset.0 > 0);
                 let mut alter = self.assembler.alter();
                 alter.goto(self.stack_check_offset);
+                // TODO: check that the value before was 0x7fff_ffff
                 alter.push_u32(depth as u32);
             }
             self.assembler.emit_add(
@@ -1970,7 +1971,7 @@ impl<'a> FuncGen<'a> {
                 Location::Imm32(depth as u32),
                 Location::Memory(
                     Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_pointer() as i32,
+                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
                 ),
             );
         }

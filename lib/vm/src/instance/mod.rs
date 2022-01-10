@@ -409,8 +409,13 @@ impl Instance {
     }
 
     /// Return a pointer to stack limit.
+    pub fn stack_limit_initial_ptr(&self) -> *mut u32 {
+        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_initial_begin()) }
+    }
+
+    /// Return a pointer to stack limit.
     pub fn stack_limit_ptr(&self) -> *mut u32 {
-        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_pointer()) }
+        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_begin()) }
     }
 
     /// Invoke the WebAssembly start function of the instance, if one is present.
@@ -442,12 +447,19 @@ impl Instance {
         };
 
         // Make the call.
+        self.on_call();
         unsafe {
             catch_traps(trap_handler, || {
                 mem::transmute::<*const VMFunctionBody, unsafe extern "C" fn(VMFunctionEnvironment)>(
                     callee_address,
                 )(callee_vmctx)
             })
+        }
+    }
+
+    pub fn on_call(&self) {
+        unsafe {
+            *(self.stack_limit_ptr()) = *(self.stack_limit_initial_ptr());
         }
     }
 
@@ -972,7 +984,7 @@ impl InstanceHandle {
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
                 *(instance.gas_counter_ptr()) = instance_config.gas_counter;
-                *(instance.stack_limit_ptr()) = instance_config.stack_limit;
+                *(instance.stack_limit_initial_ptr()) = instance_config.stack_limit;
             }
 
             Self {
