@@ -5673,7 +5673,7 @@ impl<'a> FuncGen<'a> {
                 let released: &[Location] = &self.value_stack[frame.value_stack_depth..];
                 self.machine
                     .release_locations(&mut self.assembler, released);
-                self.value_stack.truncate(frame.fp_stack_depth);
+                self.value_stack.truncate(frame.value_stack_depth);
                 self.fp_stack.truncate(frame.fp_stack_depth);
 
                 match frame.if_else {
