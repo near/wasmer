@@ -548,7 +548,7 @@ pub unsafe fn wasmer_call_trampoline(
 ) -> Result<(), Trap> {
     // `vmctx` is always `*mut VMContext` here, as we call to WASM.
     let ctx = vmctx.vmctx;
-    (ctx.as_ref().unwrap()).instance().on_call();
+    (*ctx).instance().on_call();
     catch_traps(trap_handler, || {
         mem::transmute::<_, extern "C" fn(VMFunctionEnvironment, *const VMFunctionBody, *mut u8)>(
             trampoline,
