@@ -488,16 +488,16 @@ impl VMOffsets {
 
     /// The offset of the initial stack limiter.
     pub fn vmctx_stack_limit_initial_begin(&self) -> u32 {
-        self.vmctx_stack_limit_begin()
-            .checked_add(4)
-            .unwrap()
+        self.vmctx_stack_limit_begin().checked_add(4).unwrap()
     }
 
     /// Return the size of the [`VMContext`] allocation.
     ///
     /// [`VMContext`]: crate::vmcontext::VMContext
     pub fn size_of_vmctx(&self) -> u32 {
-        self.vmctx_stack_limit_initial_begin().checked_add(4).unwrap()
+        self.vmctx_stack_limit_initial_begin()
+            .checked_add(4)
+            .unwrap()
     }
 
     /// Return the offset to [`VMSharedSignatureIndex`] index `index`.

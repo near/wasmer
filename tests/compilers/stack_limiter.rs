@@ -225,8 +225,7 @@ fn deep_but_sane() {
 
     let store = get_store();
     let module = Module::new(&store, &wat).unwrap();
-    let instance =
-        Instance::new_with_config(&module, InstanceConfig::default(), &imports! {});
+    let instance = Instance::new_with_config(&module, InstanceConfig::default(), &imports! {});
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
