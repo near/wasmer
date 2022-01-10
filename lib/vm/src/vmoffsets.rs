@@ -486,7 +486,7 @@ impl VMOffsets {
             .unwrap()
     }
 
-    /// The offset of the initial stack limiter.
+    /// The offset of the initial stack limit.
     pub fn vmctx_stack_limit_initial_begin(&self) -> u32 {
         self.vmctx_stack_limit_begin().checked_add(4).unwrap()
     }

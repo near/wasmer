@@ -408,13 +408,13 @@ impl Instance {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_gas_limiter_pointer()) }
     }
 
-    /// Return a pointer to stack limit.
-    pub fn stack_limit_initial_ptr(&self) -> *mut u32 {
+    /// Return a pointer to initial stack limit.
+    pub fn stack_limit_initial_ptr(&self) -> *mut i32 {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_initial_begin()) }
     }
 
-    /// Return a pointer to stack limit.
-    pub fn stack_limit_ptr(&self) -> *mut u32 {
+    /// Return a pointer to current stack limit.
+    pub fn stack_limit_ptr(&self) -> *mut i32 {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_begin()) }
     }
 
