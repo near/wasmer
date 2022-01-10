@@ -984,6 +984,7 @@ impl InstanceHandle {
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
                 *(instance.gas_counter_ptr()) = instance_config.gas_counter;
+                *(instance.stack_limit_ptr()) = instance_config.stack_limit;
                 *(instance.stack_limit_initial_ptr()) = instance_config.stack_limit;
             }
 
