@@ -699,7 +699,12 @@ pub struct InstanceConfig {
     pub gas_counter: *mut FastGasCounter,
     #[loupe(skip)]
     default_gas_counter: Option<Rc<UnsafeCell<FastGasCounter>>>,
+    /// Stack limit, in 8-byte slots.
+    pub stack_limit: i32,
 }
+
+// Default stack limit, in 8-byte stack slots.
+const DEFAULT_STACK_LIMIT: i32 = 100 * 1024;
 
 impl InstanceConfig {
     /// Create default instance configuration.
@@ -712,17 +717,23 @@ impl InstanceConfig {
         Self {
             gas_counter: result.get(),
             default_gas_counter: Some(result),
+            stack_limit: DEFAULT_STACK_LIMIT,
         }
     }
 
     /// Create instance configuration with an external gas counter, unsafe as it creates
     /// an alias on raw memory of gas_counter. This memory could be accessed until
     /// instance configured with this `InstanceConfig` exists.
-    pub unsafe fn new_with_counter(gas_counter: *mut FastGasCounter) -> Self {
-        Self {
-            gas_counter,
-            default_gas_counter: None,
-        }
+    pub unsafe fn with_counter(mut self, gas_counter: *mut FastGasCounter) -> Self {
+        self.gas_counter = gas_counter;
+        self.default_gas_counter = None;
+        self
+    }
+
+    /// Create instance configuration with given stack limit.
+    pub unsafe fn with_stack_limit(mut self, stack_limit: i32) -> Self {
+        self.stack_limit = stack_limit;
+        self
     }
 }
 

@@ -84,12 +84,15 @@ impl UniversalArtifact {
             .map(|table_type| tunables.table_style(table_type))
             .collect();
 
-        let compile_info = CompileModuleInfo {
+        let mut compile_info = CompileModuleInfo {
             module: Arc::new(module),
             features: features.clone(),
             memory_styles,
             table_styles,
         };
+
+        // Ensure that we pass information about signals in module metadata.
+        compile_info.features.signal_less(!compiler.use_signals());
 
         // Compile the Module
         let compilation = compiler.compile_module(

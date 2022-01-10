@@ -15,6 +15,7 @@ mod middlewares;
 // mod multi_value_imports;
 mod native_functions;
 mod serialize;
+mod stack_limiter;
 mod traps;
 mod wasi;
 mod wast;

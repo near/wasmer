@@ -3200,6 +3200,7 @@ dependencies = [
  "wasmer-middlewares",
  "wasmer-near",
  "wasmer-types-near",
+ "wasmer-vm-near",
  "wasmer-wasi",
  "wasmer-wast",
 ]

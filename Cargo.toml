@@ -26,6 +26,8 @@ wasi-test-generator = { version = "2.0.0", path = "tests/wasi-wast", optional = 
 wasmer-cache = { version = "2.0.0", path = "lib/cache", optional = true }
 wasmer-types = { version = "=2.1.2", path = "lib/types", package = "wasmer-types-near" }
 wasmer-middlewares = { version = "2.0.0", path = "lib/middlewares", optional = true }
+wasmer-vm = { version = "=2.1.2", path = "lib/vm", package = "wasmer-vm-near" }
+
 cfg-if = "1.0"
 
 [workspace]
