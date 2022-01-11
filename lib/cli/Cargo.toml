@@ -35,8 +35,6 @@ wasmer-engine-universal = { version = "2.0.3", path = "../engine-universal", pac
 wasmer-engine-dylib = { version = "2.0.0", path = "../engine-dylib", optional = true }
 wasmer-engine-staticlib = { version = "2.0.0", path = "../engine-staticlib", optional = true }
 wasmer-vm = { version = "2.0.3", path = "../vm", package = "wasmer-vm-near" }
-wasmer-wasi = { version = "2.0.0", path = "../wasi", optional = true }
-wasmer-wasi-experimental-io-devices = { version = "2.0.0", path = "../wasi-experimental-io-devices", optional = true }
 wasmer-wast = { version = "2.0.0", path = "../../tests/lib/wast", optional = true }
 wasmer-cache = { version = "2.0.0", path = "../cache", optional = true }
 wasmer-types = { version = "2.0.3", path = "../types", package = "wasmer-types-near" }
@@ -65,7 +63,6 @@ default = [
     "dylib",
     "staticlib",
     "cache",
-    "wasi",
     "emscripten",
 ]
 engine = []
@@ -84,7 +81,6 @@ staticlib = [
 cache = ["wasmer-cache"]
 cache-blake3-pure = ["wasmer-cache/blake3-pure"]
 wast = ["wasmer-wast"]
-wasi = ["wasmer-wasi"]
 emscripten = ["wasmer-emscripten"]
 wat = ["wasmer/wat"]
 compiler = [
@@ -92,10 +88,6 @@ compiler = [
     "wasmer-engine-universal/compiler",
     "wasmer-engine-dylib/compiler",
     "wasmer-engine-staticlib/compiler",
-]
-experimental-io-devices = [
-    "wasmer-wasi-experimental-io-devices",
-    "wasi"
 ]
 singlepass = [
     "wasmer-compiler-singlepass",
@@ -109,10 +101,10 @@ llvm = [
     "wasmer-compiler-llvm",
     "compiler",
 ]
-debug = ["fern", "log", "wasmer-wasi/logging"]
-disable-all-logging = ["wasmer-wasi/disable-all-logging"]
+debug = ["fern", "log"]
+disable-all-logging = []
 headless = []
-headless-minimal = ["headless", "disable-all-logging", "wasi", "dylib", "universal"]
+headless-minimal = ["headless", "disable-all-logging", "dylib", "universal"]
 
 # Deprecated features.
 jit = ["universal"]

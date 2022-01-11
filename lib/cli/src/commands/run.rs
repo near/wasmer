@@ -13,12 +13,6 @@ use wasmer_cache::{Cache, FileSystemCache, Hash};
 
 use structopt::StructOpt;
 
-#[cfg(feature = "wasi")]
-mod wasi;
-
-#[cfg(feature = "wasi")]
-use wasi::Wasi;
-
 #[derive(Debug, StructOpt, Clone, Default)]
 /// The options for the `wasmer run` subcommand
 pub struct Run {
@@ -50,11 +44,6 @@ pub struct Run {
 
     #[structopt(flatten)]
     store: StoreOptions,
-
-    // TODO: refactor WASI structure to allow shared options with Emscripten
-    #[cfg(feature = "wasi")]
-    #[structopt(flatten)]
-    wasi: Wasi,
 
     /// Enable non-standard experimental IO devices
     #[cfg(feature = "io-devices")]
@@ -117,12 +106,6 @@ impl Run {
                     Ok(instance) => instance,
                     Err(e) => {
                         let err: Result<(), _> = Err(e);
-                        #[cfg(feature = "wasi")]
-                        {
-                            if Wasi::has_wasi_imports(&module) {
-                                return err.with_context(|| "This module has both Emscripten and WASI imports. Wasmer does not currently support Emscripten modules using WASI imports.");
-                            }
-                        }
                         return err.with_context(|| "Can't instantiate emscripten module");
                     }
                 };
@@ -143,50 +126,6 @@ impl Run {
             }
         }
 
-        // If WASI is enabled, try to execute it with it
-        #[cfg(feature = "wasi")]
-        let instance = {
-            use std::collections::BTreeSet;
-            use wasmer_wasi::WasiVersion;
-
-            let wasi_versions = Wasi::get_versions(&module);
-            match wasi_versions {
-                Some(wasi_versions) if !wasi_versions.is_empty() => {
-                    if wasi_versions.len() >= 2 {
-                        let get_version_list = |versions: &BTreeSet<WasiVersion>| -> String {
-                            versions
-                                .iter()
-                                .map(|v| format!("`{}`", v.get_namespace_str()))
-                                .collect::<Vec<String>>()
-                                .join(", ")
-                        };
-                        if self.wasi.deny_multiple_wasi_versions {
-                            let version_list = get_version_list(&wasi_versions);
-                            bail!("Found more than 1 WASI version in this module ({}) and `--deny-multiple-wasi-versions` is enabled.", version_list);
-                        } else if !self.wasi.allow_multiple_wasi_versions {
-                            let version_list = get_version_list(&wasi_versions);
-                            warning!("Found more than 1 WASI version in this module ({}). If this is intentional, pass `--allow-multiple-wasi-versions` to suppress this warning.", version_list);
-                        }
-                    }
-
-                    let program_name = self
-                        .command_name
-                        .clone()
-                        .or_else(|| {
-                            self.path
-                                .file_name()
-                                .map(|f| f.to_string_lossy().to_string())
-                        })
-                        .unwrap_or_default();
-                    self.wasi
-                        .instantiate(&module, program_name, self.args.clone())
-                        .with_context(|| "failed to instantiate WASI module")?
-                }
-                // not WASI
-                _ => Instance::new(&module, &imports! {})?,
-            }
-        };
-        #[cfg(not(feature = "wasi"))]
         let instance = Instance::new(&module, &imports! {})?;
 
         // If this module exports an _initialize function, run that first.
@@ -212,9 +151,6 @@ impl Run {
         } else {
             let start: Function = self.try_find_function(&instance, "_start", &[])?;
             let result = start.call(&[]);
-            #[cfg(feature = "wasi")]
-            self.wasi.handle_result(result)?;
-            #[cfg(not(feature = "wasi"))]
             result?;
         }
 
@@ -483,7 +419,6 @@ impl Run {
             path: executable.into(),
             command_name: Some(original_executable),
             store: store,
-            wasi: Wasi::for_binfmt_interpreter()?,
             ..Self::default()
         })
     }

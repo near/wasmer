@@ -1,8 +1,11 @@
 use anyhow::Result;
-use wasmer::{wat2wasm, Module};
+use wasmer::{wat2wasm, Module, Store};
+use wasmer_compiler_singlepass::Singlepass;
+use wasmer_engine_universal::Universal;
 
 fn compile_and_compare(wasm: &[u8]) -> Result<()> {
-    let store = Default::default();
+    let compiler = Singlepass::default();
+    let store = Store::new(&Universal::new(compiler).engine());
 
     // compile for first time
     let module = Module::new(&store, wasm)?;

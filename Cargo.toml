@@ -10,7 +10,7 @@ publish = false
 autoexamples = false
 
 [dependencies]
-wasmer = { version = "=2.1.2", path = "lib/api", default-features = false, package = "wasmer-near" }
+wasmer = { version = "=2.1.2", path = "lib/api", package = "wasmer-near" }
 wasmer-compiler = { version = "=2.1.2", path = "lib/compiler", package = "wasmer-compiler-near" }
 wasmer-compiler-cranelift = { version = "2.0.0", path = "lib/compiler-cranelift", optional = true }
 wasmer-compiler-singlepass = { version = "=2.1.2", path = "lib/compiler-singlepass", optional = true, package = "wasmer-compiler-singlepass-near" }
@@ -20,9 +20,7 @@ wasmer-engine = { version = "=2.1.2", path = "lib/engine", package = "wasmer-eng
 wasmer-engine-universal = { version = "=2.1.2", path = "lib/engine-universal", optional = true, package = "wasmer-engine-universal-near" }
 wasmer-engine-dylib = { version = "2.0.0", path = "lib/engine-dylib", optional = true }
 wasmer-engine-staticlib = { version = "2.0.0", path = "lib/engine-staticlib", optional = true }
-wasmer-wasi = { version = "2.0.0", path = "lib/wasi", optional = true }
 wasmer-wast = { version = "2.0.0", path = "tests/lib/wast", optional = true }
-wasi-test-generator = { version = "2.0.0", path = "tests/wasi-wast", optional = true }
 wasmer-cache = { version = "2.0.0", path = "lib/cache", optional = true }
 wasmer-types = { version = "=2.1.2", path = "lib/types", package = "wasmer-types-near" }
 wasmer-middlewares = { version = "2.0.0", path = "lib/middlewares", optional = true }
@@ -34,7 +32,6 @@ cfg-if = "1.0"
 members = [
     "lib/api",
     "lib/cache",
-    "lib/c-api",
     "lib/cli",
     "lib/compiler",
     "lib/compiler-cranelift",
@@ -49,11 +46,7 @@ members = [
     "lib/object",
     "lib/vfs",
     "lib/vm",
-    "lib/wasi",
-    "lib/wasi-types",
-    "lib/wasi-experimental-io-devices",
     "lib/types",
-    "tests/wasi-wast",
     "tests/lib/wast",
     "tests/lib/compiler-test-derive",
     "tests/integration/cli",
@@ -90,9 +83,9 @@ default = [
     "wat",
     "wast",
     "universal",
+    "singlepass",
     "staticlib",
     "cache",
-    "wasi",
     "emscripten",
     "middlewares",
 ]
@@ -111,7 +104,6 @@ staticlib = [
 ]
 cache = ["wasmer-cache"]
 wast = ["wasmer-wast"]
-wasi = ["wasmer-wasi"]
 emscripten = ["wasmer-emscripten"]
 wat = ["wasmer/wat"]
 compiler = [
@@ -240,16 +232,6 @@ required-features = ["cranelift"]
 name = "tunables-limit-memory"
 path = "examples/tunables_limit_memory.rs"
 required-features = ["cranelift"]
-
-[[example]]
-name = "wasi"
-path = "examples/wasi.rs"
-required-features = ["cranelift", "wasi"]
-
-[[example]]
-name = "wasi-pipes"
-path = "examples/wasi_pipes.rs"
-required-features = ["cranelift", "wasi"]
 
 [[example]]
 name = "table"

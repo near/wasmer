@@ -17,10 +17,7 @@ mod native_functions;
 mod serialize;
 mod stack_limiter;
 mod traps;
-mod wasi;
 mod wast;
 
 pub use crate::config::{Compiler, Config, Engine};
-pub use crate::wasi::run_wasi;
 pub use crate::wast::run_wast;
-pub use wasmer_wast::WasiFileSystemKind;
