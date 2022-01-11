@@ -22,7 +22,6 @@ wasmer-engine-staticlib = { version = "2.0.0", path = "lib/engine-staticlib", op
 wasmer-wast = { version = "2.0.0", path = "tests/lib/wast", optional = true }
 wasmer-cache = { version = "2.0.0", path = "lib/cache", optional = true }
 wasmer-types = { version = "=2.1.2", path = "lib/types", package = "wasmer-types-near" }
-wasmer-middlewares = { version = "2.0.0", path = "lib/middlewares", optional = true }
 wasmer-vm = { version = "=2.1.2", path = "lib/vm", package = "wasmer-vm-near" }
 
 cfg-if = "1.0"
@@ -84,7 +83,6 @@ default = [
     "singlepass",
     "staticlib",
     "cache",
-    "middlewares",
 ]
 engine = []
 universal = [
@@ -121,7 +119,6 @@ llvm = [
     "wasmer-compiler-llvm",
     "compiler",
 ]
-middlewares = ["wasmer-middlewares"]
 
 # Testing features
 test-singlepass = [

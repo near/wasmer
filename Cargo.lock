@@ -2044,7 +2044,6 @@ dependencies = [
  "wasmer-compiler-singlepass-near",
  "wasmer-engine-dylib",
  "wasmer-engine-universal-near",
- "wasmer-middlewares",
  "wasmer-near",
  "wasmprinter",
 ]
@@ -2295,16 +2294,6 @@ name = "wasmer-integration-tests-ios"
 version = "2.1.0"
 
 [[package]]
-name = "wasmer-middlewares"
-version = "2.1.0"
-dependencies = [
- "loupe",
- "wasmer-near",
- "wasmer-types-near",
- "wasmer-vm-near",
-]
-
-[[package]]
 name = "wasmer-near"
 version = "2.1.2"
 dependencies = [
@@ -2430,7 +2419,6 @@ dependencies = [
  "wasmer-engine-near",
  "wasmer-engine-staticlib",
  "wasmer-engine-universal-near",
- "wasmer-middlewares",
  "wasmer-near",
  "wasmer-types-near",
  "wasmer-vm-near",
