@@ -15,7 +15,6 @@ wasmer-compiler = { version = "=2.1.2", path = "lib/compiler", package = "wasmer
 wasmer-compiler-cranelift = { version = "2.0.0", path = "lib/compiler-cranelift", optional = true }
 wasmer-compiler-singlepass = { version = "=2.1.2", path = "lib/compiler-singlepass", optional = true, package = "wasmer-compiler-singlepass-near" }
 wasmer-compiler-llvm = { version = "2.0.0", path = "lib/compiler-llvm", optional = true }
-wasmer-emscripten = { version = "2.0.0", path = "lib/emscripten", optional = true }
 wasmer-engine = { version = "=2.1.2", path = "lib/engine", package = "wasmer-engine-near"  }
 wasmer-engine-universal = { version = "=2.1.2", path = "lib/engine-universal", optional = true, package = "wasmer-engine-universal-near" }
 wasmer-engine-dylib = { version = "2.0.0", path = "lib/engine-dylib", optional = true }
@@ -38,7 +37,6 @@ members = [
     "lib/compiler-singlepass",
     "lib/compiler-llvm",
     "lib/derive",
-    "lib/emscripten",
     "lib/engine",
     "lib/engine-universal",
     "lib/engine-dylib",
@@ -86,7 +84,6 @@ default = [
     "singlepass",
     "staticlib",
     "cache",
-    "emscripten",
     "middlewares",
 ]
 engine = []
@@ -104,7 +101,6 @@ staticlib = [
 ]
 cache = ["wasmer-cache"]
 wast = ["wasmer-wast"]
-emscripten = ["wasmer-emscripten"]
 wat = ["wasmer/wat"]
 compiler = [
     "wasmer/compiler",
