@@ -41,7 +41,6 @@ members = [
     "lib/engine-dylib",
     "lib/engine-staticlib",
     "lib/object",
-    "lib/vfs",
     "lib/vm",
     "lib/types",
     "tests/lib/wast",

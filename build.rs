@@ -9,8 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use test_generator::{
-    test_directory, test_directory_module, wast_processor, with_test_module,
-    Testsuite,
+    test_directory, test_directory_module, wast_processor, with_test_module, Testsuite,
 };
 
 fn main() -> anyhow::Result<()> {
