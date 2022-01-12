@@ -13,15 +13,6 @@ edition = "2018"
 [lib]
 name = "wasmer"
 
-#####
-# This crate comes in 2 major flavors:
-#
-# - `sys`, where `wasmer` will be compiled to a native executable
-#    which provides compilers, engines, a full VM etc.
-# - `js`, where `wasmer` will be compiled to WebAssembly to run in a
-#   JavaScript host.
-#####
-
 # Shared dependencies.
 [dependencies]
 # - Mandatory shared dependencies.
@@ -57,36 +48,13 @@ wat = "1.0"
 tempfile = "3.1"
 anyhow = "1.0"
 
-# Dependencies and Develoment Dependencies for `js`.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-# - Mandatory dependencies for `js`.
-wasmer-types = { path = "../types", version = "=2.1.2", package = "wasmer-types-near", default-features = false, features = ["std"] }
-wasm-bindgen = "0.2.74"
-js-sys = "0.3.51"
-wasmer-derive = { path = "../derive", version = "=2.1.2", package = "wasmer-derive-near" }
-# - Optional dependencies for `js`.
-wasmparser = { version = "0.78", default-features = false, optional = true }
-hashbrown = { version = "0.11", optional = true }
-# - Development Dependencies for `js`.
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wat = "1.0"
-anyhow = "1.0"
-wasm-bindgen-test = "0.3.0"
-
-# Specific to `js`.
-#
-# `wasm-opt` is on by default in for the release profile, but it can be
-# disabled by setting it to `false`
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
-
 [badges]
 maintenance = { status = "actively-developed" }
 
 [features]
 default = ["sys-default"]
 std = []
-core = ["hashbrown"]
+core = []
 
 # Features for `sys`.
 sys = []
@@ -150,12 +118,6 @@ experimental-reference-types-extern-ref = [
 # - Deprecated features.
 jit = ["universal"]
 native = ["dylib"]
-
-# Features for `js`.
-js = []
-js-default = ["js", "std", "wasm-types-polyfill"]
-
-wasm-types-polyfill = ["js", "wasmparser"]
 
 [package.metadata.docs.rs]
 features = ["compiler", "core", "cranelift", "default-compiler", "default-dylib", "default-engine", "dylib", "engine", "jit", "llvm", "native", "singlepass", "sys", "sys-default", "universal"]

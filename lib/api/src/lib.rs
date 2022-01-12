@@ -26,9 +26,6 @@
         clippy::use_self
     )
 )]
-#![cfg_attr(feature = "js", crate_type = "cdylib")]
-#![cfg_attr(feature = "js", crate_type = "rlib")]
-
 //! [`Wasmer`](https://wasmer.io/) is the most popular
 //! [WebAssembly](https://webassembly.org/) runtime for Rust. It supports
 //! JIT (Just In Time) and AOT (Ahead Of Time) compilation as well as
@@ -93,13 +90,13 @@
 //!     compilation-time and runtime performance, useful for development,
 //!   * [`wasmer-compiler-llvm`] provides a deeply optimized executable
 //!     code with the fastest runtime speed, ideal for production.
-//!     
+//!
 //! * **Headless mode** — Once a WebAssembly module has been compiled, it
 //!   is possible to serialize it in a file for example, and later execute
 //!   it with Wasmer with headless mode turned on. Headless Wasmer has no
 //!   compiler, which makes it more portable and faster to load. It's
 //!   ideal for constrainted environments.
-//!   
+//!
 //! * **Cross-compilation** — Most compilers support cross-compilation. It
 //!   means it possible to pre-compile a WebAssembly module targetting a
 //!   different architecture or platform and serialize it, to then run it
@@ -273,23 +270,11 @@
 //!
 //! # Cargo Features
 //!
-//! This crate comes in 2 flavors:
+//! This crate comes in 1 flavor:
 //!
 //! 1. `sys`
-#![cfg_attr(feature = "sys", doc = "(enabled),")]
-#![cfg_attr(not(feature = "sys"), doc = "(disabled),")]
 //!    where `wasmer` will be compiled to a native executable
 //!    which provides compilers, engines, a full VM etc.
-//! 2. `js`
-#![cfg_attr(feature = "js", doc = "(enabled),")]
-#![cfg_attr(not(feature = "js"), doc = "(disabled),")]
-//!    where `wasmer` will be compiled to WebAssembly to run in a
-//!    JavaScript host (see [Using Wasmer in a JavaScript
-//!    environment](#using-wasmer-in-a-javascript-environment)).
-//!
-//! Consequently, we can group the features by the `sys` or `js`
-//! features.
-//!
 #![cfg_attr(
     feature = "sys",
     doc = "## Features for the `sys` feature group (enabled)"
@@ -357,76 +342,12 @@
 #![cfg_attr(not(feature = "default-dylib"), doc = "(disabled),")]
 //!   set the Dylib engine as the default.
 //!
-#![cfg_attr(
-    feature = "js",
-    doc = "## Features for the `js` feature group (enabled)"
-)]
-#![cfg_attr(
-    not(feature = "js"),
-    doc = "## Features for the `js` feature group (disabled)"
-)]
-//!
-//! The default features can be enabled with the `js-default` feature.
-//!
-//! Here are the detailed list of features:
-//!
-//! - `wasm-types-polyfill`
-#![cfg_attr(feature = "wasm-types-polyfill", doc = "(enabled),")]
-#![cfg_attr(not(feature = "wasm-types-polyfill"), doc = "(disabled),")]
-//!   parses the Wasm file, allowing to do type reflection of the
-//!   inner Wasm types. It adds 100kb to the Wasm bundle (28kb
-//!   gzipped). It is possible to disable it and to use
-//!   `Module::set_type_hints` manually instead for a lightweight
-//!   alternative. This is needed until the [Wasm JS introspection API
-//!   proposal](https://github.com/WebAssembly/js-types/blob/master/proposals/js-types/Overview.md)
-//!   is adopted by browsers,
 //! - `wat`
 #![cfg_attr(feature = "wat", doc = "(enabled),")]
 #![cfg_attr(not(feature = "wat"), doc = "(disabled),")]
 //!  allows to read a Wasm file in its text format. This feature is
 //!  normally used only in development environments. It will add
 //!  around 650kb to the Wasm bundle (120Kb gzipped).
-//!
-//! # Using Wasmer in a JavaScript environment
-//!
-//! Imagine a Rust program that uses this `wasmer` crate to execute a
-//! WebAssembly module. It is possible to compile this Rust progam to
-//! WebAssembly by turning on the `js` Cargo feature of this `wasmer`
-//! crate.
-//!
-//! Here is a small example illustrating such a Rust program, and how
-//! to compile it with [`wasm-pack`] and [`wasm-bindgen`]:
-//!
-//! ```ignore
-//! #[wasm_bindgen]
-//! pub extern fn do_add_one_in_wasmer() -> i32 {
-//!     let module_wat = r#"
-//!     (module
-//!       (type $t0 (func (param i32) (result i32)))
-//!       (func $add_one (export "add_one") (type $t0) (param $p0 i32) (result i32)
-//!         get_local $p0
-//!         i32.const 1
-//!         i32.add))
-//!     "#;
-//!     let store = Store::default();
-//!     let module = Module::new(&store, &module_wat).unwrap();
-//!     // The module doesn't import anything, so we create an empty import object.
-//!     let import_object = imports! {};
-//!     let instance = Instance::new(&module, &import_object).unwrap();
-//!
-//!     let add_one = instance.exports.get_function("add_one").unwrap();
-//!     let result = add_one.call(&[Value::I32(42)]).unwrap();
-//!     assert_eq!(result[0], Value::I32(43));
-//!
-//!     result[0].unwrap_i32()
-//! }
-//! ```
-//!
-//! Note that it's the same code as above with the former example. The
-//! API is the same!
-//!
-//! Then, compile with `wasm-pack build`. Take care of using the `js`
-//! or `js-default` Cargo features.
 //!
 //! [wasm]: https://webassembly.org/
 //! [wasmer-examples]: https://github.com/wasmerio/wasmer/tree/master/examples
@@ -444,30 +365,14 @@
 //! [`wasm-pack`]: https://github.com/rustwasm/wasm-pack/
 //! [`wasm-bindgen`]: https://github.com/rustwasm/wasm-bindgen
 
-#[cfg(all(not(feature = "sys"), not(feature = "js")))]
+#[cfg(not(feature = "sys"))]
 compile_error!("At least the `sys` or the `js` feature must be enabled. Please, pick one.");
-
-#[cfg(all(feature = "sys", feature = "js"))]
-compile_error!(
-    "Cannot have both `sys` and `js` features enabled at the same time. Please, pick one."
-);
 
 #[cfg(all(feature = "sys", target_arch = "wasm32"))]
 compile_error!("The `sys` feature must be enabled only for non-`wasm32` target.");
-
-#[cfg(all(feature = "js", not(target_arch = "wasm32")))]
-compile_error!(
-    "The `js` feature must be enabled only for the `wasm32` target (either `wasm32-unknown-unknown` or `wasm32-wasi`)."
-);
 
 #[cfg(feature = "sys")]
 mod sys;
 
 #[cfg(feature = "sys")]
 pub use sys::*;
-
-#[cfg(feature = "js")]
-mod js;
-
-#[cfg(feature = "js")]
-pub use js::*;
