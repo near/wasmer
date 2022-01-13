@@ -60,6 +60,9 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
     /// ready to be run.
     fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>;
 
+    /// Returns the functions code length.
+    fn finished_functions_lengths(&self) -> &BoxedSlice<LocalFunctionIndex, usize>;
+
     /// Returns the function call trampolines allocated in memory of this
     /// `Artifact`, ready to be run.
     fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline>;

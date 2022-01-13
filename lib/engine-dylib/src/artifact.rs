@@ -825,6 +825,10 @@ impl Artifact for DylibArtifact {
         &self.finished_functions
     }
 
+    fn finished_functions_lengths(&self) -> &BoxedSlice<LocalFunctionIndex, usize> {
+        todo!("unimpl");
+    }
+
     fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
         &self.finished_function_call_trampolines
     }

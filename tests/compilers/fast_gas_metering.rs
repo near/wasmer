@@ -242,7 +242,7 @@ fn test_gas_intrinsic_default() {
 #[test]
 fn test_gas_intrinsic_tricky() {
     let store = get_store();
-    let mut gas_counter = FastGasCounter::new(500, 300000000);
+    let gas_counter = FastGasCounter::new(500, 300000000);
     let module = get_module_tricky_arg(&store);
     static BURNT_GAS: AtomicUsize = AtomicUsize::new(0);
     static HITS: AtomicUsize = AtomicUsize::new(0);
