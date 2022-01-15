@@ -234,6 +234,10 @@ impl Artifact for DummyArtifact {
         &self.finished_functions
     }
 
+    fn finished_functions_lengths(&self) -> &BoxedSlice<LocalFunctionIndex, usize> {
+        unimplemented!();
+    }
+
     fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
         &self.finished_function_call_trampolines
     }

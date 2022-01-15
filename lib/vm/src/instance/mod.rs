@@ -46,7 +46,8 @@ use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, 
 use wasmer_types::{
     DataIndex, DataInitializer, ElemIndex, ExportIndex, FastGasCounter, FunctionIndex, GlobalIndex,
     GlobalInit, InstanceConfig, LocalFunctionIndex, LocalGlobalIndex, LocalMemoryIndex,
-    LocalTableIndex, MemoryIndex, ModuleInfo, Pages, SignatureIndex, TableIndex, TableInitializer,
+    LocalTableIndex, MemoryIndex, ModuleInfo, NamedFunction, Pages, SignatureIndex, TableIndex,
+    TableInitializer,
 };
 
 /// The function pointer to call with data and an [`Instance`] pointer to
@@ -83,6 +84,9 @@ pub(crate) struct Instance {
 
     /// Pointers to functions in executable memory.
     functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
+
+    /// Size of functions in executable memory.
+    function_lengths: BoxedSlice<LocalFunctionIndex, usize>,
 
     /// Pointers to function call trampolines in executable memory.
     #[loupe(skip)]
@@ -416,6 +420,42 @@ impl Instance {
     /// Return a pointer to current stack limit.
     pub fn stack_limit_ptr(&self) -> *mut i32 {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_stack_limit_begin()) }
+    }
+
+    pub fn named_functions(&self) -> Vec<NamedFunction> {
+        let mut result = vec![];
+        for (index, name) in &self.module.function_names {
+            match self.module.local_func_index(*index) {
+                Some(local_index) => {
+                    let address = self.functions[local_index].0 as u64;
+                    let size = self.function_lengths[local_index];
+                    result.push(NamedFunction {
+                        name: name.clone(),
+                        address,
+                        size,
+                    })
+                }
+                None => {}
+            }
+        }
+        for (name, index) in &self.module.exports {
+            match index {
+                ExportIndex::Function(index) => match self.module.local_func_index(*index) {
+                    Some(local_index) => {
+                        let address = self.functions[local_index].0 as u64;
+                        let size = self.function_lengths[local_index];
+                        result.push(NamedFunction {
+                            name: name.clone(),
+                            address,
+                            size,
+                        })
+                    }
+                    None => {}
+                },
+                _ => {}
+            }
+        }
+        result
     }
 
     /// Invoke the WebAssembly start function of the instance, if one is present.
@@ -930,6 +970,7 @@ impl InstanceHandle {
         allocator: InstanceAllocator,
         module: Arc<ModuleInfo>,
         finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
+        finished_functions_lengths: BoxedSlice<LocalFunctionIndex, usize>,
         finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
         finished_memories: BoxedSlice<LocalMemoryIndex, Arc<dyn Memory>>,
         finished_tables: BoxedSlice<LocalTableIndex, Arc<dyn Table>>,
@@ -960,6 +1001,7 @@ impl InstanceHandle {
                 tables: finished_tables,
                 globals: finished_globals,
                 functions: finished_functions,
+                function_lengths: finished_functions_lengths,
                 function_call_trampolines: finished_function_call_trampolines,
                 passive_elements: Default::default(),
                 passive_data,
@@ -1261,6 +1303,11 @@ impl InstanceHandle {
     /// Get a table defined locally within this module.
     pub fn get_local_table(&self, index: LocalTableIndex) -> &dyn Table {
         self.instance().as_ref().get_local_table(index)
+    }
+
+    /// Returns list of named functions along with their addresses in this instance.
+    pub fn named_functions(&self) -> Vec<NamedFunction> {
+        self.instance().as_ref().named_functions()
     }
 
     /// Initializes the host environments.
