@@ -269,7 +269,8 @@ impl Module {
         config: InstanceConfig,
     ) -> Result<InstanceHandle, InstantiationError> {
         unsafe {
-            let instance_handle = self.artifact.instantiate(
+            let instance_handle = self.store.engine().instantiate(
+                Arc::clone(&self.artifact),
                 self.store.tunables(),
                 resolver,
                 Box::new((self.store.clone(), self.artifact.clone())),

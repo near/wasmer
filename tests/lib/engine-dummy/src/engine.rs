@@ -131,4 +131,15 @@ impl Engine for DummyEngine {
     fn cloned(&self) -> Arc<dyn Engine + Send + Sync> {
         Arc::new(self.clone())
     }
+
+    unsafe fn instantiate(
+        &self,
+        artifact: Arc<dyn Artifact>,
+        tunables: &dyn Tunables,
+        resolver: &dyn wasmer_engine::Resolver,
+        host_state: Box<dyn std::any::Any>,
+        config: wasmer_types::InstanceConfig,
+    ) -> Result<wasmer_vm::InstanceHandle, wasmer_engine::InstantiationError> {
+        todo!()
+    }
 }

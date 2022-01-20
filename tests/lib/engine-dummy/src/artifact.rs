@@ -206,10 +206,6 @@ impl Artifact for DummyArtifact {
         Arc::get_mut(&mut self.metadata.module)
     }
 
-    fn register_frame_info(&self) {
-        // Do nothing, since functions are not generated for the dummy engine
-    }
-
     fn features(&self) -> &Features {
         &self.metadata.features
     }
@@ -228,26 +224,6 @@ impl Artifact for DummyArtifact {
 
     fn table_styles(&self) -> &PrimaryMap<TableIndex, TableStyle> {
         &self.metadata.table_styles
-    }
-
-    fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
-        &self.finished_functions
-    }
-
-    fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
-        &self.finished_function_call_trampolines
-    }
-
-    fn finished_dynamic_function_trampolines(&self) -> &BoxedSlice<FunctionIndex, FunctionBodyPtr> {
-        &self.finished_dynamic_function_trampolines
-    }
-
-    fn signatures(&self) -> &BoxedSlice<SignatureIndex, VMSharedSignatureIndex> {
-        &self.signatures
-    }
-
-    fn func_data_registry(&self) -> &FuncDataRegistry {
-        &self.func_data_registry
     }
 
     #[cfg(feature = "serialize")]

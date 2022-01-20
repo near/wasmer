@@ -4,12 +4,13 @@ use crate::tunables::Tunables;
 use crate::{Artifact, DeserializeError};
 use loupe::MemoryUsage;
 use memmap2::Mmap;
+use std::any::Any;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
-use wasmer_types::FunctionType;
-use wasmer_vm::{VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+use wasmer_types::{FunctionType, InstanceConfig};
+use wasmer_vm::{VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex, InstanceHandle};
 
 /// A unimplemented Wasmer `Engine`.
 ///
@@ -63,6 +64,16 @@ pub trait Engine: MemoryUsage {
         let mmap = Mmap::map(&file)?;
         self.deserialize(&mmap)
     }
+
+    /// Instantiate an artifact created by this engine.
+    unsafe fn instantiate(
+        &self,
+        artifact: Arc<dyn Artifact>,
+        tunables: &dyn Tunables,
+        resolver: &dyn crate::Resolver,
+        host_state: Box<dyn Any>,
+        config: InstanceConfig,
+    ) -> Result<InstanceHandle, crate::InstantiationError>;
 
     /// A unique identifier for this object.
     ///

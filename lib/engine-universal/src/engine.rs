@@ -2,20 +2,26 @@
 
 use crate::{CodeMemory, UniversalArtifact};
 use loupe::MemoryUsage;
+use std::any::Any;
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "compiler")]
 use wasmer_compiler::Compiler;
 use wasmer_compiler::{
     CompileError, CustomSection, CustomSectionProtection, FunctionBody, SectionIndex, Target,
 };
-use wasmer_engine::{Artifact, DeserializeError, Engine, EngineId, FunctionExtent, Tunables};
+use wasmer_engine::{
+    resolve_imports, Artifact, DeserializeError, Engine, EngineId, FunctionExtent,
+    InstantiationError, Resolver, RuntimeError, Tunables,
+};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{
-    Features, FunctionIndex, FunctionType, LocalFunctionIndex, ModuleInfo, SignatureIndex,
+    Features, FunctionIndex, FunctionType, InstanceConfig, LocalFunctionIndex, ModuleInfo,
+    SignatureIndex,
 };
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, SectionBodyPtr, SignatureRegistry, VMCallerCheckedAnyfunc,
-    VMFuncRef, VMFunctionBody, VMSharedSignatureIndex, VMTrampoline,
+    FuncDataRegistry, FunctionBodyPtr, InstanceAllocator, InstanceHandle, SectionBodyPtr,
+    SignatureRegistry, VMCallerCheckedAnyfunc, VMFuncRef, VMFunctionBody, VMSharedSignatureIndex,
+    VMTrampoline,
 };
 
 /// A WebAssembly `Universal` Engine.
@@ -139,7 +145,152 @@ impl Engine for UniversalEngine {
 
     /// Deserializes a WebAssembly module
     unsafe fn deserialize(&self, bytes: &[u8]) -> Result<Arc<dyn Artifact>, DeserializeError> {
-        Ok(Arc::new(UniversalArtifact::deserialize(&self, &bytes)?))
+        Ok(Arc::new(UniversalArtifact::deserialize(&bytes)?))
+    }
+
+    unsafe fn instantiate(
+        &self,
+        artifact: Arc<dyn Artifact>,
+        tunables: &dyn Tunables,
+        resolver: &dyn Resolver,
+        host_state: Box<dyn Any>,
+        config: InstanceConfig,
+    ) -> Result<InstanceHandle, InstantiationError> {
+        let artifact = artifact.downcast_ref::<UniversalArtifact>().expect("TODO");
+        let serializable = &artifact.serializable;
+        let module = &serializable.compile_info.module;
+        let mut inner_engine = self.inner();
+
+        let (
+            finished_functions,
+            finished_function_call_trampolines,
+            finished_dynamic_function_trampolines,
+            custom_sections,
+        ) = inner_engine
+            .allocate(
+                &serializable.compile_info.module,
+                &serializable.compilation.function_bodies,
+                &serializable.compilation.function_call_trampolines,
+                &serializable.compilation.dynamic_function_trampolines,
+                &serializable.compilation.custom_sections,
+            )
+            .expect("TODO");
+        crate::link_module(
+            &serializable.compile_info.module,
+            &finished_functions,
+            &serializable.compilation.function_jt_offsets,
+            serializable.compilation.function_relocations.clone(),
+            &custom_sections,
+            &serializable.compilation.custom_section_relocations,
+            &serializable.compilation.trampolines,
+        );
+
+        // Compute indices into the shared signature table.
+        let signatures = {
+            let signature_registry = inner_engine.signatures();
+            serializable
+                .compile_info
+                .module
+                .signatures
+                .values()
+                .map(|sig| signature_registry.register(sig))
+                .collect::<PrimaryMap<_, _>>()
+        };
+        let eh_frame = match &serializable.compilation.debug {
+            Some(debug) => {
+                let eh_frame_section_size = serializable.compilation.custom_sections
+                    [debug.eh_frame]
+                    .bytes
+                    .len();
+                let eh_frame_section_pointer = custom_sections[debug.eh_frame];
+                Some(unsafe {
+                    std::slice::from_raw_parts(*eh_frame_section_pointer, eh_frame_section_size)
+                })
+            }
+            None => None,
+        };
+        let finished_function_lengths = finished_functions
+            .values()
+            .map(|extent| extent.length)
+            .collect::<PrimaryMap<LocalFunctionIndex, usize>>()
+            .into_boxed_slice();
+        let finished_functions = finished_functions
+            .values()
+            .map(|extent| extent.ptr)
+            .collect::<PrimaryMap<LocalFunctionIndex, FunctionBodyPtr>>()
+            .into_boxed_slice();
+        let finished_function_call_trampolines =
+            finished_function_call_trampolines.into_boxed_slice();
+        let finished_dynamic_function_trampolines =
+            finished_dynamic_function_trampolines.into_boxed_slice();
+
+        let mut imports = resolve_imports(
+            &module,
+            resolver,
+            &finished_dynamic_function_trampolines,
+            artifact.memory_styles(),
+            artifact.table_styles(),
+        )
+        .map_err(InstantiationError::Link)?;
+
+        let import_function_envs = imports.get_imported_function_envs();
+        let (allocator, memory_definition_locations, table_definition_locations) =
+            InstanceAllocator::new(&module);
+        let finished_memories = tunables
+            .create_memories(
+                &module,
+                artifact.memory_styles(),
+                &memory_definition_locations,
+            )
+            .map_err(InstantiationError::Link)?
+            .into_boxed_slice();
+        let finished_tables = tunables
+            .create_tables(
+                &module,
+                artifact.table_styles(),
+                &table_definition_locations,
+            )
+            .map_err(InstantiationError::Link)?
+            .into_boxed_slice();
+        let finished_globals = tunables
+            .create_globals(&module)
+            .map_err(InstantiationError::Link)?
+            .into_boxed_slice();
+
+        // Make all code compiled thus far executable.
+        inner_engine.publish_compiled_code();
+        inner_engine.publish_eh_frame(eh_frame).expect("TODO");
+        let finished_function_extents = finished_functions
+            .values()
+            .copied()
+            .zip(finished_function_lengths.values().copied())
+            .map(|(ptr, length)| FunctionExtent { ptr, length })
+            .collect::<PrimaryMap<LocalFunctionIndex, _>>()
+            .into_boxed_slice();
+        let frame_infos = &serializable.compilation.function_frame_info;
+        // TODO: slap this into instancehandle.
+        let registration = wasmer_engine::register_frame_info(
+            Arc::clone(module),
+            &finished_function_extents,
+            frame_infos.clone(),
+        );
+
+        let handle = InstanceHandle::new(
+            allocator,
+            Arc::clone(module),
+            finished_functions,
+            finished_function_call_trampolines,
+            finished_memories,
+            finished_tables,
+            finished_globals,
+            imports,
+            signatures.into_boxed_slice(),
+            host_state,
+            import_function_envs,
+            config,
+        )
+        .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?;
+        Ok(handle)
     }
 
     fn id(&self) -> &EngineId {

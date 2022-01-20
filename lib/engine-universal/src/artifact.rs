@@ -1,32 +1,22 @@
 //! Define `UniversalArtifact` to allow compiling and instantiating to be
 //! done as separate steps.
 
-use crate::engine::{UniversalEngine, UniversalEngineInner};
-use crate::link::link_module;
+use crate::engine::UniversalEngine;
 #[cfg(feature = "compiler")]
 use crate::serialize::SerializableCompilation;
 use crate::serialize::SerializableModule;
 use enumset::EnumSet;
 use loupe::MemoryUsage;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use wasmer_compiler::{CompileError, CpuFeature, Features, Triple};
 #[cfg(feature = "compiler")]
 use wasmer_compiler::{CompileModuleInfo, ModuleEnvironment, ModuleMiddlewareChain};
-use wasmer_engine::{
-    register_frame_info, Artifact, DeserializeError, FunctionExtent, GlobalFrameInfoRegistration,
-    SerializeError,
-};
+use wasmer_engine::{Artifact, DeserializeError, SerializeError};
 #[cfg(feature = "compiler")]
 use wasmer_engine::{Engine, Tunables};
-use wasmer_types::entity::{BoxedSlice, PrimaryMap};
-use wasmer_types::{
-    FunctionIndex, LocalFunctionIndex, MemoryIndex, ModuleInfo, OwnedDataInitializer,
-    SignatureIndex, TableIndex,
-};
-use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, MemoryStyle, TableStyle, VMSharedSignatureIndex,
-    VMTrampoline,
-};
+use wasmer_types::entity::PrimaryMap;
+use wasmer_types::{MemoryIndex, ModuleInfo, OwnedDataInitializer, TableIndex};
+use wasmer_vm::{MemoryStyle, TableStyle};
 
 const SERIALIZED_METADATA_LENGTH_OFFSET: usize = 22;
 const SERIALIZED_METADATA_CONTENT_OFFSET: usize = 32;
@@ -34,15 +24,7 @@ const SERIALIZED_METADATA_CONTENT_OFFSET: usize = 32;
 /// A compiled wasm module, ready to be instantiated.
 #[derive(MemoryUsage)]
 pub struct UniversalArtifact {
-    serializable: SerializableModule,
-    finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
-    #[loupe(skip)]
-    finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
-    finished_dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
-    signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
-    func_data_registry: Arc<FuncDataRegistry>,
-    frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
-    finished_function_lengths: BoxedSlice<LocalFunctionIndex, usize>,
+    pub(crate) serializable: SerializableModule,
 }
 
 impl UniversalArtifact {
@@ -134,12 +116,12 @@ impl UniversalArtifact {
             data_initializers,
             cpu_features: engine.target().cpu_features().as_u64(),
         };
-        Self::from_parts(&mut inner_engine, serializable)
+        Ok(Self { serializable })
     }
 
     /// Compile a data buffer into a `UniversalArtifact`, which may then be instantiated.
     #[cfg(not(feature = "compiler"))]
-    pub fn new(_engine: &UniversalEngine, _data: &[u8]) -> Result<Self, CompileError> {
+    pub fn new(_data: &[u8]) -> Result<Self, CompileError> {
         Err(CompileError::Codegen(
             "Compilation is not enabled in the engine".to_string(),
         ))
@@ -150,10 +132,7 @@ impl UniversalArtifact {
     /// # Safety
     /// This function is unsafe because rkyv reads directly without validating
     /// the data.
-    pub unsafe fn deserialize(
-        universal: &UniversalEngine,
-        bytes: &[u8],
-    ) -> Result<Self, DeserializeError> {
+    pub unsafe fn deserialize(bytes: &[u8]) -> Result<Self, DeserializeError> {
         if !Self::is_deserializable(bytes) {
             return Err(DeserializeError::Incompatible(
                 "The provided bytes are not wasmer-universal".to_string(),
@@ -171,96 +150,7 @@ impl UniversalArtifact {
         );
 
         let serializable = SerializableModule::deserialize(metadata_slice)?;
-        Self::from_parts(&mut universal.inner_mut(), serializable)
-            .map_err(DeserializeError::Compiler)
-    }
-
-    /// Construct a `UniversalArtifact` from component parts.
-    pub fn from_parts(
-        inner_engine: &mut UniversalEngineInner,
-        serializable: SerializableModule,
-    ) -> Result<Self, CompileError> {
-        let (
-            finished_functions,
-            finished_function_call_trampolines,
-            finished_dynamic_function_trampolines,
-            custom_sections,
-        ) = inner_engine.allocate(
-            &serializable.compile_info.module,
-            &serializable.compilation.function_bodies,
-            &serializable.compilation.function_call_trampolines,
-            &serializable.compilation.dynamic_function_trampolines,
-            &serializable.compilation.custom_sections,
-        )?;
-
-        link_module(
-            &serializable.compile_info.module,
-            &finished_functions,
-            &serializable.compilation.function_jt_offsets,
-            serializable.compilation.function_relocations.clone(),
-            &custom_sections,
-            &serializable.compilation.custom_section_relocations,
-            &serializable.compilation.trampolines,
-        );
-
-        // Compute indices into the shared signature table.
-        let signatures = {
-            let signature_registry = inner_engine.signatures();
-            serializable
-                .compile_info
-                .module
-                .signatures
-                .values()
-                .map(|sig| signature_registry.register(sig))
-                .collect::<PrimaryMap<_, _>>()
-        };
-
-        let eh_frame = match &serializable.compilation.debug {
-            Some(debug) => {
-                let eh_frame_section_size = serializable.compilation.custom_sections
-                    [debug.eh_frame]
-                    .bytes
-                    .len();
-                let eh_frame_section_pointer = custom_sections[debug.eh_frame];
-                Some(unsafe {
-                    std::slice::from_raw_parts(*eh_frame_section_pointer, eh_frame_section_size)
-                })
-            }
-            None => None,
-        };
-
-        // Make all code compiled thus far executable.
-        inner_engine.publish_compiled_code();
-
-        inner_engine.publish_eh_frame(eh_frame)?;
-
-        let finished_function_lengths = finished_functions
-            .values()
-            .map(|extent| extent.length)
-            .collect::<PrimaryMap<LocalFunctionIndex, usize>>()
-            .into_boxed_slice();
-        let finished_functions = finished_functions
-            .values()
-            .map(|extent| extent.ptr)
-            .collect::<PrimaryMap<LocalFunctionIndex, FunctionBodyPtr>>()
-            .into_boxed_slice();
-        let finished_function_call_trampolines =
-            finished_function_call_trampolines.into_boxed_slice();
-        let finished_dynamic_function_trampolines =
-            finished_dynamic_function_trampolines.into_boxed_slice();
-        let signatures = signatures.into_boxed_slice();
-        let func_data_registry = inner_engine.func_data().clone();
-
-        Ok(Self {
-            serializable,
-            finished_functions,
-            finished_function_call_trampolines,
-            finished_dynamic_function_trampolines,
-            signatures,
-            frame_info_registration: Mutex::new(None),
-            finished_function_lengths,
-            func_data_registry,
-        })
+        Ok(Self { serializable })
     }
 
     /// Get the default extension when serializing this artifact
@@ -284,30 +174,6 @@ impl Artifact for UniversalArtifact {
         Arc::get_mut(&mut self.serializable.compile_info.module)
     }
 
-    fn register_frame_info(&self) {
-        let mut info = self.frame_info_registration.lock().unwrap();
-
-        if info.is_some() {
-            return;
-        }
-
-        let finished_function_extents = self
-            .finished_functions
-            .values()
-            .copied()
-            .zip(self.finished_function_lengths.values().copied())
-            .map(|(ptr, length)| FunctionExtent { ptr, length })
-            .collect::<PrimaryMap<LocalFunctionIndex, _>>()
-            .into_boxed_slice();
-
-        let frame_infos = &self.serializable.compilation.function_frame_info;
-        *info = register_frame_info(
-            self.serializable.compile_info.module.clone(),
-            &finished_function_extents,
-            frame_infos.clone(),
-        );
-    }
-
     fn features(&self) -> &Features {
         &self.serializable.compile_info.features
     }
@@ -328,25 +194,6 @@ impl Artifact for UniversalArtifact {
         &self.serializable.compile_info.table_styles
     }
 
-    fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
-        &self.finished_functions
-    }
-
-    fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
-        &self.finished_function_call_trampolines
-    }
-
-    fn finished_dynamic_function_trampolines(&self) -> &BoxedSlice<FunctionIndex, FunctionBodyPtr> {
-        &self.finished_dynamic_function_trampolines
-    }
-
-    fn signatures(&self) -> &BoxedSlice<SignatureIndex, VMSharedSignatureIndex> {
-        &self.signatures
-    }
-
-    fn func_data_registry(&self) -> &FuncDataRegistry {
-        &self.func_data_registry
-    }
     fn serialize(&self) -> Result<Vec<u8>, SerializeError> {
         // Prepend the header.
         let mut serialized = Self::MAGIC_HEADER.to_vec();
