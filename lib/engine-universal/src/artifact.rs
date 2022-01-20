@@ -43,7 +43,7 @@ impl UniversalArtifact {
         tunables: &dyn Tunables,
     ) -> Result<Self, CompileError> {
         let environ = ModuleEnvironment::new();
-        let mut inner_engine = engine.inner_mut();
+        let inner_engine = engine.inner_mut();
         let features = inner_engine.features();
 
         let translation = environ.translate(data).map_err(CompileError::Wasm)?;
@@ -66,15 +66,12 @@ impl UniversalArtifact {
             .map(|table_type| tunables.table_style(table_type))
             .collect();
 
-        let mut compile_info = CompileModuleInfo {
+        let compile_info = CompileModuleInfo {
             module: Arc::new(module),
             features: features.clone(),
             memory_styles,
             table_styles,
         };
-
-        // Ensure that we pass information about signals in module metadata.
-        compile_info.features.signal_less(!compiler.use_signals());
 
         // Compile the Module
         let compilation = compiler.compile_module(

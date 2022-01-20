@@ -10,9 +10,9 @@ use thiserror::Error;
 use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
-use wasmer_engine::{is_wasm_pc, Artifact, DeserializeError, Resolver, SerializeError};
+use wasmer_engine::{Artifact, DeserializeError, Resolver, SerializeError};
 use wasmer_types::{ExportsIterator, ImportsIterator, InstanceConfig, ModuleInfo};
-use wasmer_vm::{init_traps, InstanceHandle};
+use wasmer_vm::InstanceHandle;
 
 #[derive(Error, Debug)]
 pub enum IoCompileError {
@@ -254,9 +254,6 @@ impl Module {
     }
 
     fn from_artifact(store: &Store, artifact: Arc<dyn Artifact>) -> Self {
-        if !artifact.features().signal_less {
-            init_traps(is_wasm_pc);
-        }
         Self {
             store: store.clone(),
             artifact,
@@ -282,8 +279,7 @@ impl Module {
             // of this steps traps, we still need to keep the instance alive
             // as some of the Instance elements may have placed in other
             // instance tables.
-            self.artifact
-                .finish_instantiation(&self.store, &instance_handle)?;
+            self.artifact.finish_instantiation(&instance_handle)?;
 
             Ok(instance_handle)
         }

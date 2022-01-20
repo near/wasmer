@@ -99,11 +99,6 @@ impl Engine for UniversalEngine {
         compiler.signatures().register(func_type)
     }
 
-    fn use_signals(&self) -> bool {
-        let compiler = self.inner();
-        compiler.use_signals()
-    }
-
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {
         let compiler = self.inner();
         compiler.func_data().register(func_data)
@@ -209,11 +204,6 @@ impl Engine for UniversalEngine {
             }
             None => None,
         };
-        let finished_function_lengths = finished_functions
-            .values()
-            .map(|extent| extent.length)
-            .collect::<PrimaryMap<LocalFunctionIndex, usize>>()
-            .into_boxed_slice();
         let finished_functions = finished_functions
             .values()
             .map(|extent| extent.ptr)
@@ -260,21 +250,6 @@ impl Engine for UniversalEngine {
         // Make all code compiled thus far executable.
         inner_engine.publish_compiled_code();
         inner_engine.publish_eh_frame(eh_frame).expect("TODO");
-        let finished_function_extents = finished_functions
-            .values()
-            .copied()
-            .zip(finished_function_lengths.values().copied())
-            .map(|(ptr, length)| FunctionExtent { ptr, length })
-            .collect::<PrimaryMap<LocalFunctionIndex, _>>()
-            .into_boxed_slice();
-        let frame_infos = &serializable.compilation.function_frame_info;
-        // TODO: slap this into instancehandle.
-        let registration = wasmer_engine::register_frame_info(
-            Arc::clone(module),
-            &finished_function_extents,
-            frame_infos.clone(),
-        );
-
         let handle = InstanceHandle::new(
             allocator,
             Arc::clone(module),
@@ -350,17 +325,6 @@ impl UniversalEngineInner {
     /// The Wasm features
     pub fn features(&self) -> &Features {
         &self.features
-    }
-
-    /// If need to install signal handlers.
-    pub fn use_signals(&self) -> bool {
-        #[cfg(feature = "compiler")]
-        match self.compiler() {
-            Ok(compiler) => compiler.use_signals(),
-            _ => true,
-        }
-        #[cfg(not(feature = "compiler"))]
-        true
     }
 
     /// Allocate compiled functions into memory

@@ -143,10 +143,6 @@ pub struct LinearMemory {
 
     /// The owned memory definition used by the generated code
     vm_memory_definition: VMMemoryDefinitionOwnership,
-
-    // Records whether we're using a bounds-checking strategy which requires
-    // handlers to catch trapping accesses.
-    pub(crate) needs_signal_handlers: bool,
 }
 
 /// A type to help manage who is responsible for the backing memory of them
@@ -238,15 +234,6 @@ impl LinearMemory {
 
         let offset_guard_bytes = style.offset_guard_size() as usize;
 
-        // If we have an offset guard, or if we're doing the static memory
-        // allocation strategy, we need signal handlers to catch out of bounds
-        // acceses.
-        let needs_signal_handlers = offset_guard_bytes > 0
-            || match style {
-                MemoryStyle::Dynamic { .. } => false,
-                MemoryStyle::Static { .. } => true,
-            };
-
         let minimum_pages = match style {
             MemoryStyle::Dynamic { .. } => memory.minimum,
             MemoryStyle::Static { bound, .. } => {
@@ -271,7 +258,6 @@ impl LinearMemory {
             mmap: Mutex::new(mmap),
             maximum: memory.maximum,
             offset_guard_size: offset_guard_bytes,
-            needs_signal_handlers,
             vm_memory_definition: if let Some(mem_loc) = vm_memory_location {
                 {
                     let mut ptr = mem_loc;

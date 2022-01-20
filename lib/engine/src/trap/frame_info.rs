@@ -12,11 +12,10 @@
 //! FRAME_INFO.register(module, compiled_functions);
 //! ```
 use loupe::MemoryUsage;
-use std::cmp;
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use wasmer_compiler::{CompiledFunctionFrameInfo, SourceLoc, TrapInformation};
-use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
+use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{LocalFunctionIndex, ModuleInfo};
 use wasmer_vm::FunctionBodyPtr;
 
@@ -41,14 +40,6 @@ pub struct GlobalFrameInfo {
     /// The key of this map is the highest address in the module and the value
     /// is the module's information, which also contains the start address.
     ranges: BTreeMap<usize, ModuleInfoFrameInfo>,
-}
-
-/// Returns whether the `pc`, according to globally registered information,
-/// is a wasm trap or not.
-pub fn is_wasm_pc(pc: usize) -> bool {
-    let frame_info = FRAME_INFO.read().unwrap();
-    let module_info = frame_info.module_info(pc);
-    module_info.is_some()
 }
 
 /// An RAII structure used to unregister a module's frame information when the
@@ -188,66 +179,6 @@ pub struct FunctionExtent {
     pub ptr: FunctionBodyPtr,
     /// Length in bytes.
     pub length: usize,
-}
-
-/// Registers a new compiled module's frame information.
-///
-/// This function will register the `names` information for all of the
-/// compiled functions within `module`. If the `module` has no functions
-/// then `None` will be returned. Otherwise the returned object, when
-/// dropped, will be used to unregister all name information from this map.
-pub fn register(
-    module: Arc<ModuleInfo>,
-    finished_functions: &BoxedSlice<LocalFunctionIndex, FunctionExtent>,
-    frame_infos: PrimaryMap<LocalFunctionIndex, CompiledFunctionFrameInfo>,
-) -> Option<GlobalFrameInfoRegistration> {
-    let mut min = usize::max_value();
-    let mut max = 0;
-    let mut functions = BTreeMap::new();
-    for (
-        i,
-        FunctionExtent {
-            ptr: start,
-            length: len,
-        },
-    ) in finished_functions.iter()
-    {
-        let start = **start as usize;
-        let end = start + len;
-        min = cmp::min(min, start);
-        max = cmp::max(max, end);
-        let func = FunctionInfo {
-            start,
-            local_index: i,
-        };
-        assert!(functions.insert(end, func).is_none());
-    }
-    if functions.is_empty() {
-        return None;
-    }
-
-    let mut info = FRAME_INFO.write().unwrap();
-    // First up assert that our chunk of jit functions doesn't collide with
-    // any other known chunks of jit functions...
-    if let Some((_, prev)) = info.ranges.range(max..).next() {
-        assert!(prev.start > max);
-    }
-    if let Some((prev_end, _)) = info.ranges.range(..=min).next_back() {
-        assert!(*prev_end < min);
-    }
-
-    // ... then insert our range and assert nothing was there previously
-    let prev = info.ranges.insert(
-        max,
-        ModuleInfoFrameInfo {
-            start: min,
-            functions,
-            module,
-            frame_infos,
-        },
-    );
-    assert!(prev.is_none());
-    Some(GlobalFrameInfoRegistration { key: max })
 }
 
 /// Description of a frame in a backtrace for a [`RuntimeError::trace`](crate::RuntimeError::trace).

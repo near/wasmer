@@ -1,6 +1,4 @@
-use crate::{
-    resolve_imports, InstantiationError, Resolver, RuntimeError, SerializeError, Tunables,
-};
+use crate::{InstantiationError, RuntimeError, SerializeError};
 use enumset::EnumSet;
 use loupe::MemoryUsage;
 use std::any::Any;
@@ -8,15 +6,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use wasmer_compiler::{CpuFeature, Features};
-use wasmer_types::entity::{BoxedSlice, PrimaryMap};
-use wasmer_types::{
-    DataInitializer, FunctionIndex, InstanceConfig, LocalFunctionIndex, MemoryIndex, ModuleInfo,
-    OwnedDataInitializer, SignatureIndex, TableIndex,
-};
-use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, InstanceAllocator, InstanceHandle, MemoryStyle, TableStyle,
-    TrapHandler, VMSharedSignatureIndex, VMTrampoline,
-};
+use wasmer_types::entity::PrimaryMap;
+use wasmer_types::{DataInitializer, MemoryIndex, ModuleInfo, OwnedDataInitializer, TableIndex};
+use wasmer_vm::{InstanceHandle, MemoryStyle, TableStyle};
 
 /// An `Artifact` is the product of compiling a WASM module with an `Engine`. Conceptually this can
 /// be thought of as an object file or shared library that is produced as a result of a traditional
@@ -68,7 +60,6 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
     /// See [`InstanceHandle::finish_instantiation`].
     unsafe fn finish_instantiation(
         &self,
-        trap_handler: &dyn TrapHandler,
         handle: &InstanceHandle,
     ) -> Result<(), InstantiationError> {
         let data_initializers = self
@@ -80,7 +71,7 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
             })
             .collect::<Vec<_>>();
         handle
-            .finish_instantiation(trap_handler, &data_initializers)
+            .finish_instantiation(&data_initializers)
             .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
     }
 }
