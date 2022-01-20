@@ -94,11 +94,6 @@ impl Engine for UniversalEngine {
         compiler.signatures().register(func_type)
     }
 
-    fn use_signals(&self) -> bool {
-        let compiler = self.inner();
-        compiler.use_signals()
-    }
-
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {
         let compiler = self.inner();
         compiler.func_data().register(func_data)
@@ -148,15 +143,12 @@ impl Engine for UniversalEngine {
             .values()
             .map(|table_type| tunables.table_style(table_type))
             .collect();
-
-        let mut compile_info = wasmer_compiler::CompileModuleInfo {
+        let compile_info = wasmer_compiler::CompileModuleInfo {
             module: Arc::new(module),
             features: features.clone(),
             memory_styles,
             table_styles,
         };
-        // Ensure that we pass information about signals in module metadata.
-        compile_info.features.signal_less(!compiler.use_signals());
 
         // Compile the Module
         let compilation = compiler.compile_module(
@@ -335,17 +327,6 @@ impl UniversalEngineInner {
     /// The Wasm features
     pub fn features(&self) -> &Features {
         &self.features
-    }
-
-    /// If need to install signal handlers.
-    pub fn use_signals(&self) -> bool {
-        #[cfg(feature = "compiler")]
-        match self.compiler() {
-            Ok(compiler) => compiler.use_signals(),
-            _ => true,
-        }
-        #[cfg(not(feature = "compiler"))]
-        true
     }
 
     /// Allocate compiled functions into memory

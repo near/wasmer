@@ -18,7 +18,7 @@ use wasmer_types::{
     OwnedDataInitializer, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, MemoryStyle, TableStyle, TrapHandler,
+    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, MemoryStyle, TableStyle,
     VMContext, VMFunctionBody, VMSharedSignatureIndex, VMTrampoline,
 };
 
@@ -207,10 +207,6 @@ impl Artifact for DummyArtifact {
         &self.metadata.features
     }
 
-    fn register_frame_info(&self) {
-        // Do nothing, since functions are not generated for the dummy engine
-    }
-
     fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
         &self.finished_functions
     }
@@ -237,7 +233,6 @@ impl Artifact for DummyArtifact {
 
     unsafe fn finish_instantiation(
         &self,
-        _: &dyn TrapHandler,
         _: &InstanceHandle,
     ) -> Result<(), InstantiationError> {
         todo!()

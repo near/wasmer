@@ -5,8 +5,7 @@ use std::any::Any;
 use wasmer_types::entity::BoxedSlice;
 use wasmer_types::{FunctionIndex, InstanceConfig, LocalFunctionIndex, SignatureIndex};
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, TrapHandler, VMSharedSignatureIndex,
-    VMTrampoline,
+    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// A predecesor of a full module Instance.
@@ -30,11 +29,6 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
 
     /// The features with which this `Executable` was built.
     fn features(&self) -> &wasmer_compiler::Features;
-
-    /// Register thie `Artifact` stack frame information into the global scope.
-    //
-    /// This is required to ensure that any traps can be properly symbolicated.
-    fn register_frame_info(&self);
 
     /// Returns the functions allocated in memory or this `Artifact`
     /// ready to be run.
@@ -77,7 +71,6 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
     /// See [`InstanceHandle::finish_instantiation`].
     unsafe fn finish_instantiation(
         &self,
-        trap_handler: &dyn TrapHandler,
         handle: &InstanceHandle,
     ) -> Result<(), InstantiationError>;
 }

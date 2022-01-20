@@ -45,9 +45,6 @@ pub trait Engine: MemoryUsage {
         executable: &(dyn crate::Executable + 'static),
     ) -> Result<Arc<dyn crate::Artifact>, CompileError>;
 
-    /// If this engine needs to install POSIX signal handlers.
-    fn use_signals(&self) -> bool;
-
     /// A unique identifier for this object.
     ///
     /// This exists to allow us to compare two Engines for equality. Otherwise,

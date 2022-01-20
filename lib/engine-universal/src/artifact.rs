@@ -12,9 +12,7 @@ use wasmer_types::entity::BoxedSlice;
 use wasmer_types::{
     DataInitializer, FunctionIndex, LocalFunctionIndex, ModuleInfo, SignatureIndex,
 };
-use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, TrapHandler, VMSharedSignatureIndex, VMTrampoline,
-};
+use wasmer_vm::{FuncDataRegistry, FunctionBodyPtr, VMSharedSignatureIndex, VMTrampoline};
 
 /// A compiled wasm module, ready to be instantiated.
 #[derive(MemoryUsage)]
@@ -52,28 +50,6 @@ impl Artifact for UniversalArtifact {
     /// The features with which this `Executable` was built.
     fn features(&self) -> &wasmer_compiler::Features {
         &self.executable.compile_info.features
-    }
-
-    fn register_frame_info(&self) {
-        let mut info = self.frame_info_registration.lock().unwrap();
-        if info.is_some() {
-            return;
-        }
-        let finished_function_extents = self
-            .finished_functions
-            .values()
-            .copied()
-            .zip(self.finished_function_lengths.values().copied())
-            .map(|(ptr, length)| FunctionExtent { ptr, length })
-            .collect::<PrimaryMap<LocalFunctionIndex, _>>()
-            .into_boxed_slice();
-
-        let frame_infos = &self.executable.function_frame_info;
-        *info = wasmer_engine::register_frame_info(
-            self.executable.compile_info.module.clone(),
-            &finished_function_extents,
-            frame_infos.clone(),
-        );
     }
 
     fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
@@ -150,9 +126,6 @@ impl Artifact for UniversalArtifact {
             .create_globals(&module)
             .map_err(InstantiationError::Link)?
             .into_boxed_slice();
-
-        self.register_frame_info();
-
         let handle = wasmer_vm::InstanceHandle::new(
             allocator,
             module,
@@ -174,7 +147,6 @@ impl Artifact for UniversalArtifact {
 
     unsafe fn finish_instantiation(
         &self,
-        trap_handler: &dyn TrapHandler,
         handle: &wasmer_vm::InstanceHandle,
     ) -> Result<(), wasmer_engine::InstantiationError> {
         let data_initializers = self
@@ -187,7 +159,7 @@ impl Artifact for UniversalArtifact {
             })
             .collect::<Vec<_>>();
         handle
-            .finish_instantiation(trap_handler, &data_initializers)
+            .finish_instantiation(&data_initializers)
             .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
     }
 }
