@@ -22,7 +22,6 @@ tempfile = "3"
 rand = "0.8.3"
 wasmer-compiler-singlepass = { path = "../compiler-singlepass", package = "wasmer-compiler-singlepass-near", version = "2.0.3" }
 wasmer-engine-universal = { path = "../engine-universal", package = "wasmer-engine-universal-near", version = "2.0.3" }
-wasmer-engine-dylib = { path = "../engine-dylib", version = "2.0.0" }
 
 [features]
 blake3-pure = ["blake3/pure"]

@@ -17,8 +17,6 @@ wasmer-compiler-singlepass = { version = "=2.1.2", path = "lib/compiler-singlepa
 wasmer-compiler-llvm = { version = "2.0.0", path = "lib/compiler-llvm", optional = true }
 wasmer-engine = { version = "=2.1.2", path = "lib/engine", package = "wasmer-engine-near"  }
 wasmer-engine-universal = { version = "=2.1.2", path = "lib/engine-universal", optional = true, package = "wasmer-engine-universal-near" }
-wasmer-engine-dylib = { version = "2.0.0", path = "lib/engine-dylib", optional = true }
-wasmer-engine-staticlib = { version = "2.0.0", path = "lib/engine-staticlib", optional = true }
 wasmer-wast = { version = "2.0.0", path = "tests/lib/wast", optional = true }
 wasmer-cache = { version = "2.0.0", path = "lib/cache", optional = true }
 wasmer-types = { version = "=2.1.2", path = "lib/types", package = "wasmer-types-near" }
@@ -38,9 +36,6 @@ members = [
     "lib/derive",
     "lib/engine",
     "lib/engine-universal",
-    "lib/engine-dylib",
-    "lib/engine-staticlib",
-    "lib/object",
     "lib/vm",
     "lib/types",
     "tests/lib/wast",
@@ -80,20 +75,11 @@ default = [
     "wast",
     "universal",
     "singlepass",
-    "staticlib",
     "cache",
 ]
 engine = []
 universal = [
     "wasmer-engine-universal",
-    "engine",
-]
-dylib = [
-    "wasmer-engine-dylib",
-    "engine",
-]
-staticlib = [
-    "wasmer-engine-staticlib",
     "engine",
 ]
 cache = ["wasmer-cache"]
@@ -103,8 +89,6 @@ compiler = [
     "wasmer/compiler",
     "wasmer-compiler/translator",
     "wasmer-engine-universal/compiler",
-    "wasmer-engine-dylib/compiler",
-    "wasmer-engine-staticlib/compiler",
 ]
 singlepass = [
     "wasmer-compiler-singlepass",
@@ -128,11 +112,6 @@ test-cranelift = [
 ]
 test-llvm = [
     "llvm",
-]
-
-test-dylib = [
-    "dylib",
-    "test-generator/test-dylib",
 ]
 test-universal = [
     "universal",
@@ -158,11 +137,6 @@ required-features = ["cranelift"]
 [[example]]
 name = "engine-universal"
 path = "examples/engine_universal.rs"
-required-features = ["cranelift"]
-
-[[example]]
-name = "engine-dylib"
-path = "examples/engine_dylib.rs"
 required-features = ["cranelift"]
 
 [[example]]
