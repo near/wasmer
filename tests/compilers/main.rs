@@ -12,6 +12,7 @@ mod imports;
 mod issues;
 mod middlewares;
 // mod multi_value_imports;
+mod compilation;
 mod native_functions;
 mod serialize;
 mod stack_limiter;

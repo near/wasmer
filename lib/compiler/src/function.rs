@@ -282,7 +282,7 @@ impl Compilation {
         self.debug.clone()
     }
 
-    /// Returns the Trampilines info.
+    /// Returns the Trampolines info.
     pub fn get_trampolines(&self) -> Option<TrampolinesSection> {
         self.trampolines.clone()
     }

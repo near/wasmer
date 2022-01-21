@@ -8,7 +8,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use wasmer_engine::Resolver;
-use wasmer_types::InstanceConfig;
+use wasmer_types::{InstanceConfig, NamedFunction};
 use wasmer_vm::{InstanceHandle, VMContext};
 
 /// A WebAssembly Instance is a stateful, executable
@@ -185,6 +185,11 @@ impl Instance {
     /// Returns the [`Store`] where the `Instance` belongs.
     pub fn store(&self) -> &Store {
         self.module.store()
+    }
+
+    /// Returns list of named functions in instance.
+    pub fn named_functions(&self) -> Vec<NamedFunction> {
+        self.handle.lock().unwrap().named_functions()
     }
 
     #[doc(hidden)]

@@ -332,6 +332,10 @@ impl Artifact for UniversalArtifact {
         &self.finished_functions
     }
 
+    fn finished_functions_lengths(&self) -> &BoxedSlice<LocalFunctionIndex, usize> {
+        &self.finished_function_lengths
+    }
+
     fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
         &self.finished_function_call_trampolines
     }
