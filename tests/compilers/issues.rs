@@ -76,3 +76,42 @@ fn issue_2329(mut config: crate::Config) -> Result<()> {
     instance.exports.get_function("read_memory")?.call(&[])?;
     Ok(())
 }
+
+/// Exhaustion of GPRs when calling a function with many floating point arguments
+///
+/// Note: this one is specific to Singlepass, but we want to test in all
+/// available compilers.
+#[compiler_test(issues)]
+fn regression_gpr_exhaustion_for_calls(mut config: crate::Config) -> Result<()> {
+    let store = config.store();
+    let wat = r#"
+        (module
+          (type (;0;) (func (param f64) (result i32)))
+          (type (;1;) (func (param f64 f64 f64 f64 f64 f64)))
+          (func (;0;) (type 0) (param f64) (result i32)
+            local.get 0
+            local.get 0
+            local.get 0
+            local.get 0
+            f64.const 0
+            f64.const 0
+            f64.const 0
+            f64.const 0
+            f64.const 0
+            f64.const 0
+            f64.const 0
+            i32.const 0
+            call_indirect (type 0)
+            call_indirect (type 1)
+            drop
+            drop
+            drop
+            drop
+            i32.const 0)
+          (table (;0;) 1 1 funcref))
+    "#;
+    let module = Module::new(&store, wat)?;
+    let imports: ImportObject = imports! {};
+    let instance = Instance::new(&module, &imports)?;
+    Ok(())
+}
