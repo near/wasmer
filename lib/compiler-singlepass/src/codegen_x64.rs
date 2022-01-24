@@ -1330,9 +1330,18 @@ impl<'a> FuncGen<'a> {
                     }
                     match *param {
                         Location::Imm64(_) => {
-                            // Push R9 value slot to be exchange with `mov`.
+                            // x86_64 does not support `mov imm64, mem`. We must first place the
+                            // immdiate value into a register and then write the register to the
+                            // memory. Now the problem is that there might not be any registers
+                            // available to clobber. In order to make this work out we spill a
+                            // register thus retaining both the original value of the
+                            // register and producing the required data at the top of the stack.
+                            //
+                            // FIXME(#2723): figure out how to not require spilling a register
+                            // here. It should definitely be possible to `pick_gpr`/`pick_temp_gpr`
+                            // to grab an otherwise unused register and just clobber its value
+                            // here.
                             self.assembler.emit_push(Size::S64, Location::GPR(GPR::R9));
-                            self.machine.reserve_unused_temp_gpr(GPR::R9);
                             self.assembler
                                 .emit_mov(Size::S64, *param, Location::GPR(GPR::R9));
                             self.assembler.emit_xchg(
@@ -1340,7 +1349,6 @@ impl<'a> FuncGen<'a> {
                                 Location::GPR(GPR::R9),
                                 Location::Memory(GPR::RSP, 0),
                             );
-                            self.machine.release_temp_gpr(GPR::R9);
                         }
                         Location::XMM(_) => {
                             // Dummy value slot to be filled with `mov`.
