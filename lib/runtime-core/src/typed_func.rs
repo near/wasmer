@@ -614,7 +614,6 @@ macro_rules! impl_traits {
                 //
                 // It is also required for the LLVM backend to be
                 // able to unwind through this function.
-                #[cfg_attr(nightly, unwind(allowed))]
                 extern fn wrap<$( $x, )* Rets, Trap, FN>(
                     vmctx: &vm::Ctx $( , $x: <$x as WasmExternType>::Native )*
                 ) -> Rets::CStruct
@@ -731,7 +730,6 @@ macro_rules! impl_traits {
                 //
                 // It is also required for the LLVM backend to be
                 // able to unwind through this function.
-                #[cfg_attr(nightly, unwind(allowed))]
                 extern fn wrap<$( $x, )* Rets, Trap, FN>(
                     vmctx: &vm::Ctx $( , $x: <$x as WasmExternType>::Native )*
                 ) -> Rets::CStruct
