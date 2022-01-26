@@ -1,10 +1,8 @@
 //! Dummy Engine.
-
-use crate::DummyArtifact;
 use loupe::MemoryUsage;
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Features, Target};
-use wasmer_engine::{Artifact, DeserializeError, Engine, EngineId, Tunables};
+use wasmer_engine::{Engine, EngineId, Tunables};
 use wasmer_types::FunctionType;
 use wasmer_vm::{
     FuncDataRegistry, SignatureRegistry, VMCallerCheckedAnyfunc, VMContext, VMFuncRef,
@@ -113,15 +111,11 @@ impl Engine for DummyEngine {
     /// Compile a WebAssembly binary
     fn compile(
         &self,
-        binary: &[u8],
-        tunables: &dyn Tunables,
-    ) -> Result<Arc<dyn Artifact>, CompileError> {
-        Ok(Arc::new(DummyArtifact::new(&self, binary, tunables)?))
-    }
-
-    /// Deserializes a WebAssembly module (binary content of a Shared Object file)
-    unsafe fn deserialize(&self, bytes: &[u8]) -> Result<Arc<dyn Artifact>, DeserializeError> {
-        Ok(Arc::new(DummyArtifact::deserialize(&self, &bytes)?))
+        _binary: &[u8],
+        _tunables: &dyn Tunables,
+    ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
+        todo!()
+        // Ok(Box::new(DummyArtifact::new(&self, binary, tunables)?))
     }
 
     fn id(&self) -> &EngineId {
@@ -130,5 +124,12 @@ impl Engine for DummyEngine {
 
     fn cloned(&self) -> Arc<dyn Engine + Send + Sync> {
         Arc::new(self.clone())
+    }
+
+    fn load(
+        &self,
+        _xecutable: &(dyn wasmer_engine::Executable + 'static),
+    ) -> Result<Arc<dyn wasmer_engine::Artifact>, CompileError> {
+        todo!()
     }
 }

@@ -23,6 +23,7 @@
 mod artifact;
 mod engine;
 mod error;
+mod executable;
 mod export;
 mod resolver;
 mod trap;
@@ -30,9 +31,8 @@ mod tunables;
 
 pub use crate::artifact::Artifact;
 pub use crate::engine::{Engine, EngineId};
-pub use crate::error::{
-    DeserializeError, ImportError, InstantiationError, LinkError, SerializeError,
-};
+pub use crate::error::{DeserializeError, ImportError, InstantiationError, LinkError};
+pub use crate::executable::Executable;
 pub use crate::export::{Export, ExportFunction, ExportFunctionMetadata};
 pub use crate::resolver::{
     resolve_imports, ChainableNamedResolver, NamedResolver, NamedResolverChain, NullResolver,

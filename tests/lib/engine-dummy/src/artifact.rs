@@ -2,23 +2,24 @@
 //! done as separate steps.
 
 use crate::engine::DummyEngine;
-use enumset::EnumSet;
 use loupe::MemoryUsage;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use wasmer_compiler::CompileError;
 #[cfg(feature = "compiler")]
 use wasmer_compiler::ModuleEnvironment;
-use wasmer_compiler::{CompileError, CpuFeature};
-use wasmer_engine::{Artifact, DeserializeError, Engine as _, SerializeError, Tunables};
+use wasmer_engine::{
+    Artifact, DeserializeError, Engine as _, InstantiationError, Resolver, Tunables,
+};
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{
-    Features, FunctionIndex, LocalFunctionIndex, MemoryIndex, ModuleInfo, OwnedDataInitializer,
-    SignatureIndex, TableIndex,
+    Features, FunctionIndex, InstanceConfig, LocalFunctionIndex, MemoryIndex, ModuleInfo,
+    OwnedDataInitializer, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, MemoryStyle, TableStyle, VMContext, VMFunctionBody,
-    VMSharedSignatureIndex, VMTrampoline,
+    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, MemoryStyle, TableStyle, TrapHandler,
+    VMContext, VMFunctionBody, VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// Serializable struct for the artifact
@@ -194,10 +195,6 @@ impl DummyArtifact {
 }
 
 impl Artifact for DummyArtifact {
-    fn module(&self) -> Arc<ModuleInfo> {
-        self.metadata.module.clone()
-    }
-
     fn module_ref(&self) -> &ModuleInfo {
         &self.metadata.module
     }
@@ -206,28 +203,12 @@ impl Artifact for DummyArtifact {
         Arc::get_mut(&mut self.metadata.module)
     }
 
-    fn register_frame_info(&self) {
-        // Do nothing, since functions are not generated for the dummy engine
-    }
-
     fn features(&self) -> &Features {
         &self.metadata.features
     }
 
-    fn cpu_features(&self) -> EnumSet<CpuFeature> {
-        EnumSet::from_u64(self.metadata.cpu_features)
-    }
-
-    fn data_initializers(&self) -> &[OwnedDataInitializer] {
-        &*self.metadata.data_initializers
-    }
-
-    fn memory_styles(&self) -> &PrimaryMap<MemoryIndex, MemoryStyle> {
-        &self.metadata.memory_styles
-    }
-
-    fn table_styles(&self) -> &PrimaryMap<TableIndex, TableStyle> {
-        &self.metadata.table_styles
+    fn register_frame_info(&self) {
+        // Do nothing, since functions are not generated for the dummy engine
     }
 
     fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
@@ -254,21 +235,21 @@ impl Artifact for DummyArtifact {
         &self.func_data_registry
     }
 
-    #[cfg(feature = "serialize")]
-    fn serialize(&self) -> Result<Vec<u8>, SerializeError> {
-        let bytes = bincode::serialize(&self.metadata)
-            .map_err(|e| SerializeError::Generic(format!("{:?}", e)))?;
-
-        // Prepend the header.
-        let mut serialized = Self::MAGIC_HEADER.to_vec();
-        serialized.extend(bytes);
-        Ok(serialized)
+    unsafe fn finish_instantiation(
+        &self,
+        _: &dyn TrapHandler,
+        _: &InstanceHandle,
+    ) -> Result<(), InstantiationError> {
+        todo!()
     }
 
-    #[cfg(not(feature = "serialize"))]
-    fn serialize(&self) -> Result<Vec<u8>, SerializeError> {
-        Err(SerializeError::Generic(
-            "The serializer feature is not enabled in the DummyEngine",
-        ))
+    unsafe fn instantiate(
+        &self,
+        _: &dyn Tunables,
+        _: &dyn Resolver,
+        _: Box<dyn std::any::Any>,
+        _: InstanceConfig,
+    ) -> Result<InstanceHandle, InstantiationError> {
+        todo!()
     }
 }

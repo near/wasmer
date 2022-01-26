@@ -1,21 +1,24 @@
 use anyhow::Result;
-use wasmer::{wat2wasm, Module, Store};
+use wasmer::{wat2wasm, BaseTunables, Engine};
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 
 fn compile_and_compare(wasm: &[u8]) -> Result<()> {
     let compiler = Singlepass::default();
-    let store = Store::new(&Universal::new(compiler).engine());
+    let engine = Universal::new(compiler).engine();
+    let tunables = BaseTunables::for_target(engine.target());
 
     // compile for first time
-    let module = Module::new(&store, wasm)?;
-    let first = module.serialize()?;
+    let executable = engine.compile(wasm, &tunables).unwrap();
+    let mut writer1 = std::io::Cursor::new(vec![]);
+    executable.serialize(&mut writer1).unwrap();
 
     // compile for second time
-    let module = Module::new(&store, wasm)?;
-    let second = module.serialize()?;
+    let executable = engine.compile(wasm, &tunables).unwrap();
+    let mut writer2 = std::io::Cursor::new(vec![]);
+    executable.serialize(&mut writer2).unwrap();
 
-    assert!(first == second);
+    assert!(writer1.into_inner() == writer2.into_inner());
 
     Ok(())
 }

@@ -68,7 +68,7 @@ pub struct OwnedDataInitializer {
     pub location: DataInitializerLocation,
 
     /// The initialization owned data.
-    pub data: Box<[u8]>,
+    pub data: Vec<u8>,
 }
 
 impl OwnedDataInitializer {
@@ -76,7 +76,7 @@ impl OwnedDataInitializer {
     pub fn new(borrowed: &DataInitializer<'_>) -> Self {
         Self {
             location: borrowed.location.clone(),
-            data: borrowed.data.to_vec().into_boxed_slice(),
+            data: borrowed.data.to_vec(),
         }
     }
 }

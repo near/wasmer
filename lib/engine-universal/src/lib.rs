@@ -28,14 +28,15 @@ mod artifact;
 mod builder;
 mod code_memory;
 mod engine;
+mod executable;
 mod link;
-mod serialize;
 mod unwind;
 
 pub use crate::artifact::UniversalArtifact;
 pub use crate::builder::Universal;
 pub use crate::code_memory::CodeMemory;
 pub use crate::engine::UniversalEngine;
+pub use crate::executable::UniversalExecutable;
 pub use crate::link::link_module;
 
 /// Version number of this crate.

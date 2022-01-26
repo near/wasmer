@@ -1,14 +1,15 @@
 //! Universal compilation.
 
-use crate::{CodeMemory, UniversalArtifact};
+use crate::{CodeMemory, UniversalArtifact, UniversalExecutable};
 use loupe::MemoryUsage;
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "compiler")]
 use wasmer_compiler::Compiler;
 use wasmer_compiler::{
-    CompileError, CustomSection, CustomSectionProtection, FunctionBody, SectionIndex, Target,
+    CompileError, CustomSection, CustomSectionProtection, FunctionBody, ModuleMiddlewareChain,
+    SectionIndex, Target,
 };
-use wasmer_engine::{Artifact, DeserializeError, Engine, EngineId, FunctionExtent, Tunables};
+use wasmer_engine::{Engine, EngineId, FunctionExtent, Tunables};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{
     Features, FunctionIndex, FunctionType, LocalFunctionIndex, ModuleInfo, SignatureIndex,
@@ -115,31 +116,166 @@ impl Engine for UniversalEngine {
     }
 
     /// Compile a WebAssembly binary
-    #[cfg(feature = "compiler")]
     fn compile(
         &self,
         binary: &[u8],
         tunables: &dyn Tunables,
-    ) -> Result<Arc<dyn Artifact>, CompileError> {
-        Ok(Arc::new(UniversalArtifact::new(&self, binary, tunables)?))
+    ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
+        if !cfg!(feature = "compiler") {
+            return Err(CompileError::Codegen(
+                "The UniversalEngine is operating in headless mode, so it can not compile Modules."
+                    .to_string(),
+            ));
+        }
+        let inner_engine = self.inner_mut();
+        let features = inner_engine.features();
+        let compiler = inner_engine.compiler()?;
+        let environ = wasmer_compiler::ModuleEnvironment::new();
+        let translation = environ.translate(binary).map_err(CompileError::Wasm)?;
+
+        // Apply the middleware first
+        let mut module = translation.module;
+        let middlewares = compiler.get_middlewares();
+        middlewares.apply_on_module_info(&mut module);
+
+        let memory_styles: PrimaryMap<wasmer_types::MemoryIndex, _> = module
+            .memories
+            .values()
+            .map(|memory_type| tunables.memory_style(memory_type))
+            .collect();
+        let table_styles: PrimaryMap<wasmer_types::TableIndex, _> = module
+            .tables
+            .values()
+            .map(|table_type| tunables.table_style(table_type))
+            .collect();
+
+        let mut compile_info = wasmer_compiler::CompileModuleInfo {
+            module: Arc::new(module),
+            features: features.clone(),
+            memory_styles,
+            table_styles,
+        };
+        // Ensure that we pass information about signals in module metadata.
+        compile_info.features.signal_less(!compiler.use_signals());
+
+        // Compile the Module
+        let compilation = compiler.compile_module(
+            &self.target(),
+            &compile_info,
+            // SAFETY: Calling `unwrap` is correct since
+            // `environ.translate()` above will write some data into
+            // `module_translation_state`.
+            translation.module_translation_state.as_ref().unwrap(),
+            translation.function_body_inputs,
+        )?;
+        let function_call_trampolines = compilation.get_function_call_trampolines();
+        let dynamic_function_trampolines = compilation.get_dynamic_function_trampolines();
+        let data_initializers = translation
+            .data_initializers
+            .iter()
+            .map(wasmer_types::OwnedDataInitializer::new)
+            .collect();
+
+        let frame_infos = compilation.get_frame_info();
+        Ok(Box::new(crate::UniversalExecutable {
+            function_bodies: compilation.get_function_bodies(),
+            function_relocations: compilation.get_relocations(),
+            function_jt_offsets: compilation.get_jt_offsets(),
+            function_frame_info: frame_infos,
+            function_call_trampolines,
+            dynamic_function_trampolines,
+            custom_sections: compilation.get_custom_sections(),
+            custom_section_relocations: compilation.get_custom_section_relocations(),
+            debug: compilation.get_debug(),
+            trampolines: compilation.get_trampolines(),
+            compile_info,
+            data_initializers,
+            cpu_features: self.target().cpu_features().as_u64(),
+        }))
     }
 
-    /// Compile a WebAssembly binary
-    #[cfg(not(feature = "compiler"))]
-    fn compile(
+    fn load(
         &self,
-        _binary: &[u8],
-        _tunables: &dyn Tunables,
-    ) -> Result<Arc<dyn Artifact>, CompileError> {
-        Err(CompileError::Codegen(
-            "The UniversalEngine is operating in headless mode, so it can not compile Modules."
-                .to_string(),
-        ))
-    }
+        executable: &(dyn wasmer_engine::Executable + 'static),
+    ) -> Result<Arc<dyn wasmer_engine::Artifact>, CompileError> {
+        let executable = executable
+            .downcast_ref::<UniversalExecutable>()
+            .expect("TODO");
+        let mut inner_engine = self.inner_mut();
+        let (
+            finished_functions,
+            finished_function_call_trampolines,
+            finished_dynamic_function_trampolines,
+            custom_sections,
+        ) = inner_engine.allocate(
+            &executable.compile_info.module,
+            &executable.function_bodies,
+            &executable.function_call_trampolines,
+            &executable.dynamic_function_trampolines,
+            &executable.custom_sections,
+        )?;
+        crate::link_module(
+            &executable.compile_info.module,
+            &finished_functions,
+            &executable.function_jt_offsets,
+            executable.function_relocations.clone(),
+            &custom_sections,
+            &executable.custom_section_relocations,
+            &executable.trampolines,
+        );
+        // Compute indices into the shared signature table.
+        let signatures = {
+            let signature_registry = inner_engine.signatures();
+            executable
+                .compile_info
+                .module
+                .signatures
+                .values()
+                .map(|sig| signature_registry.register(sig))
+                .collect::<PrimaryMap<_, _>>()
+        };
 
-    /// Deserializes a WebAssembly module
-    unsafe fn deserialize(&self, bytes: &[u8]) -> Result<Arc<dyn Artifact>, DeserializeError> {
-        Ok(Arc::new(UniversalArtifact::deserialize(&self, &bytes)?))
+        let eh_frame = match &executable.debug {
+            Some(debug) => {
+                let eh_frame_section_size = executable.custom_sections[debug.eh_frame].bytes.len();
+                let eh_frame_section_pointer = custom_sections[debug.eh_frame];
+                Some(unsafe {
+                    std::slice::from_raw_parts(*eh_frame_section_pointer, eh_frame_section_size)
+                })
+            }
+            None => None,
+        };
+
+        // Make all code compiled thus far executable.
+        inner_engine.publish_compiled_code();
+        inner_engine.publish_eh_frame(eh_frame)?;
+
+        let finished_function_lengths = finished_functions
+            .values()
+            .map(|extent| extent.length)
+            .collect::<PrimaryMap<LocalFunctionIndex, usize>>()
+            .into_boxed_slice();
+        let finished_functions = finished_functions
+            .values()
+            .map(|extent| extent.ptr)
+            .collect::<PrimaryMap<LocalFunctionIndex, FunctionBodyPtr>>()
+            .into_boxed_slice();
+        let finished_function_call_trampolines =
+            finished_function_call_trampolines.into_boxed_slice();
+        let finished_dynamic_function_trampolines =
+            finished_dynamic_function_trampolines.into_boxed_slice();
+        let signatures = signatures.into_boxed_slice();
+        let func_data_registry = inner_engine.func_data().clone();
+        Ok(Arc::new(UniversalArtifact {
+            executable: executable.clone(),
+            finished_functions,
+            finished_function_call_trampolines,
+            finished_dynamic_function_trampolines,
+            signatures,
+            frame_info_registration: Mutex::new(None),
+            finished_function_lengths,
+            func_data_registry,
+        }))
     }
 
     fn id(&self) -> &EngineId {

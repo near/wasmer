@@ -1,268 +1,37 @@
 //! Define `UniversalArtifact` to allow compiling and instantiating to be
 //! done as separate steps.
 
-use crate::engine::{UniversalEngine, UniversalEngineInner};
-use crate::link::link_module;
-#[cfg(feature = "compiler")]
-use crate::serialize::SerializableCompilation;
-use crate::serialize::SerializableModule;
-use enumset::EnumSet;
+use crate::UniversalExecutable;
 use loupe::MemoryUsage;
 use std::sync::{Arc, Mutex};
-use wasmer_compiler::{CompileError, CpuFeature, Features, Triple};
-#[cfg(feature = "compiler")]
-use wasmer_compiler::{CompileModuleInfo, ModuleEnvironment, ModuleMiddlewareChain};
+use wasmer_compiler::Triple;
 use wasmer_engine::{
-    register_frame_info, Artifact, DeserializeError, FunctionExtent, GlobalFrameInfoRegistration,
-    SerializeError,
+    Artifact, Executable, GlobalFrameInfoRegistration, InstantiationError, RuntimeError,
 };
-#[cfg(feature = "compiler")]
-use wasmer_engine::{Engine, Tunables};
-use wasmer_types::entity::{BoxedSlice, PrimaryMap};
+use wasmer_types::entity::BoxedSlice;
 use wasmer_types::{
-    FunctionIndex, LocalFunctionIndex, MemoryIndex, ModuleInfo, OwnedDataInitializer,
-    SignatureIndex, TableIndex,
+    DataInitializer, FunctionIndex, LocalFunctionIndex, ModuleInfo, SignatureIndex,
 };
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, MemoryStyle, TableStyle, VMSharedSignatureIndex,
-    VMTrampoline,
+    FuncDataRegistry, FunctionBodyPtr, TrapHandler, VMSharedSignatureIndex, VMTrampoline,
 };
-
-const SERIALIZED_METADATA_LENGTH_OFFSET: usize = 22;
-const SERIALIZED_METADATA_CONTENT_OFFSET: usize = 32;
 
 /// A compiled wasm module, ready to be instantiated.
 #[derive(MemoryUsage)]
 pub struct UniversalArtifact {
-    serializable: SerializableModule,
-    finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
+    // TODO: remove this
+    pub(crate) executable: UniversalExecutable,
+    pub(crate) finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
     #[loupe(skip)]
-    finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
-    finished_dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
-    signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
-    func_data_registry: Arc<FuncDataRegistry>,
-    frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
-    finished_function_lengths: BoxedSlice<LocalFunctionIndex, usize>,
+    pub(crate) finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
+    pub(crate) finished_dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
+    pub(crate) signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
+    pub(crate) func_data_registry: Arc<FuncDataRegistry>,
+    pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
+    pub(crate) finished_function_lengths: BoxedSlice<LocalFunctionIndex, usize>,
 }
 
 impl UniversalArtifact {
-    const MAGIC_HEADER: &'static [u8; 22] = b"\0wasmer-universal\0\0\0\0\0";
-
-    /// Check if the provided bytes look like a serialized `UniversalArtifact`.
-    pub fn is_deserializable(bytes: &[u8]) -> bool {
-        bytes.starts_with(Self::MAGIC_HEADER)
-    }
-
-    /// Compile a data buffer into a `UniversalArtifact`, which may then be instantiated.
-    #[cfg(feature = "compiler")]
-    pub fn new(
-        engine: &UniversalEngine,
-        data: &[u8],
-        tunables: &dyn Tunables,
-    ) -> Result<Self, CompileError> {
-        let environ = ModuleEnvironment::new();
-        let mut inner_engine = engine.inner_mut();
-        let features = inner_engine.features();
-
-        let translation = environ.translate(data).map_err(CompileError::Wasm)?;
-
-        let compiler = inner_engine.compiler()?;
-
-        // We try to apply the middleware first
-        let mut module = translation.module;
-        let middlewares = compiler.get_middlewares();
-        middlewares.apply_on_module_info(&mut module);
-
-        let memory_styles: PrimaryMap<MemoryIndex, MemoryStyle> = module
-            .memories
-            .values()
-            .map(|memory_type| tunables.memory_style(memory_type))
-            .collect();
-        let table_styles: PrimaryMap<TableIndex, TableStyle> = module
-            .tables
-            .values()
-            .map(|table_type| tunables.table_style(table_type))
-            .collect();
-
-        let mut compile_info = CompileModuleInfo {
-            module: Arc::new(module),
-            features: features.clone(),
-            memory_styles,
-            table_styles,
-        };
-
-        // Ensure that we pass information about signals in module metadata.
-        compile_info.features.signal_less(!compiler.use_signals());
-
-        // Compile the Module
-        let compilation = compiler.compile_module(
-            &engine.target(),
-            &compile_info,
-            // SAFETY: Calling `unwrap` is correct since
-            // `environ.translate()` above will write some data into
-            // `module_translation_state`.
-            translation.module_translation_state.as_ref().unwrap(),
-            translation.function_body_inputs,
-        )?;
-        let function_call_trampolines = compilation.get_function_call_trampolines();
-        let dynamic_function_trampolines = compilation.get_dynamic_function_trampolines();
-
-        let data_initializers = translation
-            .data_initializers
-            .iter()
-            .map(OwnedDataInitializer::new)
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
-
-        let frame_infos = compilation.get_frame_info();
-
-        let serializable_compilation = SerializableCompilation {
-            function_bodies: compilation.get_function_bodies(),
-            function_relocations: compilation.get_relocations(),
-            function_jt_offsets: compilation.get_jt_offsets(),
-            function_frame_info: frame_infos,
-            function_call_trampolines,
-            dynamic_function_trampolines,
-            custom_sections: compilation.get_custom_sections(),
-            custom_section_relocations: compilation.get_custom_section_relocations(),
-            debug: compilation.get_debug(),
-            trampolines: compilation.get_trampolines(),
-        };
-        let serializable = SerializableModule {
-            compilation: serializable_compilation,
-            compile_info,
-            data_initializers,
-            cpu_features: engine.target().cpu_features().as_u64(),
-        };
-        Self::from_parts(&mut inner_engine, serializable)
-    }
-
-    /// Compile a data buffer into a `UniversalArtifact`, which may then be instantiated.
-    #[cfg(not(feature = "compiler"))]
-    pub fn new(_engine: &UniversalEngine, _data: &[u8]) -> Result<Self, CompileError> {
-        Err(CompileError::Codegen(
-            "Compilation is not enabled in the engine".to_string(),
-        ))
-    }
-
-    /// Deserialize a UniversalArtifact
-    ///
-    /// # Safety
-    /// This function is unsafe because rkyv reads directly without validating
-    /// the data.
-    pub unsafe fn deserialize(
-        universal: &UniversalEngine,
-        bytes: &[u8],
-    ) -> Result<Self, DeserializeError> {
-        if !Self::is_deserializable(bytes) {
-            return Err(DeserializeError::Incompatible(
-                "The provided bytes are not wasmer-universal".to_string(),
-            ));
-        }
-
-        let mut inner_bytes = &bytes[SERIALIZED_METADATA_LENGTH_OFFSET..];
-
-        let metadata_len = leb128::read::unsigned(&mut inner_bytes).map_err(|_e| {
-            DeserializeError::CorruptedBinary("Can't read metadata size".to_string())
-        })?;
-        let metadata_slice: &[u8] = std::slice::from_raw_parts(
-            &bytes[SERIALIZED_METADATA_CONTENT_OFFSET] as *const u8,
-            metadata_len as usize,
-        );
-
-        let serializable = SerializableModule::deserialize(metadata_slice)?;
-        Self::from_parts(&mut universal.inner_mut(), serializable)
-            .map_err(DeserializeError::Compiler)
-    }
-
-    /// Construct a `UniversalArtifact` from component parts.
-    pub fn from_parts(
-        inner_engine: &mut UniversalEngineInner,
-        serializable: SerializableModule,
-    ) -> Result<Self, CompileError> {
-        let (
-            finished_functions,
-            finished_function_call_trampolines,
-            finished_dynamic_function_trampolines,
-            custom_sections,
-        ) = inner_engine.allocate(
-            &serializable.compile_info.module,
-            &serializable.compilation.function_bodies,
-            &serializable.compilation.function_call_trampolines,
-            &serializable.compilation.dynamic_function_trampolines,
-            &serializable.compilation.custom_sections,
-        )?;
-
-        link_module(
-            &serializable.compile_info.module,
-            &finished_functions,
-            &serializable.compilation.function_jt_offsets,
-            serializable.compilation.function_relocations.clone(),
-            &custom_sections,
-            &serializable.compilation.custom_section_relocations,
-            &serializable.compilation.trampolines,
-        );
-
-        // Compute indices into the shared signature table.
-        let signatures = {
-            let signature_registry = inner_engine.signatures();
-            serializable
-                .compile_info
-                .module
-                .signatures
-                .values()
-                .map(|sig| signature_registry.register(sig))
-                .collect::<PrimaryMap<_, _>>()
-        };
-
-        let eh_frame = match &serializable.compilation.debug {
-            Some(debug) => {
-                let eh_frame_section_size = serializable.compilation.custom_sections
-                    [debug.eh_frame]
-                    .bytes
-                    .len();
-                let eh_frame_section_pointer = custom_sections[debug.eh_frame];
-                Some(unsafe {
-                    std::slice::from_raw_parts(*eh_frame_section_pointer, eh_frame_section_size)
-                })
-            }
-            None => None,
-        };
-
-        // Make all code compiled thus far executable.
-        inner_engine.publish_compiled_code();
-
-        inner_engine.publish_eh_frame(eh_frame)?;
-
-        let finished_function_lengths = finished_functions
-            .values()
-            .map(|extent| extent.length)
-            .collect::<PrimaryMap<LocalFunctionIndex, usize>>()
-            .into_boxed_slice();
-        let finished_functions = finished_functions
-            .values()
-            .map(|extent| extent.ptr)
-            .collect::<PrimaryMap<LocalFunctionIndex, FunctionBodyPtr>>()
-            .into_boxed_slice();
-        let finished_function_call_trampolines =
-            finished_function_call_trampolines.into_boxed_slice();
-        let finished_dynamic_function_trampolines =
-            finished_dynamic_function_trampolines.into_boxed_slice();
-        let signatures = signatures.into_boxed_slice();
-        let func_data_registry = inner_engine.func_data().clone();
-
-        Ok(Self {
-            serializable,
-            finished_functions,
-            finished_function_call_trampolines,
-            finished_dynamic_function_trampolines,
-            signatures,
-            frame_info_registration: Mutex::new(None),
-            finished_function_lengths,
-            func_data_registry,
-        })
-    }
-
     /// Get the default extension when serializing this artifact
     pub fn get_default_extension(_triple: &Triple) -> &'static str {
         // `.wasmu` is the default extension for all the triples. It
@@ -272,25 +41,24 @@ impl UniversalArtifact {
 }
 
 impl Artifact for UniversalArtifact {
-    fn module(&self) -> Arc<ModuleInfo> {
-        self.serializable.compile_info.module.clone()
-    }
-
     fn module_ref(&self) -> &ModuleInfo {
-        &self.serializable.compile_info.module
+        &self.executable.compile_info.module
     }
 
     fn module_mut(&mut self) -> Option<&mut ModuleInfo> {
-        Arc::get_mut(&mut self.serializable.compile_info.module)
+        Arc::get_mut(&mut self.executable.compile_info.module)
+    }
+
+    /// The features with which this `Executable` was built.
+    fn features(&self) -> &wasmer_compiler::Features {
+        &self.executable.compile_info.features
     }
 
     fn register_frame_info(&self) {
         let mut info = self.frame_info_registration.lock().unwrap();
-
         if info.is_some() {
             return;
         }
-
         let finished_function_extents = self
             .finished_functions
             .values()
@@ -300,32 +68,12 @@ impl Artifact for UniversalArtifact {
             .collect::<PrimaryMap<LocalFunctionIndex, _>>()
             .into_boxed_slice();
 
-        let frame_infos = &self.serializable.compilation.function_frame_info;
-        *info = register_frame_info(
-            self.serializable.compile_info.module.clone(),
+        let frame_infos = &self.executable.function_frame_info;
+        *info = wasmer_engine::register_frame_info(
+            self.executable.compile_info.module.clone(),
             &finished_function_extents,
             frame_infos.clone(),
         );
-    }
-
-    fn features(&self) -> &Features {
-        &self.serializable.compile_info.features
-    }
-
-    fn cpu_features(&self) -> EnumSet<CpuFeature> {
-        EnumSet::from_u64(self.serializable.cpu_features)
-    }
-
-    fn data_initializers(&self) -> &[OwnedDataInitializer] {
-        &*self.serializable.data_initializers
-    }
-
-    fn memory_styles(&self) -> &PrimaryMap<MemoryIndex, MemoryStyle> {
-        &self.serializable.compile_info.memory_styles
-    }
-
-    fn table_styles(&self) -> &PrimaryMap<TableIndex, TableStyle> {
-        &self.serializable.compile_info.table_styles
     }
 
     fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
@@ -351,52 +99,95 @@ impl Artifact for UniversalArtifact {
     fn func_data_registry(&self) -> &FuncDataRegistry {
         &self.func_data_registry
     }
-    fn serialize(&self) -> Result<Vec<u8>, SerializeError> {
-        // Prepend the header.
-        let mut serialized = Self::MAGIC_HEADER.to_vec();
 
-        serialized.resize(SERIALIZED_METADATA_CONTENT_OFFSET, 0);
-        let mut writable_leb = &mut serialized[SERIALIZED_METADATA_LENGTH_OFFSET..];
-        let serialized_data = self.serializable.serialize()?;
-        let length = serialized_data.len();
-        leb128::write::unsigned(&mut writable_leb, length as u64).expect("Should write number");
+    unsafe fn instantiate(
+        &self,
+        tunables: &dyn wasmer_engine::Tunables,
+        resolver: &dyn wasmer_engine::Resolver,
+        host_state: Box<dyn std::any::Any>,
+        config: wasmer_types::InstanceConfig,
+    ) -> Result<wasmer_vm::InstanceHandle, wasmer_engine::InstantiationError> {
+        let module = Arc::clone(&self.executable.compile_info.module);
+        let (imports, import_function_envs) = {
+            let mut imports = wasmer_engine::resolve_imports(
+                &module,
+                resolver,
+                &self.finished_dynamic_function_trampolines(),
+                self.executable.memory_styles(),
+                self.executable.table_styles(),
+            )
+            .map_err(InstantiationError::Link)?;
 
-        let offset = pad_and_extend::<SerializableModule>(&mut serialized, &serialized_data);
-        assert_eq!(offset, SERIALIZED_METADATA_CONTENT_OFFSET);
+            // Get the `WasmerEnv::init_with_instance` function pointers and the pointers
+            // to the envs to call it on.
+            let import_function_envs = imports.get_imported_function_envs();
 
-        Ok(serialized)
+            (imports, import_function_envs)
+        };
+
+        // Get pointers to where metadata about local memories should live in VM memory.
+        // Get pointers to where metadata about local tables should live in VM memory.
+
+        let (allocator, memory_definition_locations, table_definition_locations) =
+            wasmer_vm::InstanceAllocator::new(&*module);
+        let finished_memories = tunables
+            .create_memories(
+                &module,
+                self.executable.memory_styles(),
+                &memory_definition_locations,
+            )
+            .map_err(InstantiationError::Link)?
+            .into_boxed_slice();
+        let finished_tables = tunables
+            .create_tables(
+                &module,
+                self.executable.table_styles(),
+                &table_definition_locations,
+            )
+            .map_err(InstantiationError::Link)?
+            .into_boxed_slice();
+        let finished_globals = tunables
+            .create_globals(&module)
+            .map_err(InstantiationError::Link)?
+            .into_boxed_slice();
+
+        self.register_frame_info();
+
+        let handle = wasmer_vm::InstanceHandle::new(
+            allocator,
+            module,
+            self.finished_functions().clone(),
+            self.finished_functions_lengths().clone(),
+            self.finished_function_call_trampolines().clone(),
+            finished_memories,
+            finished_tables,
+            finished_globals,
+            imports,
+            self.signatures().clone(),
+            host_state,
+            import_function_envs,
+            config,
+        )
+        .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?;
+        Ok(handle)
     }
-}
 
-/// It pads the data with the desired alignment
-pub fn pad_and_extend<T>(prev_data: &mut Vec<u8>, data: &[u8]) -> usize {
-    let align = std::mem::align_of::<T>();
-
-    let mut offset = prev_data.len();
-    if offset & (align - 1) != 0 {
-        offset += align - (offset & (align - 1));
-        prev_data.resize(offset, 0);
-    }
-    prev_data.extend(data);
-    offset
-}
-
-#[cfg(test)]
-mod tests {
-    use super::pad_and_extend;
-
-    #[test]
-    fn test_pad_and_extend() {
-        let mut data: Vec<u8> = vec![];
-        let offset = pad_and_extend::<i64>(&mut data, &[1, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(offset, 0);
-        let offset = pad_and_extend::<i32>(&mut data, &[2, 0, 0, 0]);
-        assert_eq!(offset, 8);
-        let offset = pad_and_extend::<i64>(&mut data, &[3, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(offset, 16);
-        assert_eq!(
-            data,
-            &[1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0]
-        );
+    unsafe fn finish_instantiation(
+        &self,
+        trap_handler: &dyn TrapHandler,
+        handle: &wasmer_vm::InstanceHandle,
+    ) -> Result<(), wasmer_engine::InstantiationError> {
+        let data_initializers = self
+            .executable
+            .data_initializers()
+            .iter()
+            .map(|init| DataInitializer {
+                location: init.location.clone(),
+                data: &*init.data,
+            })
+            .collect::<Vec<_>>();
+        handle
+            .finish_instantiation(trap_handler, &data_initializers)
+            .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
     }
 }

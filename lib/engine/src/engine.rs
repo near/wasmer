@@ -1,10 +1,9 @@
 //! Engine trait and associated types.
 
 use crate::tunables::Tunables;
-use crate::{Artifact, DeserializeError};
+
 use loupe::MemoryUsage;
-use memmap2::Mmap;
-use std::path::Path;
+
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
@@ -38,31 +37,16 @@ pub trait Engine: MemoryUsage {
         &self,
         binary: &[u8],
         tunables: &dyn Tunables,
-    ) -> Result<Arc<dyn Artifact>, CompileError>;
+    ) -> Result<Box<dyn crate::Executable>, CompileError>;
+
+    /// Load a compiled executable with this engine.
+    fn load(
+        &self,
+        executable: &(dyn crate::Executable + 'static),
+    ) -> Result<Arc<dyn crate::Artifact>, CompileError>;
 
     /// If this engine needs to install POSIX signal handlers.
     fn use_signals(&self) -> bool;
-
-    /// Deserializes a WebAssembly module
-    ///
-    /// # Safety
-    ///
-    /// The serialized content must represent a serialized WebAssembly module.
-    unsafe fn deserialize(&self, bytes: &[u8]) -> Result<Arc<dyn Artifact>, DeserializeError>;
-
-    /// Deserializes a WebAssembly module from a path
-    ///
-    /// # Safety
-    ///
-    /// The file's content must represent a serialized WebAssembly module.
-    unsafe fn deserialize_from_file(
-        &self,
-        file_ref: &Path,
-    ) -> Result<Arc<dyn Artifact>, DeserializeError> {
-        let file = std::fs::File::open(file_ref)?;
-        let mmap = Mmap::map(&file)?;
-        self.deserialize(&mmap)
-    }
 
     /// A unique identifier for this object.
     ///

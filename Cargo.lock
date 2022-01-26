@@ -1312,18 +1312,18 @@ dependencies = [
 
 [[package]]
 name = "rend"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1033f6fe7ce48c8333e5412891b933e85d6a3a09728c4883240edf64e7a6f11a"
+checksum = "79af64b4b6362ffba04eef3a4e10829718a4896dac19daa741851c86781edf95"
 dependencies = [
  "bytecheck",
 ]
 
 [[package]]
 name = "rkyv"
-version = "0.7.25"
+version = "0.7.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86c74fc6ea0317f1ba207eef55f5401b3180237625211866703183977b57dd45"
+checksum = "6758d0cb5660d71471e815a5a7ef9f3bebf072fda13c7503429db9a751ef2708"
 dependencies = [
  "bytecheck",
  "hashbrown 0.11.2",
@@ -1335,9 +1335,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv_derive"
-version = "0.7.25"
+version = "0.7.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61f677bd46008257bfdf28d051a59a72b75c2714754be3f20bcb4cbd835d2723"
+checksum = "795f0a26ee48557c19ccedba4fc67cfb894d929d8898a4d94a5a25ad47900290"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2095,6 +2095,7 @@ dependencies = [
  "loupe",
  "region",
  "rkyv",
+ "thiserror",
  "wasmer-compiler-near",
  "wasmer-engine-near",
  "wasmer-types-near",

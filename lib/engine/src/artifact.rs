@@ -1,60 +1,40 @@
-use crate::{
-    resolve_imports, InstantiationError, Resolver, RuntimeError, SerializeError, Tunables,
-};
-use enumset::EnumSet;
+use crate::{InstantiationError, Resolver, Tunables};
+
 use loupe::MemoryUsage;
 use std::any::Any;
-use std::fs;
-use std::path::Path;
-use std::sync::Arc;
-use wasmer_compiler::{CpuFeature, Features};
-use wasmer_types::entity::{BoxedSlice, PrimaryMap};
-use wasmer_types::{
-    DataInitializer, FunctionIndex, InstanceConfig, LocalFunctionIndex, MemoryIndex, ModuleInfo,
-    OwnedDataInitializer, SignatureIndex, TableIndex,
-};
+use wasmer_types::entity::BoxedSlice;
+use wasmer_types::{FunctionIndex, InstanceConfig, LocalFunctionIndex, SignatureIndex};
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, InstanceAllocator, InstanceHandle, MemoryStyle, TableStyle,
-    TrapHandler, VMSharedSignatureIndex, VMTrampoline,
+    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, TrapHandler, VMSharedSignatureIndex,
+    VMTrampoline,
 };
 
-/// An `Artifact` is the product that the `Engine`
-/// implementation produce and use.
+/// A predecesor of a full module Instance.
 ///
-/// The `Artifact` contains the compiled data for a given
-/// module as well as extra information needed to run the
-/// module at runtime, such as [`ModuleInfo`] and [`Features`].
+/// This type represents an intermediate stage within WASM module instantiation process. At the
+/// time this type exists parts of an [`Executable`](crate::Executable) are pre-allocated in the
+/// [`Engine`](crate::Engine) (aka. WASM Store.)
+///
+/// Some other operations such as linking, relocating and similar may also be performed during
+/// constructon of the Artifact, making this type particularly well suited for caching in-memory.
 pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
-    /// Return a reference-counted pointer to the module
-    fn module(&self) -> Arc<ModuleInfo>;
-
-    /// Return a pointer to a module.
-    fn module_ref(&self) -> &ModuleInfo;
-
-    /// Gets a mutable reference to the info.
+    /// Get reference to module
     ///
-    /// Note: this will return `None` if the module is already instantiated.
-    fn module_mut(&mut self) -> Option<&mut ModuleInfo>;
+    /// TODO: remove
+    fn module_ref(&self) -> &wasmer_types::ModuleInfo;
+
+    /// Get reference to module
+    ///
+    /// TODO: remove
+    fn module_mut(&mut self) -> Option<&mut wasmer_types::ModuleInfo>;
+
+    /// The features with which this `Executable` was built.
+    fn features(&self) -> &wasmer_compiler::Features;
 
     /// Register thie `Artifact` stack frame information into the global scope.
-    ///
+    //
     /// This is required to ensure that any traps can be properly symbolicated.
     fn register_frame_info(&self);
-
-    /// Returns the features for this Artifact
-    fn features(&self) -> &Features;
-
-    /// Returns the CPU features for this Artifact
-    fn cpu_features(&self) -> EnumSet<CpuFeature>;
-
-    /// Returns the memory styles associated with this `Artifact`.
-    fn memory_styles(&self) -> &PrimaryMap<MemoryIndex, MemoryStyle>;
-
-    /// Returns the table plans associated with this `Artifact`.
-    fn table_styles(&self) -> &PrimaryMap<TableIndex, TableStyle>;
-
-    /// Returns data initializers to pass to `InstanceHandle::initialize`
-    fn data_initializers(&self) -> &[OwnedDataInitializer];
 
     /// Returns the functions allocated in memory or this `Artifact`
     /// ready to be run.
@@ -77,21 +57,6 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
     /// Get the func data registry
     fn func_data_registry(&self) -> &FuncDataRegistry;
 
-    /// Serializes an artifact into bytes
-    fn serialize(&self) -> Result<Vec<u8>, SerializeError>;
-
-    /// Serializes an artifact into a file path
-    fn serialize_to_file(&self, path: &Path) -> Result<(), SerializeError> {
-        let serialized = self.serialize()?;
-        fs::write(&path, serialized)?;
-        Ok(())
-    }
-
-    /// Do preinstantiation logic that is executed before instantiating
-    fn preinstantiate(&self) -> Result<(), InstantiationError> {
-        Ok(())
-    }
-
     /// Crate an `Instance` from this `Artifact`.
     ///
     /// # Safety
@@ -103,64 +68,7 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
         resolver: &dyn Resolver,
         host_state: Box<dyn Any>,
         config: InstanceConfig,
-    ) -> Result<InstanceHandle, InstantiationError> {
-        self.preinstantiate()?;
-        let module = self.module();
-        let (imports, import_function_envs) = {
-            let mut imports = resolve_imports(
-                &module,
-                resolver,
-                &self.finished_dynamic_function_trampolines(),
-                self.memory_styles(),
-                self.table_styles(),
-            )
-            .map_err(InstantiationError::Link)?;
-
-            // Get the `WasmerEnv::init_with_instance` function pointers and the pointers
-            // to the envs to call it on.
-            let import_function_envs = imports.get_imported_function_envs();
-
-            (imports, import_function_envs)
-        };
-
-        // Get pointers to where metadata about local memories should live in VM memory.
-        // Get pointers to where metadata about local tables should live in VM memory.
-
-        let (allocator, memory_definition_locations, table_definition_locations) =
-            InstanceAllocator::new(&*module);
-        let finished_memories = tunables
-            .create_memories(&module, self.memory_styles(), &memory_definition_locations)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-        let finished_tables = tunables
-            .create_tables(&module, self.table_styles(), &table_definition_locations)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-        let finished_globals = tunables
-            .create_globals(&module)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-
-        self.register_frame_info();
-
-        let handle = InstanceHandle::new(
-            allocator,
-            module,
-            self.finished_functions().clone(),
-            self.finished_functions_lengths().clone(),
-            self.finished_function_call_trampolines().clone(),
-            finished_memories,
-            finished_tables,
-            finished_globals,
-            imports,
-            self.signatures().clone(),
-            host_state,
-            import_function_envs,
-            config,
-        )
-        .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?;
-        Ok(handle)
-    }
+    ) -> Result<InstanceHandle, InstantiationError>;
 
     /// Finishes the instantiation of a just created `InstanceHandle`.
     ///
@@ -171,19 +79,7 @@ pub trait Artifact: Send + Sync + Upcastable + MemoryUsage {
         &self,
         trap_handler: &dyn TrapHandler,
         handle: &InstanceHandle,
-    ) -> Result<(), InstantiationError> {
-        let data_initializers = self
-            .data_initializers()
-            .iter()
-            .map(|init| DataInitializer {
-                location: init.location.clone(),
-                data: &*init.data,
-            })
-            .collect::<Vec<_>>();
-        handle
-            .finish_instantiation(trap_handler, &data_initializers)
-            .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
-    }
+    ) -> Result<(), InstantiationError>;
 }
 
 // Implementation of `Upcastable` taken from https://users.rust-lang.org/t/why-does-downcasting-not-work-for-subtraits/33286/7 .

@@ -10,7 +10,7 @@ use thiserror::Error;
 use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
-use wasmer_engine::{is_wasm_pc, Artifact, DeserializeError, Resolver, SerializeError};
+use wasmer_engine::{is_wasm_pc, Artifact, Resolver};
 use wasmer_types::{ExportsIterator, ImportsIterator, InstanceConfig, ModuleInfo};
 use wasmer_vm::{init_traps, InstanceHandle};
 
@@ -160,100 +160,13 @@ impl Module {
     }
 
     fn compile(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
-        let artifact = store.engine().compile(binary, store.tunables())?;
+        let executable = store.engine().compile(binary, store.tunables())?;
+        let artifact = store.engine().load(&*executable)?;
         Ok(Self::from_artifact(store, artifact))
     }
 
-    /// Serializes a module into a binary representation that the `Engine`
-    /// can later process via [`Module::deserialize`].
-    ///
-    /// # Usage
-    ///
-    /// ```ignore
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// # let module = Module::from_file(&store, "path/to/foo.wasm")?;
-    /// let serialized = module.serialize()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn serialize(&self) -> Result<Vec<u8>, SerializeError> {
-        self.artifact.serialize()
-    }
-
-    /// Serializes a module into a file that the `Engine`
-    /// can later process via [`Module::deserialize_from_file`].
-    ///
-    /// # Usage
-    ///
-    /// ```ignore
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// # let module = Module::from_file(&store, "path/to/foo.wasm")?;
-    /// module.serialize_to_file("path/to/foo.so")?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn serialize_to_file(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
-        self.artifact.serialize_to_file(path.as_ref())
-    }
-
-    /// Deserializes a serialized Module binary into a `Module`.
-    /// > Note: the module has to be serialized before with the `serialize` method.
-    ///
-    /// # Safety
-    ///
-    /// This function is inherently **unsafe** as the provided bytes:
-    /// 1. Are going to be deserialized directly into Rust objects.
-    /// 2. Contains the function assembly bodies and, if intercepted,
-    ///    a malicious actor could inject code into executable
-    ///    memory.
-    ///
-    /// And as such, the `deserialize` method is unsafe.
-    ///
-    /// # Usage
-    ///
-    /// ```ignore
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// let module = Module::deserialize(&store, serialized_data)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub unsafe fn deserialize(store: &Store, bytes: &[u8]) -> Result<Self, DeserializeError> {
-        let artifact = store.engine().deserialize(bytes)?;
-        Ok(Self::from_artifact(store, artifact))
-    }
-
-    /// Deserializes a a serialized Module located in a `Path` into a `Module`.
-    /// > Note: the module has to be serialized before with the `serialize` method.
-    ///
-    /// # Safety
-    ///
-    /// Please check [`Module::deserialize`].
-    ///
-    /// # Usage
-    ///
-    /// ```ignore
-    /// # use wasmer::*;
-    /// # let store = Store::default();
-    /// # fn main() -> anyhow::Result<()> {
-    /// let module = Module::deserialize_from_file(&store, path)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub unsafe fn deserialize_from_file(
-        store: &Store,
-        path: impl AsRef<Path>,
-    ) -> Result<Self, DeserializeError> {
-        let artifact = store.engine().deserialize_from_file(path.as_ref())?;
-        Ok(Self::from_artifact(store, artifact))
-    }
-
-    fn from_artifact(store: &Store, artifact: Arc<dyn Artifact>) -> Self {
+    /// Make a Module from Artifact...
+    pub fn from_artifact(store: &Store, artifact: Arc<dyn Artifact>) -> Self {
         if !artifact.features().signal_less {
             init_traps(is_wasm_pc);
         }

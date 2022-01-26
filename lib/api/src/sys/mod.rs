@@ -57,7 +57,7 @@ pub use wasmer_compiler::{
 };
 pub use wasmer_engine::{
     ChainableNamedResolver, DeserializeError, Engine, Export, FrameInfo, LinkError, NamedResolver,
-    NamedResolverChain, Resolver, RuntimeError, SerializeError, Tunables,
+    NamedResolverChain, Resolver, RuntimeError, Tunables,
 };
 #[cfg(feature = "experimental-reference-types-extern-ref")]
 pub use wasmer_types::ExternRef;
