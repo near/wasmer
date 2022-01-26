@@ -18,7 +18,6 @@ wasmer-compiler-llvm = { version = "2.0.0", path = "lib/compiler-llvm", optional
 wasmer-engine = { version = "=2.2.2", path = "lib/engine", package = "wasmer-engine-near"  }
 wasmer-engine-universal = { version = "=2.2.2", path = "lib/engine-universal", optional = true, package = "wasmer-engine-universal-near" }
 wasmer-wast = { version = "2.0.0", path = "tests/lib/wast", optional = true }
-wasmer-cache = { version = "2.0.0", path = "lib/cache", optional = true }
 wasmer-types = { version = "=2.2.2", path = "lib/types", package = "wasmer-types-near" }
 wasmer-vm = { version = "=2.2.2", path = "lib/vm", package = "wasmer-vm-near" }
 
@@ -27,7 +26,6 @@ cfg-if = "1.0"
 [workspace]
 members = [
     "lib/api",
-    "lib/cache",
     "lib/cli",
     "lib/compiler",
     "lib/compiler-cranelift",
@@ -75,14 +73,12 @@ default = [
     "wast",
     "universal",
     "singlepass",
-    "cache",
 ]
 engine = []
 universal = [
     "wasmer-engine-universal",
     "engine",
 ]
-cache = ["wasmer-cache"]
 wast = ["wasmer-wast"]
 wat = ["wasmer/wat"]
 compiler = [
