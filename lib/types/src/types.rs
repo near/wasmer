@@ -658,25 +658,25 @@ pub struct FastGasCounter {
     /// and the host code.
 
     /// The amount of gas that was irreversibly used for contract execution.
-    pub burnt_gas: u64,
+    pub initial_gas_limit: u64,
     /// Hard gas limit for execution
-    pub gas_limit: u64,
+    pub gas_limit: i64,
     /// Single WASM opcode cost
     pub opcode_cost: u64,
 }
 
 impl FastGasCounter {
     /// New fast gas counter.
-    pub fn new(limit: u64, opcode: u64) -> Self {
+    pub fn new(limit: u64) -> Self {
         FastGasCounter {
-            burnt_gas: 0,
-            gas_limit: limit,
-            opcode_cost: opcode,
+            initial_gas_limit: limit as u64,
+            gas_limit: limit as i64,
+            opcode_cost: 1,
         }
     }
     /// Amount of gas burnt, maybe load as atomic to avoid aliasing issues.
     pub fn burnt(&self) -> u64 {
-        self.burnt_gas
+        self.initial_gas_limit.wrapping_sub(self.gas_limit as u64)
     }
 }
 
@@ -710,8 +710,8 @@ impl InstanceConfig {
     /// Create default instance configuration.
     pub fn default() -> Self {
         let result = Rc::new(UnsafeCell::new(FastGasCounter {
-            burnt_gas: 0,
-            gas_limit: u64::MAX,
+            initial_gas_limit: u64::MAX,
+            gas_limit: i64::MAX,
             opcode_cost: 0,
         }));
         Self {
