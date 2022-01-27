@@ -15,16 +15,16 @@ fn get_module_with_start(store: &Store) -> Module {
         (export "bar" (func $bar))
         (func $foo
             call 0
-            i32.const 42
+            i32.const 126
             call 1
             call 0
-            i32.const 100
+            i32.const 300
             call 1
             call 0
         )
         (func $bar
             call 0
-            i32.const 100
+            i32.const 300
             call 1
         )
         (start $foo)
@@ -101,7 +101,7 @@ fn get_store() -> Store {
 #[test]
 fn test_gas_intrinsic_in_start() {
     let store = get_store();
-    let mut gas_counter = FastGasCounter::new(300, 3);
+    let mut gas_counter = FastGasCounter::new(300, 1);
     let module = get_module_with_start(&store);
     static HITS: AtomicUsize = AtomicUsize::new(0);
     let result = Instance::new_with_config(
@@ -133,13 +133,12 @@ fn test_gas_intrinsic_in_start() {
     // Ensure gas was partially spent.
     assert_eq!(gas_counter.burnt(), 426);
     assert_eq!(gas_counter.gas_limit, 300);
-    assert_eq!(gas_counter.opcode_cost, 3);
 }
 
 #[test]
 fn test_gas_intrinsic_regular() {
     let store = get_store();
-    let mut gas_counter = FastGasCounter::new(500, 3);
+    let mut gas_counter = FastGasCounter::new(200, 1);
     let module = get_module(&store);
     static HITS: AtomicUsize = AtomicUsize::new(0);
     let instance = Instance::new_with_config(
@@ -183,16 +182,15 @@ fn test_gas_intrinsic_regular() {
     assert!(e.is_ok());
     // Ensure "func" was called.
     assert_eq!(HITS.load(SeqCst), 1);
-    assert_eq!(gas_counter.burnt(), 300);
+    assert_eq!(gas_counter.burnt(), 100);
     let _e = foo_func.call(&[]).err().expect("error calling function");
     // Ensure "func" and "has" was called again.
     assert_eq!(HITS.load(SeqCst), 4);
-    assert_eq!(gas_counter.burnt(), 726);
+    assert_eq!(gas_counter.burnt(), 242);
     // Finally try to exhaust rather large limit.
-    gas_counter.gas_limit = 10_000_000_000_000_000;
-    gas_counter.opcode_cost = 100_000_000;
+    gas_counter.gas_limit = 100_000_000;
     let _e = zoo_func.call(&[]).err().expect("error calling function");
-    assert_eq!(gas_counter.burnt(), 10_000_000_000_000_726);
+    assert_eq!(gas_counter.burnt(), 100_000_042);
 }
 
 #[test]

@@ -444,11 +444,9 @@ impl<'a> FuncGen<'a> {
             IntrinsicKind::Gas => {
                 let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
                 let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
-                let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
                 // Recheck offsets, to make sure offsets will never change.
                 assert_eq!(counter_offset, 0);
                 assert_eq!(gas_limit_offset, 8);
-                assert_eq!(opcode_cost_offset, 16);
                 assert_eq!(params.len(), 1);
                 let count_location = params[0];
                 let base_reg = self.machine.acquire_temp_gpr().unwrap();
@@ -468,22 +466,10 @@ impl<'a> FuncGen<'a> {
                     Location::Memory(base_reg, counter_offset),
                     Location::GPR(current_burnt_reg),
                 );
-                // Read opcode cost.
-                let count_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(base_reg, opcode_cost_offset),
-                    Location::GPR(count_reg),
-                );
-                // Multiply instruction count by opcode cost.
-                match count_location {
-                    Location::Imm32(imm) => self.assembler.emit_imul_imm32_gpr64(imm, count_reg),
-                    _ => assert!(false),
-                }
                 // Compute new cost.
                 self.assembler.emit_add(
                     Size::S64,
-                    Location::GPR(count_reg),
+                    count_location,
                     Location::GPR(current_burnt_reg),
                 );
                 self.assembler
@@ -506,7 +492,6 @@ impl<'a> FuncGen<'a> {
                 );
                 self.machine.release_temp_gpr(base_reg);
                 self.machine.release_temp_gpr(current_burnt_reg);
-                self.machine.release_temp_gpr(count_reg);
             }
         }
         Ok(())
