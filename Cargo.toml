@@ -133,6 +133,10 @@ harness = false
 name = "many_functions"
 harness = false
 
+[[bench]]
+name = "gas_metering"
+harness = false
+
 [[example]]
 name = "early-exit"
 path = "examples/early_exit.rs"
