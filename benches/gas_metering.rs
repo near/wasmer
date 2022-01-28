@@ -37,6 +37,10 @@ fn gas(c: &mut Criterion) {
     let cases = [
         ("gas32", 0, "(call $gas (i32.const 0))"),
         ("gas32", 1, "(call $gas (i32.const 1))"),
+        ("gas32", u32::MAX, "(call $gas (i32.const 4294967295))"),
+        ("gas64", 0, "(call $gas64 (i64.const 0))"),
+        ("gas64", 1, "(call $gas64 (i64.const 1))"),
+        ("gas64", u32::MAX, "(call $gas64 (i64.const 4294967295))"),
     ];
     let mut group = c.benchmark_group("gas");
     for (name, size, fee) in cases {
@@ -56,10 +60,10 @@ fn gas(c: &mut Criterion) {
             fee = fee,
         );
         group.bench_with_input(BenchmarkId::new(name, size), &size, |b, _| {
-            let mut gas_counter = wasmer_types::FastGasCounter::new(u64::MAX, 1);
-            let (_, _, instance) = instantiate(wat.as_bytes(), unsafe {
-                InstanceConfig::default().with_counter(std::ptr::addr_of_mut!(gas_counter))
-            });
+            let (_, _, instance) = instantiate(
+                wat.as_bytes(),
+                InstanceConfig::default().with_gas_limit(i64::MAX),
+            );
             let instance = instance.unwrap();
             let main = instance
                 .exports
