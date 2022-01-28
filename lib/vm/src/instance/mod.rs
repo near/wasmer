@@ -44,7 +44,7 @@ use std::slice;
 use std::sync::Arc;
 use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataIndex, DataInitializer, ElemIndex, ExportIndex, FastGasCounter, FunctionIndex, GlobalIndex,
+    DataIndex, DataInitializer, ElemIndex, ExportIndex, FunctionIndex, GlobalIndex,
     GlobalInit, InstanceConfig, LocalFunctionIndex, LocalGlobalIndex, LocalMemoryIndex,
     LocalTableIndex, MemoryIndex, ModuleInfo, NamedFunction, Pages, SignatureIndex, TableIndex,
     TableInitializer,
@@ -407,9 +407,9 @@ impl Instance {
         unsafe { self.vmctx_plus_offset(self.offsets.vmctx_trap_handler()) }
     }
 
-    /// Return a pointer to the gas limiter.
-    pub fn gas_counter_ptr(&self) -> *mut *const FastGasCounter {
-        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_gas_limiter_pointer()) }
+    /// Return a pointer to the gas limit.
+    pub fn gas_limit_ptr(&self) -> *mut i64 {
+        unsafe { self.vmctx_plus_offset(self.offsets.vmctx_gas_limit_begin()) }
     }
 
     /// Return a pointer to initial stack limit.
@@ -1025,7 +1025,7 @@ impl InstanceHandle {
                     vmctx_ptr,
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
-                *(instance.gas_counter_ptr()) = instance_config.gas_counter;
+                *(instance.gas_limit_ptr()) = instance_config.gas_limit;
                 *(instance.stack_limit_ptr()) = instance_config.stack_limit;
                 *(instance.stack_limit_initial_ptr()) = instance_config.stack_limit;
             }
@@ -1343,6 +1343,13 @@ impl InstanceHandle {
             }
         }
         Ok(())
+    }
+
+    /// Return the current remaining gas limit for this function.
+    pub fn gas_limit(&self) -> i64 {
+        unsafe {
+            *(self.instance.as_ref().gas_limit_ptr())
+        }
     }
 }
 

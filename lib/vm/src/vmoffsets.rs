@@ -469,7 +469,7 @@ impl VMOffsets {
     }
 
     /// The offset of the gas limiter pointer.
-    pub fn vmctx_gas_limiter_pointer(&self) -> u32 {
+    pub fn vmctx_gas_limit_begin(&self) -> u32 {
         self.vmctx_trap_handler_begin()
             .checked_add(if self.has_trap_handlers {
                 u32::from(self.pointer_size)
@@ -481,8 +481,8 @@ impl VMOffsets {
 
     /// The offset of the current stack limit.
     pub fn vmctx_stack_limit_begin(&self) -> u32 {
-        self.vmctx_gas_limiter_pointer()
-            .checked_add(u32::from(self.pointer_size))
+        self.vmctx_gas_limit_begin()
+            .checked_add(8)
             .unwrap()
     }
 

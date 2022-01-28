@@ -7,8 +7,6 @@ use thiserror::Error;
 pub enum HostEnvInitError {
     /// An error occurred when accessing an export
     Export(ExportError),
-    /// Incorrect gas metering config
-    IncorrectGasMeteringConfig,
 }
 
 impl From<ExportError> for HostEnvInitError {

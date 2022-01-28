@@ -2,7 +2,6 @@ use crate::address_map::get_function_address_map;
 use crate::config::{Intrinsic, IntrinsicKind};
 use crate::{common_decl::*, config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
 use dynasmrt::{x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, VecAssembler};
-use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
 use std::cmp::max;
 use std::iter;
@@ -17,7 +16,7 @@ use wasmer_compiler::{
 };
 use wasmer_types::{
     entity::{EntityRef, PrimaryMap, SecondaryMap},
-    FastGasCounter, FunctionType,
+    FunctionType,
 };
 use wasmer_types::{
     FunctionIndex, GlobalIndex, LocalFunctionIndex, LocalMemoryIndex, MemoryIndex, ModuleInfo,
@@ -435,6 +434,24 @@ impl<'a> FuncGen<'a> {
         None
     }
 
+    /// Emit a code sequence to consume a known constant amount of gas from the gas limit.
+    ///
+    /// Note that non-positive `gas` values do not emit any accounting code.
+    fn use_constant_gas(&mut self, gas: i32) {
+        if gas > 0 {
+            self.assembler.emit_sub(
+                Size::S64,
+                Location::Imm32(gas as u32),
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_gas_limit_begin() as i32,
+                ),
+            );
+            self.assembler
+                .emit_jmp(Condition::Signed, self.special_labels.gas_limit_exceeded);
+        }
+    }
+
     fn emit_intrinsic(
         &mut self,
         intrinsic: Intrinsic,
@@ -442,76 +459,34 @@ impl<'a> FuncGen<'a> {
     ) -> Result<(), CodegenError> {
         match intrinsic.kind {
             IntrinsicKind::Gas => {
-                let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
-                // Recheck offsets, to make sure offsets will never change.
-                assert_eq!(gas_limit_offset, 8);
                 assert_eq!(params.len(), 1);
-                let count_location = params[0];
-                // self.assembler.emit_bkpt();
-                let base_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(
-                        Machine::get_vmctx_reg(),
-                        self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
-                    ),
-                    Location::GPR(base_reg),
-                );
-                self.assembler.emit_sub(
-                    Size::S64,
-                    count_location,
-                    Location::Memory(base_reg, gas_limit_offset),
-                );
-                self.machine.release_temp_gpr(base_reg);
-                self.assembler
-                    .emit_jmp(Condition::Signed, self.special_labels.gas_limit_exceeded);
-                // self.assembler.emit_mov(
-                //     Size::S64,
-                //     ,
-                //     Location::GPR(base_reg),
-                // );
-                // Load gas counter base.
-                // self.assembler.emit_mov(
-                //     Size::S64,
-                //     Location::Memory(
-                //         Machine::get_vmctx_reg(),
-                //         self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
-                //     ),
-                //     Location::GPR(base_reg),
-                // );
-                // let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
-                // // Read current gas counter.
-                // self.assembler.emit_mov(
-                //     Size::S64,
-                //     Location::Memory(base_reg, counter_offset),
-                //     Location::GPR(current_burnt_reg),
-                // );
-                // // Compute new cost.
-                // self.assembler.emit_add(
-                //     Size::S64,
-                //     count_location,
-                //     Location::GPR(current_burnt_reg),
-                // );
-                // self.assembler
-                //     .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
-                // // Compare with the limit.
-                // self.assembler.emit_cmp(
-                //     Size::S64,
-                //     Location::GPR(current_burnt_reg),
-                //     Location::Memory(base_reg, gas_limit_offset),
-                // );
-                // // Write new gas counter unconditionally, so that runtime can sort out limits case.
-                // self.assembler.emit_mov(
-                //     Size::S64,
-                //     Location::GPR(current_burnt_reg),
-                //     Location::Memory(base_reg, counter_offset),
-                // );
-                // self.assembler.emit_jmp(
-                //     Condition::BelowEqual,
-                //     self.special_labels.gas_limit_exceeded,
-                // );
-                // self.machine.release_temp_gpr(base_reg);
-                // self.machine.release_temp_gpr(current_burnt_reg);
+                match params[0] {
+                    Location::Imm32(v) if v <= i32::MAX as u32 => self.use_constant_gas(v as i32),
+                    Location::Imm64(v) if v <= i32::MAX as u64 => self.use_constant_gas(v as i32),
+                    location => {
+                        let burn_gpr = self.machine.acquire_temp_gpr().unwrap();
+                        self.assembler.emit_mov(
+                            if let Location::Imm32(_) = location {
+                                Size::S32
+                            } else {
+                                Size::S64
+                            },
+                            location,
+                            Location::GPR(burn_gpr),
+                        );
+                        self.assembler.emit_sub(
+                            Size::S64,
+                            Location::GPR(burn_gpr),
+                            Location::Memory(
+                                Machine::get_vmctx_reg(),
+                                self.vmoffsets.vmctx_gas_limit_begin() as i32,
+                            ),
+                        );
+                        self.machine.release_temp_gpr(burn_gpr);
+                        self.assembler
+                            .emit_jmp(Condition::Signed, self.special_labels.gas_limit_exceeded);
+                    }
+                }
             }
         }
         Ok(())

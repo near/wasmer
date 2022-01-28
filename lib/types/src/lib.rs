@@ -87,7 +87,7 @@ pub use crate::units::{
 };
 pub use crate::values::{Value, WasmValueType};
 pub use types::{
-    ExportType, ExternType, FastGasCounter, FunctionType, GlobalInit, GlobalType, ImportType,
+    ExportType, ExternType, FunctionType, GlobalInit, GlobalType, ImportType,
     InstanceConfig, MemoryType, Mutability, NamedFunction, TableType, Type, V128,
 };
 

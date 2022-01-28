@@ -35,7 +35,7 @@ fn stack_limit_hit() {
     let module = Module::new(&store, &wasm).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::default().with_stack_limit(100000) },
+        InstanceConfig::default().with_stack_limit(100000),
         &imports! {},
     );
     assert!(instance.is_ok());
@@ -82,7 +82,7 @@ fn stack_limit_operand_stack() {
     let module = Module::new(&store, &wat).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::default().with_stack_limit(1000) },
+        InstanceConfig::default().with_stack_limit(1000),
         &imports! {},
     );
     assert!(instance.is_ok());
@@ -134,7 +134,7 @@ fn stack_limit_ok() {
     let module = Module::new(&store, &wat).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::default().with_stack_limit(1000) },
+        InstanceConfig::default().with_stack_limit(1000),
         &imports! {},
     );
     assert!(instance.is_ok());
@@ -154,7 +154,7 @@ fn stack_limit_huge_limit() {
     let module = Module::new(&store, &wat).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::default().with_stack_limit(0x7FFF_FFFF) },
+        InstanceConfig::default().with_stack_limit(0x7FFF_FFFF),
         &imports! {},
     );
     assert!(instance.is_ok());
@@ -181,7 +181,7 @@ fn stack_limit_no_args() {
     let module = Module::new(&store, &wat).unwrap();
     let instance = Instance::new_with_config(
         &module,
-        unsafe { InstanceConfig::default().with_stack_limit(1000) },
+        InstanceConfig::default().with_stack_limit(1000),
         &imports! {},
     );
     assert!(instance.is_ok());

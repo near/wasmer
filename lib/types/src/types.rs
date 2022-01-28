@@ -7,8 +7,6 @@ use crate::lib::std::vec::Vec;
 use crate::units::Pages;
 use crate::values::{Value, WasmValueType};
 use loupe::{MemoryUsage, MemoryUsageTracker};
-use std::cell::UnsafeCell;
-use std::rc::Rc;
 
 #[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
@@ -647,58 +645,57 @@ impl<T> ExportType<T> {
     }
 }
 
-/// Fast gas counter with very simple structure, could be exposed to compiled code in the VM.
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FastGasCounter {
-    /// The following three fields must be put next to another to make sure
-    /// generated gas counting code can use and adjust them.
-    /// We will share counter to ensure we never miss synchronization.
-    /// This could change and in such a case synchronization required between compiled WASM code
-    /// and the host code.
-
-    /// The amount of gas that was irreversibly used for contract execution.
-    pub initial_gas_limit: u64,
-    /// Hard gas limit for execution
-    pub gas_limit: i64,
-    /// Single WASM opcode cost
-    pub opcode_cost: u64,
-}
-
-impl FastGasCounter {
-    /// New fast gas counter.
-    pub fn new(limit: u64) -> Self {
-        FastGasCounter {
-            initial_gas_limit: limit as u64,
-            gas_limit: limit as i64,
-            opcode_cost: 1,
-        }
-    }
-    /// Amount of gas burnt, maybe load as atomic to avoid aliasing issues.
-    pub fn burnt(&self) -> u64 {
-        self.initial_gas_limit.wrapping_sub(self.gas_limit as u64)
-    }
-}
-
-impl fmt::Display for FastGasCounter {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "burnt: {} limit: {} op_cost: {} ",
-            self.burnt(),
-            self.gas_limit,
-            self.opcode_cost
-        )
-    }
-}
+// /// Fast gas counter with very simple structure, could be exposed to compiled code in the VM.
+// #[repr(C)]
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// pub struct FastGasCounter {
+//     /// The following three fields must be put next to another to make sure
+//     /// generated gas counting code can use and adjust them.
+//     /// We will share counter to ensure we never miss synchronization.
+//     /// This could change and in such a case synchronization required between compiled WASM code
+//     /// and the host code.
+//
+//     /// The amount of gas that was irreversibly used for contract execution.
+//     pub initial_gas_limit: u64,
+//     /// Hard gas limit for execution
+//     pub gas_limit: i64,
+// }
+//
+// impl FastGasCounter {
+//     /// New fast gas counter.
+//     pub fn new(limit: u64) -> Self {
+//         FastGasCounter {
+//             initial_gas_limit: limit as u64,
+//             gas_limit: limit as i64,
+//             opcode_cost: 1,
+//         }
+//     }
+//     /// Amount of gas burnt, maybe load as atomic to avoid aliasing issues.
+//     pub fn burnt(&self) -> u64 {
+//         self.initial_gas_limit.wrapping_sub(self.gas_limit as u64)
+//     }
+// }
+//
+// impl fmt::Display for FastGasCounter {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "burnt: {} limit: {} op_cost: {} ",
+//             self.burnt(),
+//             self.gas_limit,
+//             self.opcode_cost
+//         )
+//     }
+// }
 
 /// External configuration of execution environment for Instance.
 #[derive(Clone, MemoryUsage)]
 pub struct InstanceConfig {
-    /// External gas counter pointer.
-    pub gas_counter: *mut FastGasCounter,
-    #[loupe(skip)]
-    default_gas_counter: Option<Rc<UnsafeCell<FastGasCounter>>>,
+    /// The amount of gas this instance is allowed to consume.
+    ///
+    /// Note that this number may go below 0 during gas accounting, in which case the
+    /// `GasExhausted` trap will be raised.
+    pub gas_limit: i64,
     /// Stack limit, in 8-byte slots.
     pub stack_limit: i32,
 }
@@ -709,29 +706,26 @@ const DEFAULT_STACK_LIMIT: i32 = 100 * 1024;
 impl InstanceConfig {
     /// Create default instance configuration.
     pub fn default() -> Self {
-        let result = Rc::new(UnsafeCell::new(FastGasCounter {
-            initial_gas_limit: u64::MAX,
-            gas_limit: i64::MAX,
-            opcode_cost: 0,
-        }));
         Self {
-            gas_counter: result.get(),
-            default_gas_counter: Some(result),
+            gas_limit: i64::MAX,
             stack_limit: DEFAULT_STACK_LIMIT,
         }
     }
 
-    /// Create instance configuration with an external gas counter, unsafe as it creates
-    /// an alias on raw memory of gas_counter. This memory could be accessed until
-    /// instance configured with this `InstanceConfig` exists.
-    pub unsafe fn with_counter(mut self, gas_counter: *mut FastGasCounter) -> Self {
-        self.gas_counter = gas_counter;
-        self.default_gas_counter = None;
+    /// Specify the gas limit for this instance.
+    ///
+    /// Every call to `env.gas` and `env.gas64` functions will subtract from this limit.
+    /// Once this limit becomes negative, the `GasExhausted` trap will be raised.
+    ///
+    /// The limit supplied must be a positive number.
+    pub fn with_gas_limit(mut self, limit: i64) -> Self {
+        assert!(limit >= 0, "the gas limit must be a positive number");
+        self.gas_limit = limit;
         self
     }
 
-    /// Create instance configuration with given stack limit.
-    pub unsafe fn with_stack_limit(mut self, stack_limit: i32) -> Self {
+    /// Specify the stack limit for this instance.
+    pub fn with_stack_limit(mut self, stack_limit: i32) -> Self {
         self.stack_limit = stack_limit;
         self
     }

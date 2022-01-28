@@ -39,11 +39,18 @@ impl Singlepass {
             enable_nan_canonicalization: true,
             enable_stack_check: false,
             middlewares: vec![],
-            intrinsics: vec![Intrinsic {
-                kind: IntrinsicKind::Gas,
-                name: "gas".to_string(),
-                signature: ([Type::I32], []).into(),
-            }],
+            intrinsics: vec![
+                Intrinsic {
+                    kind: IntrinsicKind::Gas,
+                    name: "gas".to_string(),
+                    signature: ([Type::I32], []).into(),
+                },
+                Intrinsic {
+                    kind: IntrinsicKind::Gas,
+                    name: "gas64".to_string(),
+                    signature: ([Type::I64], []).into(),
+                },
+            ],
         }
     }
 
@@ -102,10 +109,10 @@ impl Default for Singlepass {
 impl Intrinsic {
     pub(crate) fn is_params_ok(&self, params: &SmallVec<[Location; 8]>) -> bool {
         match self.kind {
-            IntrinsicKind::Gas => match params[0] {
-                Location::Imm32(value) => value < i32::MAX as u32,
-                _ => false,
-            },
+            IntrinsicKind::Gas => params.len() == 1 && matches!(
+                params[0],
+                Location::Imm32(_) | Location::Imm64(_) | Location::GPR(_)
+            ),
         }
     }
 }
