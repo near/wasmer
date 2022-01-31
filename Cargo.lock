@@ -1558,22 +1558,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-env-log"
-version = "0.2.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877189d680101869f65ef94168105d6c188b3a143c13a2d42cf8a09c4c704f8a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "test-generator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "target-lexicon",
+]
+
+[[package]]
+name = "test-log"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb78caec569a40f42c078c798c0e35b922d9054ec28e166f0d6ac447563d91a4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -2119,8 +2119,8 @@ dependencies = [
  "rustc_version",
  "serial_test",
  "tempfile",
- "test-env-log",
  "test-generator",
+ "test-log",
  "tracing",
  "tracing-subscriber",
  "wasmer-compiler-cranelift",
