@@ -99,6 +99,7 @@ impl Compile {
         println!("Target: {}", target.triple());
 
         let module = Module::from_file(&store, &self.path)?;
+
         let _ = module.serialize_to_file(&self.output)?;
         eprintln!(
             "✔ File compiled successfully to `{}`.",

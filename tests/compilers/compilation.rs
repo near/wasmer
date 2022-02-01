@@ -39,11 +39,9 @@ fn compilation_test() {
         let code = slow_to_compile_contract(3, 25 * factor);
         match compile_uncached(&store, &engine, &code, false) {
             Ok(art) => {
-                let mut buffer = std::io::Cursor::new(vec![]);
-                art.serialize(&mut buffer).unwrap();
-                let serialized = buffer.into_inner();
+                let serialized = art.serialize().unwrap();
                 println!(
-                    "{}: artefact is compiled, size is {}",
+                    "{}: artifact is compiled, size is {}",
                     factor,
                     serialized.len()
                 );
@@ -82,9 +80,7 @@ fn profiling() {
     let store = Store::new(&engine);
     match compile_uncached(&store, &engine, &wasm, false) {
         Ok(art) => unsafe {
-            let mut buffer = std::io::Cursor::new(vec![]);
-            art.serialize(&mut buffer).unwrap();
-            let serialized = buffer.into_inner();
+            let serialized = art.serialize().unwrap();
             let executable =
                 wasmer_engine_universal::UniversalExecutable::deserialize(&serialized).unwrap();
             let artifact = engine.load(&executable).unwrap();

@@ -1,5 +1,5 @@
 use crate::sys::store::Store;
-use crate::sys::types::{ExportType, ImportType};
+use crate::sys::types::ExportType;
 use crate::sys::InstantiationError;
 use loupe::MemoryUsage;
 use std::fmt;
@@ -11,7 +11,7 @@ use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
 use wasmer_engine::{Artifact, Resolver};
-use wasmer_types::{ExportsIterator, ImportsIterator, InstanceConfig, ModuleInfo};
+use wasmer_types::{ExportsIterator, ImportsIterator, InstanceConfig};
 use wasmer_vm::InstanceHandle;
 
 #[derive(Error, Debug)]
@@ -215,7 +215,8 @@ impl Module {
     /// # }
     /// ```
     pub fn name(&self) -> Option<&str> {
-        self.artifact.module_ref().name.as_deref()
+        todo!() // probably remove entirely
+                // self.artifact.module_ref().name.as_deref()
     }
 
     /// Sets the name of the current module.
@@ -240,13 +241,14 @@ impl Module {
     /// # }
     /// ```
     pub fn set_name(&mut self, name: &str) -> bool {
-        Arc::get_mut(&mut self.artifact)
-            .and_then(|artifact| artifact.module_mut())
-            .map(|mut module_info| {
-                module_info.name = Some(name.to_string());
-                true
-            })
-            .unwrap_or(false)
+        todo!() // probably remove
+                // Arc::get_mut(&mut self.artifact)
+                //     .and_then(|artifact| artifact.module_mut())
+                //     .map(|mut module_info| {
+                //         module_info.name = Some(name.to_string());
+                //         true
+                //     })
+                //     .unwrap_or(false)
     }
 
     /// Returns an iterator over the imported types in the Module.
@@ -273,8 +275,9 @@ impl Module {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn imports<'a>(&'a self) -> ImportsIterator<impl Iterator<Item = ImportType> + 'a> {
-        self.artifact.module_ref().imports()
+    pub fn imports<'a>(&'a self) -> ImportsIterator {
+        todo!() // could likely be fetched from the instance.
+                // self.artifact.module_ref().imports()
     }
 
     /// Returns an iterator over the exported types in the Module.
@@ -301,7 +304,9 @@ impl Module {
     /// # }
     /// ```
     pub fn exports<'a>(&'a self) -> ExportsIterator<impl Iterator<Item = ExportType> + 'a> {
-        self.artifact.module_ref().exports()
+        // TODO(0-copy) could probably be fetched from the instance.
+        ExportsIterator::new(std::iter::empty(), 0)
+        // self.artifact.module_ref().exports()
     }
 
     /// Get the custom sections of the module given a `name`.
@@ -312,32 +317,14 @@ impl Module {
     /// custom sections. That's why an iterator (rather than one element)
     /// is returned.
     pub fn custom_sections<'a>(&'a self, name: &'a str) -> impl Iterator<Item = Arc<[u8]>> + 'a {
-        self.artifact.module_ref().custom_sections(name)
+        // TODO(0-copy): could probably fetched from instance
+        std::iter::empty()
+        // self.artifact.module_ref().custom_sections(name)
     }
 
     /// Returns the [`Store`] where the `Instance` belongs.
     pub fn store(&self) -> &Store {
         &self.store
-    }
-
-    /// The ABI of the ModuleInfo is very unstable, we refactor it very often.
-    /// This function is public because in some cases it can be useful to get some
-    /// extra information from the module.
-    ///
-    /// However, the usage is highly discouraged.
-    #[doc(hidden)]
-    pub fn info(&self) -> &ModuleInfo {
-        &self.artifact.module_ref()
-    }
-
-    /// Gets the [`Artifact`] used internally by the Module.
-    ///
-    /// This API is hidden because it's not necessarily stable;
-    /// this functionality is required for some core functionality though, like
-    /// the object file engine.
-    #[doc(hidden)]
-    pub fn artifact(&self) -> &Arc<dyn Artifact> {
-        &self.artifact
     }
 }
 

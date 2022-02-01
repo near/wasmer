@@ -2,8 +2,6 @@ use crate::lib::std::convert::TryFrom;
 use crate::lib::std::fmt;
 use crate::lib::std::ops::{Add, Sub};
 use loupe::MemoryUsage;
-#[cfg(feature = "enable-rkyv")]
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "enable-serde")]
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
@@ -26,8 +24,10 @@ pub const WASM_MIN_PAGES: u32 = 0x100;
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
     feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
+    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
 )]
+#[archive(as = "Self")]
+#[repr(transparent)]
 pub struct Pages(pub u32);
 
 impl Pages {

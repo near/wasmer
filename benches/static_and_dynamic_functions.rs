@@ -12,7 +12,7 @@ static BASIC_WAT: &str = r#"(module
                                   i32 i32 i32 i32 i32
                                   i32 i32 i32 i32 i32) (result i32)
        (i32.add
-                (i32.add 
+                (i32.add
                          (i32.add (i32.add (i32.add (local.get 0)  (local.get 1))
                                            (i32.add (local.get 2)  (local.get 3)))
                                   (i32.add (i32.add (local.get 4)  (local.get 5))
@@ -150,21 +150,21 @@ fn run_static_benchmarks(_c: &mut Criterion) {
     #[cfg(feature = "llvm")]
     {
         let store = Store::new(&Universal::new(wasmer_compiler_llvm::LLVM::new()).engine());
-        run_basic_static_function(&store, "llvm", c);
+        run_basic_static_function(&store, "llvm", _c);
     }
 
     #[cfg(feature = "cranelift")]
     {
         let store =
             Store::new(&Universal::new(wasmer_compiler_cranelift::Cranelift::new()).engine());
-        run_basic_static_function(&store, "cranelift", c);
+        run_basic_static_function(&store, "cranelift", _c);
     }
 
     #[cfg(feature = "singlepass")]
     {
         let store =
             Store::new(&Universal::new(wasmer_compiler_singlepass::Singlepass::new()).engine());
-        run_basic_static_function(&store, "singlepass", c);
+        run_basic_static_function(&store, "singlepass", _c);
     }
 }
 
@@ -172,21 +172,21 @@ fn run_dynamic_benchmarks(_c: &mut Criterion) {
     #[cfg(feature = "llvm")]
     {
         let store = Store::new(&Universal::new(wasmer_compiler_llvm::LLVM::new()).engine());
-        run_basic_dynamic_function(&store, "llvm", c);
+        run_basic_dynamic_function(&store, "llvm", _c);
     }
 
     #[cfg(feature = "cranelift")]
     {
         let store =
             Store::new(&Universal::new(wasmer_compiler_cranelift::Cranelift::new()).engine());
-        run_basic_dynamic_function(&store, "cranelift", c);
+        run_basic_dynamic_function(&store, "cranelift", _c);
     }
 
     #[cfg(feature = "singlepass")]
     {
         let store =
             Store::new(&Universal::new(wasmer_compiler_singlepass::Singlepass::new()).engine());
-        run_basic_dynamic_function(&store, "singlepass", c);
+        run_basic_dynamic_function(&store, "singlepass", _c);
     }
 }
 

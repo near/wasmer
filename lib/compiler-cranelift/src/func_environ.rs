@@ -150,7 +150,7 @@ impl<'module_environment> FuncEnvironment<'module_environment> {
             table_fill_sig: None,
             externref_inc_sig: None,
             externref_dec_sig: None,
-            offsets: VMOffsets::new(target_config.pointer_bytes(), module),
+            offsets: VMOffsets::new(target_config.pointer_bytes()).with_module_info(module),
             memory_styles,
             table_styles,
         }

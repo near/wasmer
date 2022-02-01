@@ -1,5 +1,6 @@
+use crate::{Artifact, Engine};
 use enumset::EnumSet;
-use wasmer_types::entity::PrimaryMap;
+use wasmer_compiler::{CompileError, CpuFeature, Features};
 
 mod private {
     pub struct Internal(pub(super) ());
@@ -10,26 +11,22 @@ mod private {
 /// Types implementing this trait are ready to be saved (to e.g. disk) for later use or loaded with
 /// the `Engine` to in order to produce an [`Artifact`](crate::Artifact).
 pub trait Executable {
+    /// Load this executable with the specified engine.
+    ///
+    /// TODO: change error type here.
+    fn load(
+        &self,
+        engine: &(dyn Engine + 'static),
+    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError>;
+
     /// The features with which this `Executable` was built.
-    fn features(&self) -> &wasmer_compiler::Features;
+    fn features(&self) -> Features;
 
     /// The CPU features this `Executable` requires.
-    fn cpu_features(&self) -> EnumSet<wasmer_compiler::CpuFeature>;
+    fn cpu_features(&self) -> EnumSet<CpuFeature>;
 
-    /// The memory styles associated with this `Executable`.
-    fn memory_styles(&self) -> &PrimaryMap<wasmer_types::MemoryIndex, wasmer_vm::MemoryStyle>;
-
-    /// The table plans associated with this `Executable`.
-    fn table_styles(&self) -> &PrimaryMap<wasmer_types::TableIndex, wasmer_vm::TableStyle>;
-
-    /// Data initializers used during module instantiation.
-    fn data_initializers(&self) -> &[wasmer_types::OwnedDataInitializer];
-
-    /// Serializes an artifact into bytes
-    fn serialize(
-        &self,
-        out: &mut dyn std::io::Write,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    /// Serializes the artifact into bytes
+    fn serialize(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>>;
 
     /// Internal: support for downcasting `Executable`s.
     #[doc(hidden)]

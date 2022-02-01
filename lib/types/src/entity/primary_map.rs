@@ -259,6 +259,42 @@ where
     }
 }
 
+impl<K, V> ArchivedPrimaryMap<K, V>
+where
+    K: Archive + EntityRef,
+    V: Archive,
+{
+    /// Get the total number of entity references created.
+    pub fn len(&self) -> usize {
+        self.elems.len()
+    }
+
+    /// Iterate over all the values in this map.
+    pub fn values(&self) -> slice::Iter<rkyv::Archived<V>> {
+        self.elems.iter()
+    }
+
+    /// Iterate over all the keys and values in this map.
+    pub fn iter(&self) -> Iter<K, rkyv::Archived<V>> {
+        Iter::new(self.elems.iter())
+    }
+}
+
+/// Immutable indexing into an `PrimaryMap`.
+/// The indexed value must be in the map.
+impl<K, V> Index<&K::Archived> for ArchivedPrimaryMap<K, V>
+where
+    K: EntityRef + Archive,
+    K::Archived: EntityRef,
+    V: Archive,
+{
+    type Output = <V as rkyv::Archive>::Archived;
+
+    fn index(&self, k: &K::Archived) -> &Self::Output {
+        &self.elems[k.index()]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -5,7 +5,7 @@ use crate::engine::DummyEngine;
 use loupe::MemoryUsage;
 #[cfg(feature = "serialize")]
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use wasmer_compiler::CompileError;
 #[cfg(feature = "compiler")]
 use wasmer_compiler::ModuleEnvironment;
@@ -18,8 +18,8 @@ use wasmer_types::{
     OwnedDataInitializer, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, InstanceHandle, MemoryStyle, TableStyle,
-    VMContext, VMFunctionBody, VMSharedSignatureIndex, VMTrampoline,
+    FunctionBodyPtr, InstanceHandle, MemoryStyle, TableStyle, VMContext, VMFunctionBody,
+    VMLocalFunction, VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// Serializable struct for the artifact
@@ -41,13 +41,13 @@ pub struct DummyArtifactMetadata {
 /// as no functions are really compiled.
 #[derive(MemoryUsage)]
 pub struct DummyArtifact {
+    engine: Arc<Mutex<crate::engine::Inner>>,
     metadata: DummyArtifactMetadata,
-    finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
+    finished_functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
     #[loupe(skip)]
     finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
     finished_dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
-    func_data_registry: Arc<FuncDataRegistry>,
 }
 
 extern "C" fn dummy_function(_context: *mut VMContext) {
@@ -147,11 +147,15 @@ impl DummyArtifact {
         metadata: DummyArtifactMetadata,
     ) -> Result<Self, CompileError> {
         let num_local_functions =
-            metadata.module.functions.len() - metadata.module.num_imported_functions;
+            metadata.module.functions.len() - metadata.module.import_counts.functions;
         // We prepare the pointers for the finished functions.
-        let finished_functions: PrimaryMap<LocalFunctionIndex, FunctionBodyPtr> = (0
+        let finished_functions: PrimaryMap<LocalFunctionIndex, VMLocalFunction> = (0
             ..num_local_functions)
-            .map(|_| FunctionBodyPtr(dummy_function as _))
+            .map(|fnidx| VMLocalFunction {
+                body: FunctionBodyPtr(dummy_function as _),
+                length: 0,
+                signature: None.unwrap(), /* TODO(0-copy): metadata.module.functions[FunctionIndex::new(fnidx)], */
+            })
             .collect::<PrimaryMap<_, _>>();
 
         // We prepare the pointers for the finished function call trampolines.
@@ -162,7 +166,7 @@ impl DummyArtifact {
 
         // We prepare the pointers for the finished dynamic function trampolines.
         let finished_dynamic_function_trampolines: PrimaryMap<FunctionIndex, FunctionBodyPtr> = (0
-            ..metadata.module.num_imported_functions)
+            ..metadata.module.import_counts.functions)
             .map(|_| FunctionBodyPtr(dummy_function as _))
             .collect::<PrimaryMap<_, _>>();
 
@@ -172,7 +176,7 @@ impl DummyArtifact {
                 .module
                 .signatures
                 .values()
-                .map(|sig| engine.register_signature(sig))
+                .map(|sig| engine.register_signature(sig.into()))
                 .collect::<PrimaryMap<_, _>>()
         };
 
@@ -189,52 +193,13 @@ impl DummyArtifact {
             finished_function_call_trampolines,
             finished_dynamic_function_trampolines,
             signatures,
-            func_data_registry: engine.func_data().clone(),
+            engine: Arc::clone(&engine.inner),
         })
     }
 }
 
 impl Artifact for DummyArtifact {
-    fn module_ref(&self) -> &ModuleInfo {
-        &self.metadata.module
-    }
-
-    fn module_mut(&mut self) -> Option<&mut ModuleInfo> {
-        Arc::get_mut(&mut self.metadata.module)
-    }
-
-    fn features(&self) -> &Features {
-        &self.metadata.features
-    }
-
-    fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
-        &self.finished_functions
-    }
-
-    fn finished_functions_lengths(&self) -> &BoxedSlice<LocalFunctionIndex, usize> {
-        unimplemented!();
-    }
-
-    fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
-        &self.finished_function_call_trampolines
-    }
-
-    fn finished_dynamic_function_trampolines(&self) -> &BoxedSlice<FunctionIndex, FunctionBodyPtr> {
-        &self.finished_dynamic_function_trampolines
-    }
-
-    fn signatures(&self) -> &BoxedSlice<SignatureIndex, VMSharedSignatureIndex> {
-        &self.signatures
-    }
-
-    fn func_data_registry(&self) -> &FuncDataRegistry {
-        &self.func_data_registry
-    }
-
-    unsafe fn finish_instantiation(
-        &self,
-        _: &InstanceHandle,
-    ) -> Result<(), InstantiationError> {
+    unsafe fn finish_instantiation(&self, _: &InstanceHandle) -> Result<(), InstantiationError> {
         todo!()
     }
 

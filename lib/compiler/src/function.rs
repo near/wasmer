@@ -7,7 +7,10 @@
 use crate::lib::std::vec::Vec;
 use crate::section::{CustomSection, SectionIndex};
 use crate::trap::TrapInformation;
-use crate::{CompiledFunctionUnwindInfo, FunctionAddressMap, JumpTableOffsets, Relocation};
+use crate::{
+    CompiledFunctionUnwindInfo, CompiledFunctionUnwindInfoRef, FunctionAddressMap,
+    JumpTableOffsets, Relocation,
+};
 use loupe::MemoryUsage;
 #[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
@@ -50,6 +53,33 @@ pub struct FunctionBody {
 
     /// The function unwind info
     pub unwind_info: Option<CompiledFunctionUnwindInfo>,
+}
+
+/// See [`FunctionBody`].
+#[derive(Clone, Copy)]
+pub struct FunctionBodyRef<'a> {
+    /// Function body bytes.
+    pub body: &'a [u8],
+    /// The function unwind info.
+    pub unwind_info: Option<CompiledFunctionUnwindInfoRef<'a>>,
+}
+
+impl<'a> From<&'a FunctionBody> for FunctionBodyRef<'a> {
+    fn from(body: &'a FunctionBody) -> Self {
+        FunctionBodyRef {
+            body: &*body.body,
+            unwind_info: body.unwind_info.as_ref().map(Into::into),
+        }
+    }
+}
+
+impl<'a> From<&'a ArchivedFunctionBody> for FunctionBodyRef<'a> {
+    fn from(body: &'a ArchivedFunctionBody) -> Self {
+        FunctionBodyRef {
+            body: &*body.body,
+            unwind_info: body.unwind_info.as_ref().map(Into::into),
+        }
+    }
 }
 
 /// The result of compiling a WebAssembly function.

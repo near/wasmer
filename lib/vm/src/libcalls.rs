@@ -379,25 +379,26 @@ pub unsafe extern "C" fn wasmer_vm_table_set(
     elem_index: u32,
     value: RawTableElement,
 ) {
-    let instance = (&*vmctx).instance();
-    let table_index = TableIndex::from_u32(table_index);
-    let table_index = instance
-        .module_ref()
-        .local_table_index(table_index)
-        .unwrap();
+    todo!()
+    // let instance = (&*vmctx).instance();
+    // let table_index = TableIndex::from_u32(table_index);
+    // let table_index = instance
+    //     .module_ref()
+    //     .local_table_index(table_index)
+    //     .unwrap();
 
-    let elem = match instance.get_local_table(table_index).ty().ty {
-        Type::ExternRef => TableElement::ExternRef(value.extern_ref.into()),
-        Type::FuncRef => TableElement::FuncRef(value.func_ref),
-        _ => panic!("Unrecognized table type: does not contain references"),
-    };
+    // let elem = match instance.get_local_table(table_index).ty().ty {
+    //     Type::ExternRef => TableElement::ExternRef(value.extern_ref.into()),
+    //     Type::FuncRef => TableElement::FuncRef(value.func_ref),
+    //     _ => panic!("Unrecognized table type: does not contain references"),
+    // };
 
-    // TODO: type checking, maybe have specialized accessors
-    let result = instance.table_set(table_index, elem_index, elem);
+    // // TODO: type checking, maybe have specialized accessors
+    // let result = instance.table_set(table_index, elem_index, elem);
 
-    if let Err(trap) = result {
-        raise_lib_trap(trap);
-    }
+    // if let Err(trap) = result {
+    //     raise_lib_trap(trap);
+    // }
 }
 
 /// Implementation of `table.set` for imported tables.

@@ -80,3 +80,31 @@ impl OwnedDataInitializer {
         }
     }
 }
+
+impl<'a> From<&'a OwnedDataInitializer> for DataInitializer<'a> {
+    fn from(init: &'a OwnedDataInitializer) -> Self {
+        DataInitializer {
+            location: init.location.clone(),
+            data: &*init.data,
+        }
+    }
+}
+
+impl<'a> From<&'a ArchivedOwnedDataInitializer> for DataInitializer<'a> {
+    fn from(init: &'a ArchivedOwnedDataInitializer) -> Self {
+        DataInitializer {
+            location: rkyv::Deserialize::deserialize(&init.location, &mut rkyv::Infallible)
+                .expect("deserialization cannot fail"),
+            data: &*init.data,
+        }
+    }
+}
+
+impl<'a> From<DataInitializer<'a>> for OwnedDataInitializer {
+    fn from(init: DataInitializer<'a>) -> Self {
+        OwnedDataInitializer {
+            location: init.location.clone(),
+            data: init.data.to_vec(),
+        }
+    }
+}

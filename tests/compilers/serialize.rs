@@ -17,9 +17,8 @@ fn test_serialize(config: crate::Config) -> Result<()> {
     let engine = store.engine();
     let tunables = BaseTunables::for_target(engine.target());
     let executable = engine.compile(&wasm, &tunables).unwrap();
-    let mut writer = std::io::Cursor::new(vec![]);
-    executable.serialize(&mut writer).unwrap();
-    assert!(!writer.into_inner().is_empty());
+    let serialized = executable.serialize().unwrap();
+    assert!(!serialized.is_empty());
     Ok(())
 }
 

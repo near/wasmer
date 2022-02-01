@@ -373,20 +373,22 @@ impl Wast {
         let module = Module::new(&self.store, module)?;
         let mut imports = self.import_object.clone();
 
-        for import in module.imports() {
-            let module_name = import.module();
-            if imports.contains_namespace(module_name) {
-                continue;
-            }
-            let instance = self
-                .instances
-                .get(module_name)
-                .ok_or_else(|| anyhow!("constant expression required"))?;
-            imports.register(module_name, instance.exports.clone());
-        }
+        // TODO(0-copy)
+        todo!()
+        // for import in module.imports() {
+        //     let module_name = import.module();
+        //     if imports.contains_namespace(module_name) {
+        //         continue;
+        //     }
+        //     let instance = self
+        //         .instances
+        //         .get(module_name)
+        //         .ok_or_else(|| anyhow!("constant expression required"))?;
+        //     imports.register(module_name, instance.exports.clone());
+        // }
 
-        let instance = Instance::new(&module, &imports)?;
-        Ok(instance)
+        // let instance = Instance::new(&module, &imports)?;
+        // Ok(instance)
     }
 
     /// Register an instance to make it available for performing actions.

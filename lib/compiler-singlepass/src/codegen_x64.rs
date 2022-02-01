@@ -343,11 +343,11 @@ impl<'a> FuncGen<'a> {
         } else {
             let reloc_at = self.assembler.get_offset().0 + self.assembler.arch_mov64_imm_offset();
             // Imported functions are called through trampolines placed as custom sections.
-            let reloc_target = if function_index < self.module.num_imported_functions {
+            let reloc_target = if function_index < self.module.import_counts.functions {
                 RelocationTarget::CustomSection(SectionIndex::new(function_index))
             } else {
                 RelocationTarget::LocalFunc(LocalFunctionIndex::new(
-                    function_index - self.module.num_imported_functions,
+                    function_index - self.module.import_counts.functions,
                 ))
             };
             self.relocations.push(Relocation {
@@ -1386,7 +1386,7 @@ impl<'a> FuncGen<'a> {
         let tmp_addr = self.machine.acquire_temp_gpr().unwrap();
 
         // Reusing `tmp_addr` for temporary indirection here, since it's not used before the last reference to `{base,bound}_loc`.
-        let (base_loc, bound_loc) = if self.module.num_imported_memories != 0 {
+        let (base_loc, bound_loc) = if self.module.import_counts.memories != 0 {
             // Imported memories require one level of indirection.
             let offset = self
                 .vmoffsets

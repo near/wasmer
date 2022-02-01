@@ -1,32 +1,42 @@
 //! Define `UniversalArtifact` to allow compiling and instantiating to be
 //! done as separate steps.
 
-use crate::UniversalExecutable;
 use loupe::MemoryUsage;
+use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
-use wasmer_engine::{
-    Artifact, Executable, GlobalFrameInfoRegistration, InstantiationError, RuntimeError,
-};
-use wasmer_types::entity::BoxedSlice;
+use wasmer_engine::{Artifact, GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
+use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{
-    DataInitializer, FunctionIndex, LocalFunctionIndex, ModuleInfo, SignatureIndex,
+    EntityCounts, FunctionIndex, GlobalType, LocalFunctionIndex, MemoryType, OwnedDataInitializer,
+    SignatureIndex, TableType, DataIndex,
 };
-use wasmer_vm::{FuncDataRegistry, FunctionBodyPtr, VMSharedSignatureIndex, VMTrampoline};
+use wasmer_vm::{
+    FunctionBodyPtr, MemoryStyle, TableStyle, VMImport, VMLocalFunction, VMOffsets,
+    VMSharedSignatureIndex, VMTrampoline,
+};
 
-/// A compiled wasm module, ready to be instantiated.
+/// A compiled wasm module, containing everything necessary for instantiation.
 #[derive(MemoryUsage)]
 pub struct UniversalArtifact {
-    // TODO: remove this
-    pub(crate) executable: UniversalExecutable,
-    pub(crate) finished_functions: BoxedSlice<LocalFunctionIndex, FunctionBodyPtr>,
+    // TODO: figure out how to allocate fewer structures onto heap. Maybe have an arena…?
+    pub(crate) engine: crate::UniversalEngine,
+    pub(crate) import_counts: EntityCounts,
+    #[loupe(skip)] // TODO(0-copy): support loupe...
+    pub(crate) imports: Vec<VMImport>,
+    pub(crate) finished_functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
     #[loupe(skip)]
     pub(crate) finished_function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
     pub(crate) finished_dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     pub(crate) signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
-    pub(crate) func_data_registry: Arc<FuncDataRegistry>,
     pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
-    pub(crate) finished_function_lengths: BoxedSlice<LocalFunctionIndex, usize>,
+    pub(crate) data_initializers: Vec<OwnedDataInitializer>,
+    pub(crate) local_memories: Vec<(MemoryType, MemoryStyle)>,
+    pub(crate) local_tables: Vec<(TableType, TableStyle)>,
+    pub(crate) local_globals: Vec<GlobalType>,
+    #[loupe(skip)] // TODO(0-copy): loupe skip...
+    pub(crate) passive_data: BTreeMap<DataIndex, Arc<[u8]>>,
+    pub(crate) vmoffsets: VMOffsets,
 }
 
 impl UniversalArtifact {
@@ -39,43 +49,6 @@ impl UniversalArtifact {
 }
 
 impl Artifact for UniversalArtifact {
-    fn module_ref(&self) -> &ModuleInfo {
-        &self.executable.compile_info.module
-    }
-
-    fn module_mut(&mut self) -> Option<&mut ModuleInfo> {
-        Arc::get_mut(&mut self.executable.compile_info.module)
-    }
-
-    /// The features with which this `Executable` was built.
-    fn features(&self) -> &wasmer_compiler::Features {
-        &self.executable.compile_info.features
-    }
-
-    fn finished_functions(&self) -> &BoxedSlice<LocalFunctionIndex, FunctionBodyPtr> {
-        &self.finished_functions
-    }
-
-    fn finished_functions_lengths(&self) -> &BoxedSlice<LocalFunctionIndex, usize> {
-        &self.finished_function_lengths
-    }
-
-    fn finished_function_call_trampolines(&self) -> &BoxedSlice<SignatureIndex, VMTrampoline> {
-        &self.finished_function_call_trampolines
-    }
-
-    fn finished_dynamic_function_trampolines(&self) -> &BoxedSlice<FunctionIndex, FunctionBodyPtr> {
-        &self.finished_dynamic_function_trampolines
-    }
-
-    fn signatures(&self) -> &BoxedSlice<SignatureIndex, VMSharedSignatureIndex> {
-        &self.signatures
-    }
-
-    fn func_data_registry(&self) -> &FuncDataRegistry {
-        &self.func_data_registry
-    }
-
     unsafe fn instantiate(
         &self,
         tunables: &dyn wasmer_engine::Tunables,
@@ -83,14 +56,13 @@ impl Artifact for UniversalArtifact {
         host_state: Box<dyn std::any::Any>,
         config: wasmer_types::InstanceConfig,
     ) -> Result<wasmer_vm::InstanceHandle, wasmer_engine::InstantiationError> {
-        let module = Arc::clone(&self.executable.compile_info.module);
         let (imports, import_function_envs) = {
             let mut imports = wasmer_engine::resolve_imports(
-                &module,
+                &self.engine,
                 resolver,
-                &self.finished_dynamic_function_trampolines(),
-                self.executable.memory_styles(),
-                self.executable.table_styles(),
+                &self.import_counts,
+                &self.imports,
+                &self.finished_dynamic_function_trampolines,
             )
             .map_err(InstantiationError::Link)?;
 
@@ -101,42 +73,52 @@ impl Artifact for UniversalArtifact {
             (imports, import_function_envs)
         };
 
-        // Get pointers to where metadata about local memories should live in VM memory.
-        // Get pointers to where metadata about local tables should live in VM memory.
-
         let (allocator, memory_definition_locations, table_definition_locations) =
-            wasmer_vm::InstanceAllocator::new(&*module);
-        let finished_memories = tunables
-            .create_memories(
-                &module,
-                self.executable.memory_styles(),
-                &memory_definition_locations,
-            )
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-        let finished_tables = tunables
-            .create_tables(
-                &module,
-                self.executable.table_styles(),
-                &table_definition_locations,
-            )
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
-        let finished_globals = tunables
-            .create_globals(&module)
-            .map_err(InstantiationError::Link)?
-            .into_boxed_slice();
+            wasmer_vm::InstanceAllocator::new(self.vmoffsets.clone());
+
+        // Memories
+        let mut vmctx_memories: PrimaryMap<wasmer_types::LocalMemoryIndex, _> =
+            PrimaryMap::with_capacity(self.local_memories.len());
+        for (idx, (ty, style)) in (self.import_counts.memories..).zip(self.local_memories.iter()) {
+            let memory = tunables
+                .create_vm_memory(&ty, &style, memory_definition_locations[idx])
+                .map_err(|e| {
+                    InstantiationError::Link(wasmer_engine::LinkError::Resource(format!(
+                        "Failed to create memory: {}",
+                        e
+                    )))
+                })?;
+            vmctx_memories.push(memory);
+        }
+
+        // Tables
+        let mut vmctx_tables: PrimaryMap<wasmer_types::LocalTableIndex, _> =
+            PrimaryMap::with_capacity(self.local_tables.len());
+        for (idx, (ty, style)) in (self.import_counts.tables..).zip(self.local_tables.iter()) {
+            let table = tunables
+                .create_vm_table(ty, style, table_definition_locations[idx])
+                .map_err(|e| InstantiationError::Link(wasmer_engine::LinkError::Resource(e)))?;
+            vmctx_tables.push(table);
+        }
+
+        // Globals
+        let mut vmctx_globals = PrimaryMap::with_capacity(self.local_globals.len());
+        for ty in self.local_globals.iter() {
+            vmctx_globals.push(Arc::new(wasmer_vm::Global::new(*ty)));
+        }
+
+        // TODO(0-copy): avoid the clones here, just keep reference to the artifact in the
+        // instance.
         let handle = wasmer_vm::InstanceHandle::new(
             allocator,
-            module,
-            self.finished_functions().clone(),
-            self.finished_functions_lengths().clone(),
-            self.finished_function_call_trampolines().clone(),
-            finished_memories,
-            finished_tables,
-            finished_globals,
+            self.finished_functions.clone(),
+            self.finished_function_call_trampolines.clone(),
+            vmctx_memories.into_boxed_slice(),
+            vmctx_tables.into_boxed_slice(),
+            vmctx_globals.into_boxed_slice(),
             imports,
-            self.signatures().clone(),
+            self.signatures.clone(),
+            self.passive_data.clone(),
             host_state,
             import_function_envs,
             config,
@@ -149,17 +131,8 @@ impl Artifact for UniversalArtifact {
         &self,
         handle: &wasmer_vm::InstanceHandle,
     ) -> Result<(), wasmer_engine::InstantiationError> {
-        let data_initializers = self
-            .executable
-            .data_initializers()
-            .iter()
-            .map(|init| DataInitializer {
-                location: init.location.clone(),
-                data: &*init.data,
-            })
-            .collect::<Vec<_>>();
         handle
-            .finish_instantiation(&data_initializers)
+            .finish_instantiation(self.data_initializers.iter().map(Into::into))
             .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))
     }
 }

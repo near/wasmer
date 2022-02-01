@@ -1,9 +1,9 @@
 //! Dummy Engine.
 use loupe::MemoryUsage;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use wasmer_compiler::{CompileError, Features, Target};
 use wasmer_engine::{Engine, EngineId, Tunables};
-use wasmer_types::FunctionType;
+use wasmer_types::{FunctionType, FunctionTypeRef};
 use wasmer_vm::{
     FuncDataRegistry, SignatureRegistry, VMCallerCheckedAnyfunc, VMContext, VMFuncRef,
     VMFunctionBody, VMSharedSignatureIndex,
@@ -18,35 +18,37 @@ extern "C" fn dummy_trampoline(
     panic!("Dummy engine can't call functions, since Wasm function bodies are not really compiled")
 }
 
+#[derive(MemoryUsage)]
+pub(crate) struct Inner {
+    signatures: SignatureRegistry,
+    func_data: FuncDataRegistry,
+}
+
 /// A WebAssembly `Dummy` Engine.
 #[derive(Clone, MemoryUsage)]
 pub struct DummyEngine {
-    signatures: Arc<SignatureRegistry>,
-    func_data: Arc<FuncDataRegistry>,
-    features: Arc<Features>,
-    target: Arc<Target>,
-    engine_id: EngineId,
+    pub(crate) inner: Arc<Mutex<Inner>>,
+    pub(crate) features: Features,
+    pub(crate) target: Target,
+    pub(crate) engine_id: EngineId,
 }
 
 impl DummyEngine {
     #[cfg(feature = "compiler")]
     pub fn new() -> Self {
         Self {
-            signatures: Arc::new(SignatureRegistry::new()),
-            func_data: Arc::new(FuncDataRegistry::new()),
-            features: Arc::new(Default::default()),
-            target: Arc::new(Default::default()),
+            inner: Arc::new(Mutex::new(Inner {
+                signatures: SignatureRegistry::new(),
+                func_data: FuncDataRegistry::new(),
+            })),
+            features: Default::default(),
+            target: Default::default(),
             engine_id: EngineId::default(),
         }
     }
 
     pub fn features(&self) -> &Features {
         &self.features
-    }
-
-    /// Shared func metadata registry.
-    pub(crate) fn func_data(&self) -> &Arc<FuncDataRegistry> {
-        &self.func_data
     }
 }
 
@@ -57,17 +59,17 @@ impl Engine for DummyEngine {
     }
 
     /// Register a signature
-    fn register_signature(&self, func_type: &FunctionType) -> VMSharedSignatureIndex {
-        self.signatures.register(func_type)
+    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
+        self.inner.lock().unwrap().signatures.register(func_type)
     }
 
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {
-        self.func_data.register(func_data)
+        self.inner.lock().unwrap().func_data.register(func_data)
     }
 
     /// Lookup a signature
     fn lookup_signature(&self, sig: VMSharedSignatureIndex) -> Option<FunctionType> {
-        self.signatures.lookup(sig)
+        self.inner.lock().unwrap().signatures.lookup(sig).cloned()
     }
 
     #[cfg(feature = "compiler")]
@@ -124,7 +126,7 @@ impl Engine for DummyEngine {
 
     fn load(
         &self,
-        _xecutable: &(dyn wasmer_engine::Executable + 'static),
+        _excutable: &(dyn wasmer_engine::Executable),
     ) -> Result<Arc<dyn wasmer_engine::Artifact>, CompileError> {
         todo!()
     }

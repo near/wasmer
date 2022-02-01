@@ -3,8 +3,8 @@ use crate::sys::store::{Store, StoreObject};
 use crate::sys::RuntimeError;
 use wasmer_types::Value;
 pub use wasmer_types::{
-    ExportType, ExternType, FunctionType, GlobalType, ImportType, MemoryType, Mutability,
-    TableType, Type as ValType,
+    ExportType, ExternType, FunctionType, GlobalType, MemoryType, Mutability, TableType,
+    Type as ValType,
 };
 use wasmer_vm::VMFuncRef;
 
@@ -66,17 +66,13 @@ impl ValFuncRef for Val {
             let anyfunc: *const wasmer_vm::VMCallerCheckedAnyfunc = *func_ref;
             &*anyfunc
         };
-        let signature = store
-            .engine()
-            .lookup_signature(item.type_index)
-            .expect("Signature not found in store");
         let export = wasmer_engine::ExportFunction {
             // TODO:
             // figure out if we ever need a value here: need testing with complicated import patterns
             metadata: None,
             vm_function: wasmer_vm::VMFunction {
                 address: item.func_ptr,
-                signature,
+                signature: item.type_index,
                 // TODO: review this comment (unclear if it's still correct):
                 // All functions in tables are already Static (as dynamic functions
                 // are converted to use the trampolines with static signatures).

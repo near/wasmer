@@ -40,7 +40,7 @@ entity_impl!(ArchivedSectionIndex);
     feature = "enable-rkyv",
     derive(RkyvSerialize, RkyvDeserialize, Archive)
 )]
-#[derive(Debug, Clone, PartialEq, Eq, MemoryUsage)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, MemoryUsage)]
 pub enum CustomSectionProtection {
     /// A custom section with read permission.
     Read,
@@ -73,6 +73,38 @@ pub struct CustomSection {
 
     /// Relocations that apply to this custom section.
     pub relocations: Vec<Relocation>,
+}
+
+/// See [`CustomSection`].
+///
+/// Note that this does not reference the relocation data.
+#[derive(Clone, Copy)]
+pub struct CustomSectionRef<'a> {
+    /// See [`CustomSection::protection`].
+    pub protection: CustomSectionProtection,
+
+    /// See [`CustomSection::bytes`].
+    pub bytes: &'a [u8],
+}
+
+impl<'a> From<&'a CustomSection> for CustomSectionRef<'a> {
+    fn from(section: &'a CustomSection) -> Self {
+        CustomSectionRef {
+            protection: section.protection.clone(),
+            bytes: section.bytes.as_slice(),
+        }
+    }
+}
+
+impl<'a> From<&'a ArchivedCustomSection> for CustomSectionRef<'a> {
+    fn from(section: &'a ArchivedCustomSection) -> Self {
+        CustomSectionRef {
+            protection: Result::<_, std::convert::Infallible>::unwrap(
+                rkyv::Deserialize::deserialize(&section.protection, &mut rkyv::Infallible),
+            ),
+            bytes: &section.bytes.0[..],
+        }
+    }
 }
 
 /// The bytes in the section.

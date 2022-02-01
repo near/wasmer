@@ -1,15 +1,15 @@
 //! Define the `Resolver` trait, allowing custom resolution for external
 //! references.
 
-use crate::{Export, ExportFunctionMetadata, ImportError, LinkError};
+use crate::{Engine, Export, ExportFunctionMetadata, ImportError, LinkError};
 use more_asserts::assert_ge;
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
-use wasmer_types::{ExternType, FunctionIndex, ImportIndex, MemoryIndex, ModuleInfo, TableIndex};
+use wasmer_types::{EntityCounts, ExternType, FunctionIndex, MemoryType, TableType};
 
 use wasmer_vm::{
-    FunctionBodyPtr, ImportFunctionEnv, Imports, MemoryStyle, TableStyle, VMFunctionBody,
-    VMFunctionEnvironment, VMFunctionImport, VMFunctionKind, VMGlobalImport, VMMemoryImport,
-    VMTableImport,
+    FunctionBodyPtr, ImportFunctionEnv, Imports, MemoryStyle, VMFunctionBody,
+    VMFunctionEnvironment, VMFunctionImport, VMFunctionKind, VMGlobalImport, VMImport,
+    VMImportType, VMMemoryImport, VMTableImport,
 };
 
 /// Import resolver connects imports with available exported values.
@@ -86,39 +86,18 @@ impl Resolver for NullResolver {
     }
 }
 
-/// Get an `ExternType` given a import index.
-fn get_extern_from_import(module: &ModuleInfo, import_index: &ImportIndex) -> ExternType {
-    match import_index {
-        ImportIndex::Function(index) => {
-            let func = module.signatures[module.functions[*index]].clone();
-            ExternType::Function(func)
-        }
-        ImportIndex::Table(index) => {
-            let table = module.tables[*index];
-            ExternType::Table(table)
-        }
-        ImportIndex::Memory(index) => {
-            let memory = module.memories[*index];
-            ExternType::Memory(memory)
-        }
-        ImportIndex::Global(index) => {
-            let global = module.globals[*index];
-            ExternType::Global(global)
-        }
-    }
+fn is_compatible_table(ex: &TableType, im: &TableType) -> bool {
+    (ex.ty == wasmer_types::Type::FuncRef || ex.ty == im.ty)
+        && im.minimum <= ex.minimum
+        && (im.maximum.is_none()
+            || (!ex.maximum.is_none() && im.maximum.unwrap() >= ex.maximum.unwrap()))
 }
 
-/// Get an `ExternType` given an export (and Engine signatures in case is a function).
-fn get_extern_from_export(_module: &ModuleInfo, export: &Export) -> ExternType {
-    match export {
-        Export::Function(ref f) => ExternType::Function(f.vm_function.signature.clone()),
-        Export::Table(ref t) => ExternType::Table(*t.ty()),
-        Export::Memory(ref m) => ExternType::Memory(m.ty()),
-        Export::Global(ref g) => {
-            let global = g.from.ty();
-            ExternType::Global(*global)
-        }
-    }
+fn is_compatible_memory(ex: &MemoryType, im: &MemoryType) -> bool {
+    im.minimum <= ex.minimum
+        && (im.maximum.is_none()
+            || (!ex.maximum.is_none() && im.maximum.unwrap() >= ex.maximum.unwrap()))
+        && ex.shared == im.shared
 }
 
 /// This function allows to match all imports of a `ModuleInfo` with concrete definitions provided by
@@ -126,43 +105,55 @@ fn get_extern_from_export(_module: &ModuleInfo, export: &Export) -> ExternType {
 ///
 /// If all imports are satisfied returns an `Imports` instance required for a module instantiation.
 pub fn resolve_imports(
-    module: &ModuleInfo,
+    engine: &dyn Engine,
     resolver: &dyn Resolver,
+    import_counts: &EntityCounts,
+    imports: &[VMImport],
     finished_dynamic_function_trampolines: &BoxedSlice<FunctionIndex, FunctionBodyPtr>,
-    memory_styles: &PrimaryMap<MemoryIndex, MemoryStyle>,
-    _table_styles: &PrimaryMap<TableIndex, TableStyle>,
 ) -> Result<Imports, LinkError> {
-    let mut function_imports = PrimaryMap::with_capacity(module.num_imported_functions);
-    let mut host_function_env_initializers =
-        PrimaryMap::with_capacity(module.num_imported_functions);
-    let mut table_imports = PrimaryMap::with_capacity(module.num_imported_tables);
-    let mut memory_imports = PrimaryMap::with_capacity(module.num_imported_memories);
-    let mut global_imports = PrimaryMap::with_capacity(module.num_imported_globals);
-
-    for ((module_name, field, import_idx), import_index) in module.imports.iter() {
-        let resolved = resolver.resolve(*import_idx, module_name, field);
-        let import_extern = get_extern_from_import(module, import_index);
+    let mut function_imports = PrimaryMap::with_capacity(import_counts.functions);
+    let mut host_function_env_initializers = PrimaryMap::with_capacity(import_counts.functions);
+    let mut table_imports = PrimaryMap::with_capacity(import_counts.tables);
+    let mut memory_imports = PrimaryMap::with_capacity(import_counts.memories);
+    let mut global_imports = PrimaryMap::with_capacity(import_counts.globals);
+    for VMImport {
+        import_no,
+        module,
+        field,
+        ty,
+    } in imports
+    {
+        let resolved = resolver.resolve(*import_no, module, field);
         let resolved = match resolved {
+            Some(r) => r,
             None => {
                 return Err(LinkError::Import(
-                    module_name.to_string(),
+                    module.to_string(),
                     field.to_string(),
-                    ImportError::UnknownImport(import_extern),
+                    // TODO(0-copy): convert `VMImportType` to a nice type for presentation here.
+                    ImportError::UnknownImport(None.unwrap()),
                 ));
             }
-            Some(r) => r,
         };
-        let export_extern = get_extern_from_export(module, &resolved);
-        if !export_extern.is_compatible_with(&import_extern) {
-            return Err(LinkError::Import(
-                module_name.to_string(),
-                field.to_string(),
-                ImportError::IncompatibleType(import_extern, export_extern),
-            ));
-        }
-        match resolved {
-            Export::Function(ref f) => {
-                let address = match f.vm_function.kind {
+        let export_extern = || match resolved {
+            Export::Function(ref f) => ExternType::Function(
+                engine
+                    .lookup_signature(f.vm_function.signature)
+                    .expect("VMSharedSignatureIndex not registered with engine (wrong engine?)")
+                    .clone(),
+            ),
+            Export::Table(ref t) => ExternType::Table(*t.ty()),
+            Export::Memory(ref m) => ExternType::Memory(m.ty()),
+            Export::Global(ref g) => {
+                let global = g.from.ty();
+                ExternType::Global(*global)
+            }
+        };
+        match (&resolved, ty) {
+            (Export::Function(ex), VMImportType::Function(im))
+                if ex.vm_function.signature == *im =>
+            {
+                let address = match ex.vm_function.kind {
                     VMFunctionKind::Dynamic => {
                         // If this is a dynamic imported function,
                         // the address of the function is the address of the
@@ -173,37 +164,41 @@ pub fn resolve_imports(
                         // TODO: We should check that the f.vmctx actually matches
                         // the shape of `VMDynamicFunctionImportContext`
                     }
-                    VMFunctionKind::Static => f.vm_function.address,
+                    VMFunctionKind::Static => ex.vm_function.address,
                 };
 
                 // Clone the host env for this `Instance`.
                 let env = if let Some(ExportFunctionMetadata {
                     host_env_clone_fn: clone,
                     ..
-                }) = f.metadata.as_deref()
+                }) = ex.metadata.as_deref()
                 {
                     // TODO: maybe start adding asserts in all these
                     // unsafe blocks to prevent future changes from
                     // horribly breaking things.
                     unsafe {
-                        assert!(!f.vm_function.vmctx.host_env.is_null());
-                        (clone)(f.vm_function.vmctx.host_env)
+                        assert!(!ex.vm_function.vmctx.host_env.is_null());
+                        (clone)(ex.vm_function.vmctx.host_env)
                     }
                 } else {
                     // No `clone` function means we're dealing with some
                     // other kind of `vmctx`, not a host env of any
                     // kind.
-                    unsafe { f.vm_function.vmctx.host_env }
+                    unsafe { ex.vm_function.vmctx.host_env }
                 };
 
                 function_imports.push(VMFunctionImport {
-                    body: address,
+                    body: FunctionBodyPtr(address),
+                    signature: *im,
                     environment: VMFunctionEnvironment { host_env: env },
                 });
 
-                let initializer = f.metadata.as_ref().and_then(|m| m.import_init_function_ptr);
-                let clone = f.metadata.as_ref().map(|m| m.host_env_clone_fn);
-                let destructor = f.metadata.as_ref().map(|m| m.host_env_drop_fn);
+                let initializer = ex
+                    .metadata
+                    .as_ref()
+                    .and_then(|m| m.import_init_function_ptr);
+                let clone = ex.metadata.as_ref().map(|m| m.host_env_clone_fn);
+                let destructor = ex.metadata.as_ref().map(|m| m.host_env_drop_fn);
                 let import_function_env =
                     if let (Some(clone), Some(destructor)) = (clone, destructor) {
                         ImportFunctionEnv::Env {
@@ -218,71 +213,63 @@ pub fn resolve_imports(
 
                 host_function_env_initializers.push(import_function_env);
             }
-            Export::Table(ref t) => match import_index {
-                ImportIndex::Table(index) => {
-                    let import_table_ty = t.from.ty();
-                    let expected_table_ty = &module.tables[*index];
-                    if import_table_ty.ty != expected_table_ty.ty {
-                        return Err(LinkError::Import(
-                            module_name.to_string(),
-                            field.to_string(),
-                            ImportError::IncompatibleType(import_extern, export_extern),
-                        ));
-                    }
-
-                    table_imports.push(VMTableImport {
-                        definition: t.from.vmtable(),
-                        from: t.from.clone(),
-                    });
+            (Export::Table(ex), VMImportType::Table(im)) if is_compatible_table(ex.ty(), im) => {
+                let import_table_ty = ex.from.ty();
+                if import_table_ty.ty != im.ty {
+                    return Err(LinkError::Import(
+                        module.to_string(),
+                        field.to_string(),
+                        // TODO(0-copy): nice presentation of the error here.
+                        ImportError::IncompatibleType(None.unwrap(), export_extern()),
+                    ));
                 }
-                _ => {
-                    unreachable!("Table resolution did not match");
+                table_imports.push(VMTableImport {
+                    definition: ex.from.vmtable(),
+                    from: ex.from.clone(),
+                });
+            }
+            (Export::Memory(ex), VMImportType::Memory(im, import_memory_style))
+                if is_compatible_memory(&ex.ty(), im) =>
+            {
+                // Sanity-check: Ensure that the imported memory has at least
+                // guard-page protections the importing module expects it to have.
+                let export_memory_style = ex.style();
+                if let (
+                    MemoryStyle::Static { bound, .. },
+                    MemoryStyle::Static {
+                        bound: import_bound,
+                        ..
+                    },
+                ) = (export_memory_style.clone(), &import_memory_style)
+                {
+                    assert_ge!(bound, *import_bound);
                 }
-            },
-            Export::Memory(ref m) => {
-                match import_index {
-                    ImportIndex::Memory(index) => {
-                        // Sanity-check: Ensure that the imported memory has at least
-                        // guard-page protections the importing module expects it to have.
-                        let export_memory_style = m.style();
-                        let import_memory_style = &memory_styles[*index];
-                        if let (
-                            MemoryStyle::Static { bound, .. },
-                            MemoryStyle::Static {
-                                bound: import_bound,
-                                ..
-                            },
-                        ) = (export_memory_style.clone(), &import_memory_style)
-                        {
-                            assert_ge!(bound, *import_bound);
-                        }
-                        assert_ge!(
-                            export_memory_style.offset_guard_size(),
-                            import_memory_style.offset_guard_size()
-                        );
-                    }
-                    _ => {
-                        // This should never be reached, as we did compatibility
-                        // checks before
-                        panic!("Memory resolution didn't matched");
-                    }
-                }
-
+                assert_ge!(
+                    export_memory_style.offset_guard_size(),
+                    import_memory_style.offset_guard_size()
+                );
                 memory_imports.push(VMMemoryImport {
-                    definition: m.from.vmmemory(),
-                    from: m.from.clone(),
+                    definition: ex.from.vmmemory(),
+                    from: ex.from.clone(),
                 });
             }
 
-            Export::Global(ref g) => {
+            (Export::Global(ex), VMImportType::Global(im)) if ex.from.ty() == im => {
                 global_imports.push(VMGlobalImport {
-                    definition: g.from.vmglobal(),
-                    from: g.from.clone(),
+                    definition: ex.from.vmglobal(),
+                    from: ex.from.clone(),
                 });
+            }
+            _ => {
+                return Err(LinkError::Import(
+                    module.to_string(),
+                    field.to_string(),
+                    // TODO(0-copy): convert types to a nice presentation here.
+                    ImportError::IncompatibleType(None.unwrap(), export_extern()),
+                ));
             }
         }
     }
-
     Ok(Imports::new(
         function_imports,
         host_function_env_initializers,

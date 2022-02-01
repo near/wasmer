@@ -83,9 +83,16 @@ impl Compiler for SinglepassCompiler {
         };
 
         let table_styles = &compile_info.table_styles;
-        let vmoffsets = VMOffsets::new(8, &compile_info.module);
         let module = &compile_info.module;
-        let import_trampolines: PrimaryMap<SectionIndex, _> = (0..module.num_imported_functions)
+        let pointer_width = target
+            .triple()
+            .pointer_width()
+            .map_err(|()| {
+                CompileError::UnsupportedTarget("target with unknown pointer width".into())
+            })?
+            .bytes();
+        let vmoffsets = VMOffsets::new(pointer_width).with_module_info(&module);
+        let import_trampolines: PrimaryMap<SectionIndex, _> = (0..module.import_counts.functions)
             .map(FunctionIndex::new)
             .collect::<Vec<_>>()
             .into_par_iter_if_rayon()

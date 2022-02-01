@@ -26,7 +26,7 @@ cfg-if = "1.0"
 [workspace]
 members = [
     "lib/api",
-    "lib/cli",
+    # "lib/cli",
     "lib/compiler",
     "lib/compiler-cranelift",
     "lib/compiler-singlepass",
@@ -38,7 +38,7 @@ members = [
     "lib/types",
     "tests/lib/wast",
     "tests/lib/compiler-test-derive",
-    "tests/integration/cli",
+    # "tests/integration/cli",
     "tests/integration/ios",
     "fuzz",
 ]

@@ -3,13 +3,11 @@
 use std::collections::HashMap;
 use std::ptr::{read_unaligned, write_unaligned};
 use wasmer_compiler::{
-    JumpTable, JumpTableOffsets, Relocation, RelocationKind, RelocationTarget, Relocations,
-    SectionIndex, TrampolinesSection,
+    JumpTable, Relocation, RelocationKind, RelocationTarget, SectionIndex, TrampolinesSection,
 };
-use wasmer_engine::FunctionExtent;
-use wasmer_types::entity::{EntityRef, PrimaryMap};
-use wasmer_types::{LocalFunctionIndex, ModuleInfo};
-use wasmer_vm::SectionBodyPtr;
+use wasmer_types::entity::PrimaryMap;
+use wasmer_types::LocalFunctionIndex;
+use wasmer_vm::{SectionBodyPtr, VMLocalFunction};
 
 /// Add a new trampoline address, given the base adress of the Section. Return the address of the jump
 /// The trampoline itself still have to be writen
@@ -47,7 +45,7 @@ fn use_trampoline(
     }
 }
 
-fn fill_trampolin_map(
+fn fill_trampoline_map(
     allocated_sections: &PrimaryMap<SectionIndex, SectionBodyPtr>,
     trampolines: &Option<TrampolinesSection>,
 ) -> HashMap<usize, usize> {
@@ -72,24 +70,21 @@ fn fill_trampolin_map(
 fn apply_relocation(
     body: usize,
     r: &Relocation,
-    allocated_functions: &PrimaryMap<LocalFunctionIndex, FunctionExtent>,
-    jt_offsets: &PrimaryMap<LocalFunctionIndex, JumpTableOffsets>,
+    allocated_functions: &PrimaryMap<LocalFunctionIndex, VMLocalFunction>,
+    jt_offsets: impl Fn(LocalFunctionIndex, JumpTable) -> wasmer_compiler::CodeOffset,
     allocated_sections: &PrimaryMap<SectionIndex, SectionBodyPtr>,
     trampolines: &Option<TrampolinesSection>,
     trampolines_map: &mut HashMap<usize, usize>,
 ) {
     let target_func_address: usize = match r.reloc_target {
-        RelocationTarget::LocalFunc(index) => *allocated_functions[index].ptr as usize,
+        RelocationTarget::LocalFunc(index) => *allocated_functions[index].body as usize,
         RelocationTarget::LibCall(libcall) => libcall.function_pointer(),
         RelocationTarget::CustomSection(custom_section) => {
             *allocated_sections[custom_section] as usize
         }
         RelocationTarget::JumpTable(func_index, jt) => {
-            let offset = *jt_offsets
-                .get(func_index)
-                .and_then(|ofs| ofs.get(JumpTable::new(jt.index())))
-                .expect("func jump table");
-            *allocated_functions[func_index].ptr as usize + offset as usize
+            let offset = jt_offsets(func_index, jt);
+            *allocated_functions[func_index].body as usize + offset as usize
         }
     };
 
@@ -174,37 +169,36 @@ fn apply_relocation(
 /// Links a module, patching the allocated functions with the
 /// required relocations and jump tables.
 pub fn link_module(
-    _module: &ModuleInfo,
-    allocated_functions: &PrimaryMap<LocalFunctionIndex, FunctionExtent>,
-    jt_offsets: &PrimaryMap<LocalFunctionIndex, JumpTableOffsets>,
-    function_relocations: Relocations,
+    allocated_functions: &PrimaryMap<LocalFunctionIndex, VMLocalFunction>,
+    jt_offsets: impl Fn(LocalFunctionIndex, JumpTable) -> wasmer_compiler::CodeOffset,
+    function_relocations: impl Iterator<Item = (LocalFunctionIndex, impl Iterator<Item = Relocation>)>,
     allocated_sections: &PrimaryMap<SectionIndex, SectionBodyPtr>,
-    section_relocations: &PrimaryMap<SectionIndex, Vec<Relocation>>,
+    section_relocations: impl Iterator<Item = (SectionIndex, impl Iterator<Item = Relocation>)>,
     trampolines: &Option<TrampolinesSection>,
 ) {
-    let mut trampolines_map = fill_trampolin_map(allocated_sections, trampolines);
-    for (i, section_relocs) in section_relocations.iter() {
+    let mut trampolines_map = fill_trampoline_map(allocated_sections, trampolines);
+    for (i, section_relocs) in section_relocations {
         let body = *allocated_sections[i] as usize;
         for r in section_relocs {
             apply_relocation(
                 body,
-                r,
+                &r,
                 allocated_functions,
-                jt_offsets,
+                &jt_offsets,
                 allocated_sections,
                 trampolines,
                 &mut trampolines_map,
             );
         }
     }
-    for (i, function_relocs) in function_relocations.iter() {
-        let body = *allocated_functions[i].ptr as usize;
+    for (i, function_relocs) in function_relocations {
+        let body = *allocated_functions[i].body as usize;
         for r in function_relocs {
             apply_relocation(
                 body,
-                r,
+                &r,
                 allocated_functions,
-                jt_offsets,
+                &jt_offsets,
                 allocated_sections,
                 trampolines,
                 &mut trampolines_map,

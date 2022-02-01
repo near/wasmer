@@ -6,9 +6,10 @@ use crate::instance::WeakOrStrongInstanceRef;
 use crate::memory::{Memory, MemoryStyle};
 use crate::table::{Table, TableStyle};
 use crate::vmcontext::{VMFunctionBody, VMFunctionEnvironment, VMFunctionKind, VMTrampoline};
+use crate::VMSharedSignatureIndex;
 use loupe::MemoryUsage;
 use std::sync::Arc;
-use wasmer_types::{FunctionType, MemoryType, TableType};
+use wasmer_types::{MemoryType, TableType};
 
 /// The value of an export passed from one instance to another.
 #[derive(Debug)]
@@ -36,7 +37,7 @@ pub struct VMFunction {
     pub vmctx: VMFunctionEnvironment,
 
     /// The function type, used for compatibility checking.
-    pub signature: FunctionType,
+    pub signature: VMSharedSignatureIndex,
 
     /// The function kind (specifies the calling convention for the
     /// function).

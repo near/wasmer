@@ -40,7 +40,7 @@ pub mod libcalls;
 pub use crate::export::*;
 pub use crate::func_data_registry::{FuncDataRegistry, VMFuncRef};
 pub use crate::global::*;
-pub use crate::imports::Imports;
+pub use crate::imports::{Imports, VMImport, VMImportType};
 pub use crate::instance::{
     ImportFunctionEnv, ImportInitializerFuncPtr, InstanceAllocator, InstanceHandle,
     WeakOrStrongInstanceRef,
@@ -48,13 +48,13 @@ pub use crate::instance::{
 pub use crate::memory::{LinearMemory, Memory, MemoryError, MemoryStyle};
 pub use crate::mmap::Mmap;
 pub use crate::probestack::PROBESTACK;
-pub use crate::sig_registry::SignatureRegistry;
+pub use crate::sig_registry::{SignatureRegistry, VMSharedSignatureIndex};
 pub use crate::table::{LinearTable, Table, TableElement, TableStyle};
 pub use crate::trap::*;
 pub use crate::vmcontext::{
     VMBuiltinFunctionIndex, VMCallerCheckedAnyfunc, VMContext, VMDynamicFunctionContext,
     VMFunctionBody, VMFunctionEnvironment, VMFunctionImport, VMFunctionKind, VMGlobalDefinition,
-    VMGlobalImport, VMMemoryDefinition, VMMemoryImport, VMSharedSignatureIndex, VMTableDefinition,
+    VMGlobalImport, VMLocalFunction, VMMemoryDefinition, VMMemoryImport, VMTableDefinition,
     VMTableImport, VMTrampoline,
 };
 pub use crate::vmoffsets::{TargetSharedSignatureIndex, VMOffsets};

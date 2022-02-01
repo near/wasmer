@@ -41,8 +41,8 @@ pub use crate::sys::ptr::{Array, Item, WasmPtr};
 pub use crate::sys::store::{Store, StoreObject};
 pub use crate::sys::tunables::BaseTunables;
 pub use crate::sys::types::{
-    ExportType, ExternType, FunctionType, GlobalType, ImportType, MemoryType, Mutability,
-    TableType, Val, ValType,
+    ExportType, ExternType, FunctionType, GlobalType, MemoryType, Mutability, TableType, Val,
+    ValType,
 };
 pub use crate::sys::types::{Val as Value, ValType as Type};
 pub use crate::sys::utils::is_wasm;

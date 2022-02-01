@@ -1,29 +1,91 @@
 use enumset::EnumSet;
 use loupe::MemoryUsage;
+use rkyv::de::deserializers::SharedDeserializeMap;
 use rkyv::ser::serializers::{
     AllocScratch, AllocScratchError, CompositeSerializer, CompositeSerializerError,
     SharedSerializeMap, SharedSerializeMapError, WriteSerializer,
 };
-use rkyv::{
-    de::deserializers::SharedDeserializeMap, ser::Serializer as RkyvSerializer, Archive,
-    Deserialize as RkyvDeserialize, Serialize as RkyvSerialize,
-};
 use wasmer_compiler::{
-    CompileModuleInfo, CompiledFunctionFrameInfo, CustomSection, Dwarf, FunctionBody,
-    JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
+    CompileError, CompileModuleInfo, CompiledFunctionFrameInfo, CpuFeature, CustomSection, Dwarf,
+    Features, FunctionBody, JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
 };
-use wasmer_engine::DeserializeError;
+use wasmer_engine::{Artifact, DeserializeError, Engine};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, OwnedDataInitializer, SignatureIndex};
 
-static MAGIC_HEADER: [u8; 22] = *b"\0wasmer-universal\0\0\0\0\0";
+static MAGIC_HEADER: [u8; 22] = *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF";
+
+/// A 0-copy view of the encoded `UniversalExecutable` payload.
+#[derive(Clone, Copy)]
+pub struct UniversalExecutableRef<'a> {
+    buffer: &'a [u8],
+    archive: &'a ArchivedUniversalExecutable,
+}
+
+impl<'a> std::ops::Deref for UniversalExecutableRef<'a> {
+    type Target = ArchivedUniversalExecutable;
+    fn deref(&self) -> &Self::Target {
+        self.archive
+    }
+}
+
+impl<'a> UniversalExecutableRef<'a> {
+    /// Verify the buffer for whether it is a valid `UniversalExecutable`.
+    pub fn verify_serialized(data: &[u8]) -> Result<(), &'static str> {
+        if !data.starts_with(&MAGIC_HEADER) {
+            return Err("the provided bytes are not wasmer-universal");
+        }
+        if data.len() < MAGIC_HEADER.len() + 8 {
+            return Err("the data buffer is too small to be valid");
+        }
+        let (_, position) = data.split_at(data.len() - 8);
+        let mut position_value = [0u8; 8];
+        position_value.copy_from_slice(position);
+        if u64::from_le_bytes(position_value) < data.len() as u64 {
+            return Err("the buffer is malformed");
+        }
+        // TODO(0-copy): bytecheck too.
+        Ok(())
+    }
+
+    /// # Safety
+    ///
+    /// This method is unsafe since it deserializes data directly
+    /// from memory.
+    /// Right now we are not doing any extra work for validation, but
+    /// `rkyv` has an option to do bytecheck on the serialized data before
+    /// serializing (via `rkyv::check_archived_value`).
+    pub unsafe fn deserialize(
+        data: &'a [u8],
+    ) -> Result<UniversalExecutableRef<'a>, DeserializeError> {
+        Self::verify_serialized(data).map_err(|e| DeserializeError::Incompatible(e.to_string()))?;
+        let (archive, position) = data.split_at(data.len() - 8);
+        let mut position_value = [0u8; 8];
+        position_value.copy_from_slice(position);
+        Ok(UniversalExecutableRef {
+            buffer: data,
+            archive: rkyv::archived_value::<UniversalExecutable>(
+                archive,
+                u64::from_le_bytes(position_value) as usize,
+            ),
+        })
+    }
+
+    // TODO(0-copy): this should never fail.
+    /// Convert this reference to an owned `UniversalExecutable` value.
+    pub fn to_owned(self) -> Result<UniversalExecutable, DeserializeError> {
+        let mut deserializer = SharedDeserializeMap::new();
+        rkyv::Deserialize::deserialize(self.archive, &mut deserializer)
+            .map_err(|e| DeserializeError::CorruptedBinary(format!("{:?}", e)))
+    }
+}
 
 /// A wasm module compiled to some shape, ready to be loaded with `UniversalEngine` to produce an
 /// `UniversalArtifact`.
 ///
 /// This is the result obtained after validating and compiling a WASM module with any of the
 /// supported compilers. This type falls in-between a module and [`Artifact`](crate::Artifact).
-#[derive(MemoryUsage, Archive, RkyvDeserialize, RkyvSerialize, Clone)]
+#[derive(MemoryUsage, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
 pub struct UniversalExecutable {
     pub(crate) function_bodies: PrimaryMap<LocalFunctionIndex, FunctionBody>,
     pub(crate) function_relocations: PrimaryMap<LocalFunctionIndex, Vec<Relocation>>,
@@ -42,64 +104,13 @@ pub struct UniversalExecutable {
     pub(crate) cpu_features: u64,
 }
 
-impl UniversalExecutable {
-    /// Deserialize a Module from a slice.
-    /// The slice must have the following format:
-    /// RKYV serialization (any length) + POS (8 bytes)
-    ///
-    /// # Safety
-    ///
-    /// This method is unsafe since it deserializes data directly
-    /// from memory.
-    /// Right now we are not doing any extra work for validation, but
-    /// `rkyv` has an option to do bytecheck on the serialized data before
-    /// serializing (via `rkyv::check_archived_value`).
-    pub unsafe fn deserialize(metadata_slice: &[u8]) -> Result<Self, DeserializeError> {
-        let archived = Self::archive_from_slice(metadata_slice)?;
-        let mut deserializer = SharedDeserializeMap::new();
-        RkyvDeserialize::deserialize(archived, &mut deserializer)
-            .map_err(|e| DeserializeError::CorruptedBinary(format!("{:?}", e)))
-    }
-
-    /// # Safety
-    ///
-    /// This method is unsafe.
-    /// Please check `SerializableModule::deserialize` for more details.
-    pub unsafe fn archive_from_slice<'a>(
-        data: &'a [u8],
-    ) -> Result<&'a rkyv::Archived<UniversalExecutable>, DeserializeError> {
-        if !data.starts_with(&MAGIC_HEADER) {
-            return Err(DeserializeError::Incompatible(
-                "the provided bytes are not wasmer-universal".to_string(),
-            ));
-        } else if data.len() < MAGIC_HEADER.len() + 8 {
-            return Err(DeserializeError::Incompatible(
-                "invalid serialized data".into(),
-            ));
-        }
-        let (archive, position) = data.split_at(data.len() - 8);
-        let mut position_value = [0u8; 8];
-        position_value.copy_from_slice(position);
-        Ok(rkyv::archived_value::<UniversalExecutable>(
-            archive,
-            u64::from_le_bytes(position_value) as usize,
-        ))
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum ExecutableSerializeError {
-    #[error("could not write universal executable header")]
-    WriteHeader(#[source] std::io::Error),
     #[error("could not serialize the executable data")]
     Executable(
         #[source]
         CompositeSerializerError<std::io::Error, AllocScratchError, SharedSerializeMapError>,
     ),
-    #[error("could not write the position information")]
-    WritePosition(#[source] std::io::Error),
-    #[error("could not flush the writer")]
-    Flush(#[source] std::io::Error),
 }
 
 // SAFETY: the pointers in `rkyv::AllocScratchError` are present there for display purposes – this
@@ -109,30 +120,25 @@ unsafe impl Send for ExecutableSerializeError {}
 unsafe impl Sync for ExecutableSerializeError {}
 
 impl wasmer_engine::Executable for UniversalExecutable {
-    fn features(&self) -> &wasmer_compiler::Features {
-        &self.compile_info.features
+    fn load(
+        &self,
+        engine: &(dyn Engine + 'static),
+    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
+        engine
+            .downcast_ref::<crate::UniversalEngine>()
+            .ok_or_else(|| CompileError::Codegen("can't downcast TODO FIXME".into()))?
+            .load_owned(self)
     }
 
-    fn cpu_features(&self) -> EnumSet<wasmer_compiler::CpuFeature> {
+    fn features(&self) -> Features {
+        self.compile_info.features.clone()
+    }
+
+    fn cpu_features(&self) -> EnumSet<CpuFeature> {
         EnumSet::from_u64(self.cpu_features)
     }
 
-    fn memory_styles(&self) -> &PrimaryMap<wasmer_types::MemoryIndex, wasmer_vm::MemoryStyle> {
-        &self.compile_info.memory_styles
-    }
-
-    fn table_styles(&self) -> &PrimaryMap<wasmer_types::TableIndex, wasmer_vm::TableStyle> {
-        &self.compile_info.table_styles
-    }
-
-    fn data_initializers(&self) -> &[wasmer_types::OwnedDataInitializer] {
-        &self.data_initializers
-    }
-
-    fn serialize(
-        &self,
-        out: &mut dyn std::io::Write,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn serialize(&self) -> Result<Vec<u8>, Box<(dyn std::error::Error + Send + Sync + 'static)>> {
         // The format is as thus:
         //
         // HEADER
@@ -140,19 +146,51 @@ impl wasmer_engine::Executable for UniversalExecutable {
         // RKYV POSITION
         //
         // It is expected that any framing for message length is handled by the caller.
-        out.write_all(&MAGIC_HEADER)
-            .map_err(ExecutableSerializeError::WriteHeader)?;
+        let mut out = Vec::with_capacity(32);
+        out.extend(&MAGIC_HEADER);
         let mut serializer = CompositeSerializer::new(
-            WriteSerializer::with_pos(out, MAGIC_HEADER.len()),
+            WriteSerializer::with_pos(std::io::Cursor::new(&mut out), MAGIC_HEADER.len()),
             AllocScratch::new(),
             SharedSerializeMap::new(),
         );
-        let pos = serializer
-            .serialize_value(self)
+        let pos = rkyv::ser::Serializer::serialize_value(&mut serializer, self)
             .map_err(ExecutableSerializeError::Executable)? as u64;
-        let out = serializer.into_serializer().into_inner();
-        out.write_all(&pos.to_le_bytes())
-            .map_err(ExecutableSerializeError::WritePosition)?;
-        Ok(out.flush().map_err(ExecutableSerializeError::Flush)?)
+        out.extend(&pos.to_le_bytes());
+        Ok(out)
     }
+}
+
+impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
+    fn load(
+        &self,
+        engine: &(dyn Engine + 'static),
+    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
+        engine
+            .downcast_ref::<crate::UniversalEngine>()
+            .ok_or_else(|| CompileError::Codegen("can't downcast TODO FIXME".into()))?
+            .load_archived(self)
+    }
+
+    fn features(&self) -> Features {
+        unrkyv(&self.archive.compile_info.features)
+    }
+
+    fn cpu_features(&self) -> EnumSet<CpuFeature> {
+        EnumSet::from_u64(unrkyv(&self.archive.cpu_features))
+    }
+
+    fn serialize(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(self.buffer.to_vec())
+    }
+}
+
+pub(crate) fn unrkyv<T>(archive: &T::Archived) -> T
+where
+    T: rkyv::Archive,
+    T::Archived: rkyv::Deserialize<T, rkyv::Infallible>,
+{
+    Result::<_, std::convert::Infallible>::unwrap(rkyv::Deserialize::deserialize(
+        archive,
+        &mut rkyv::Infallible,
+    ))
 }

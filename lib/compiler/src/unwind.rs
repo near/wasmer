@@ -32,3 +32,34 @@ pub enum CompiledFunctionUnwindInfo {
     /// The unwind info is added to the Dwarf section in `Compilation`.
     Dwarf,
 }
+
+/// See [`CompiledFunctionUnwindInfo`].
+#[derive(Clone, Copy)]
+pub enum CompiledFunctionUnwindInfoRef<'a> {
+    /// Windows UNWIND_INFO.
+    WindowsX64(&'a [u8]),
+    /// Unwind info is added to the Dwarf section in `Compilation`.
+    Dwarf,
+}
+
+impl<'a> From<&'a CompiledFunctionUnwindInfo> for CompiledFunctionUnwindInfoRef<'a> {
+    fn from(uw: &'a CompiledFunctionUnwindInfo) -> Self {
+        match uw {
+            CompiledFunctionUnwindInfo::WindowsX64(d) => {
+                CompiledFunctionUnwindInfoRef::WindowsX64(d)
+            }
+            CompiledFunctionUnwindInfo::Dwarf => CompiledFunctionUnwindInfoRef::Dwarf,
+        }
+    }
+}
+
+impl<'a> From<&'a ArchivedCompiledFunctionUnwindInfo> for CompiledFunctionUnwindInfoRef<'a> {
+    fn from(uw: &'a ArchivedCompiledFunctionUnwindInfo) -> Self {
+        match uw {
+            ArchivedCompiledFunctionUnwindInfo::WindowsX64(d) => {
+                CompiledFunctionUnwindInfoRef::WindowsX64(d)
+            }
+            ArchivedCompiledFunctionUnwindInfo::Dwarf => CompiledFunctionUnwindInfoRef::Dwarf,
+        }
+    }
+}

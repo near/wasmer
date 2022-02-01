@@ -10,7 +10,7 @@ use wasmer_types::{GlobalType, Mutability, Type, Value, WasmValueType};
 /// A Global instance
 pub struct Global {
     ty: GlobalType,
-    // TODO: this box may be unnecessary
+    // TODO: this box is unnecessary
     vm_global_definition: Box<UnsafeCell<VMGlobalDefinition>>,
     // used to synchronize gets/sets
     lock: Mutex<()>,

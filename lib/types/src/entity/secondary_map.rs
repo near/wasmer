@@ -168,6 +168,22 @@ where
     }
 }
 
+/// Immutable indexing into an `SecondaryMap`.
+///
+/// All keys are permitted. Untouched entries have the default value.
+impl<K, V> Index<&K::Archived> for ArchivedSecondaryMap<K, V>
+where
+    K: EntityRef + Archive,
+    K::Archived: EntityRef,
+    V: Archive + Clone,
+{
+    type Output = <V as rkyv::Archive>::Archived;
+
+    fn index(&self, k: &K::Archived) -> &Self::Output {
+        &self.elems.get(k.index()).unwrap_or(&self.default)
+    }
+}
+
 /// Mutable indexing into an `SecondaryMap`.
 ///
 /// The map grows as needed to accommodate new keys.
