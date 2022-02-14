@@ -6,6 +6,7 @@
 
 #![deny(missing_docs, trivial_numeric_casts, unused_extern_crates)]
 #![warn(unused_import_braces)]
+#![warn(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(
     feature = "cargo-clippy",
     allow(clippy::new_without_default, clippy::new_without_default)
@@ -31,6 +32,7 @@ mod engine;
 mod executable;
 mod link;
 mod unwind;
+mod instance;
 
 pub use crate::artifact::UniversalArtifact;
 pub use crate::builder::Universal;

@@ -4,7 +4,7 @@ use crate::executable::{unrkyv, UniversalExecutableRef};
 use crate::{CodeMemory, UniversalArtifact, UniversalExecutable};
 use loupe::MemoryUsage;
 use rkyv::de::deserializers::SharedDeserializeMap;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "compiler")]
@@ -16,9 +16,9 @@ use wasmer_compiler::{
 use wasmer_engine::{Artifact, Engine, EngineId, Tunables};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataInitializer, EntityCounts, Features, FunctionIndex, FunctionType, FunctionTypeRef,
-    GlobalType, ImportIndex, LocalFunctionIndex, MemoryIndex, MemoryType, SignatureIndex,
-    TableIndex, TableType, DataIndex,
+    DataIndex, DataInitializer, EntityCounts, Features, FunctionIndex, FunctionType,
+    FunctionTypeRef, GlobalInit, GlobalType, ImportIndex, LocalFunctionIndex, LocalGlobalIndex,
+    MemoryIndex, MemoryType, SignatureIndex, TableIndex, TableType,
 };
 use wasmer_vm::{
     FuncDataRegistry, FunctionBodyPtr, MemoryStyle, SectionBodyPtr, SignatureRegistry, TableStyle,
@@ -94,6 +94,7 @@ impl UniversalEngine {
     ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
         let info = &executable.compile_info;
         let module = &info.module;
+
         let imports = {
             let mut inner_engine = self.inner_mut();
             module
@@ -119,10 +120,6 @@ impl UniversalEngine {
                 })
                 .collect()
         };
-        let local_functions = executable.function_bodies.iter().map(|(idx, b)| {
-            let sig = &module.signatures[module.functions[module.func_index(idx)]];
-            (sig.into(), b.into())
-        });
         let local_memories = (module.import_counts.memories..module.memories.len())
             .map(|idx| {
                 let idx = MemoryIndex::new(idx);
@@ -135,48 +132,75 @@ impl UniversalEngine {
                 (module.tables[idx], info.table_styles[idx].clone())
             })
             .collect();
-        let local_globals = module
+        let local_globals: Vec<(GlobalType, GlobalInit)> = module
             .globals
             .iter()
             .skip(module.import_counts.globals)
-            .map(|(_, t)| *t)
+            .enumerate()
+            .map(|(idx, (_, t))| {
+                let init = module.global_initializers[LocalGlobalIndex::new(idx)];
+                (*t, init)
+            })
             .collect();
+        let mut inner_engine = self.inner_mut();
 
-        self.load_common(
-            module.signatures.values().map(Into::into),
-            local_functions,
-            executable
-                .function_call_trampolines
-                .iter()
-                .map(|(_, b)| b.into()),
-            executable
-                .dynamic_function_trampolines
-                .iter()
-                .map(|(_, b)| b.into()),
-            executable.custom_sections.iter().map(|(_, s)| s.into()),
+        let local_functions = executable.function_bodies.iter().map(|(idx, b)| {
+            let sig = &module.signatures[module.functions[module.func_index(idx)]];
+            (sig.into(), b.into())
+        });
+        let function_call_trampolines = &executable.function_call_trampolines;
+        let dynamic_function_trampolines = &executable.dynamic_function_trampolines;
+        let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
+            .allocate(
+                local_functions,
+                function_call_trampolines.iter().map(|(_, b)| b.into()),
+                dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
+                executable.custom_sections.iter().map(|(_, s)| s.into()),
+            )?;
+
+        let function_relocations = &executable.function_relocations.iter();
+        let section_relocations = executable.custom_section_relocations.iter();
+        crate::link_module(
+            &functions,
             |func_idx, jt_idx| executable.function_jt_offsets[func_idx][jt_idx],
-            executable
-                .function_relocations
-                .iter()
-                .map(|(i, rs)| (i, rs.iter().cloned())),
-            executable
-                .custom_section_relocations
-                .iter()
-                .map(|(i, rs)| (i, rs.iter().cloned())),
+            function_relocations.map(|(i, rs)| (i, rs.iter().cloned())),
+            &custom_sections,
+            section_relocations.map(|(i, rs)| (i, rs.iter().cloned())),
             &executable.trampolines,
-            executable
-                .debug
-                .as_ref()
-                .map(|d| (d.eh_frame, (&executable.custom_sections[d.eh_frame]).into())),
-            executable.data_initializers.iter().map(Into::into),
-            module.passive_data.clone(),
-            imports,
-            module.import_counts,
-            VMOffsets::for_host().with_module_info(&*module),
-            local_memories,
-            local_tables,
-            local_globals,
-        )
+        );
+
+        // Make all code loaded executable.
+        inner_engine.publish_compiled_code();
+        if let Some(d) = executable.debug {
+            unsafe {
+                // TODO: safety comment
+                inner_engine.publish_eh_frame(std::slice::from_raw_parts(
+                    *custom_sections[d.eh_frame],
+                    executable.custom_sections[d.eh_frame].bytes.len(),
+                ))?;
+            }
+        }
+
+        Ok(Arc::new(UniversalArtifact {
+            data: Arc::new(crate::artifact::Data {
+                engine: self.clone(),
+                import_counts: module.import_counts,
+                start_function: module.start_function,
+                vmoffsets: VMOffsets::for_host().with_module_info(&*module),
+                imports,
+                function_call_trampolines: call_trampolines.into_boxed_slice(),
+                dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
+                frame_info_registration: Mutex::new(None),
+                functions: functions.into_boxed_slice(),
+                local_memories,
+                data_segments: executable.data_initializers.clone(),
+                passive_data: module.passive_data.clone(),
+                local_tables,
+                element_segments: module.table_initializers.clone(),
+                passive_elements: module.passive_elements.clone(),
+                local_globals,
+            }),
+        }))
     }
 
     pub(crate) fn load_archived(
@@ -211,11 +235,6 @@ impl UniversalEngine {
                 .collect()
         };
         let import_counts: EntityCounts = unrkyv(&module.import_counts);
-        let local_functions = executable.function_bodies.iter().map(|(idx, b)| {
-            let func_idx = FunctionIndex::new(import_counts.functions + idx.index());
-            let sig = &module.signatures[&module.functions[&func_idx]];
-            (sig.into(), b.into())
-        });
         let local_memories = (import_counts.memories..module.memories.len())
             .map(|idx| {
                 let idx = MemoryIndex::new(idx);
@@ -230,131 +249,93 @@ impl UniversalEngine {
                 (unrkyv(tty), unrkyv(&info.table_styles[&idx]))
             })
             .collect();
-        let local_globals = module
+        let local_globals: Vec<(GlobalType, GlobalInit)> = module
             .globals
             .iter()
             .skip(import_counts.globals)
-            .map(|(_, t)| *t)
+            .enumerate()
+            .map(|(idx, (_, t))| {
+                let init = unrkyv(&module.global_initializers[&LocalGlobalIndex::new(idx)]);
+                (*t, init)
+            })
             .collect();
-        let passive_data = rkyv::Deserialize::deserialize(
-            &module.passive_data,
-            &mut SharedDeserializeMap::new(),
-        ).map_err(|e| CompileError::Validate("could not deserialize passive data".into()))?;
-        self.load_common(
-            module.signatures.values().map(Into::into),
-            local_functions,
-            executable
-                .function_call_trampolines
-                .iter()
-                .map(|(_, b)| b.into()),
-            executable
-                .dynamic_function_trampolines
-                .iter()
-                .map(|(_, b)| b.into()),
-            executable.custom_sections.iter().map(|(_, s)| s.into()),
+
+        let passive_data =
+            rkyv::Deserialize::deserialize(&module.passive_data, &mut SharedDeserializeMap::new())
+                .map_err(|e| CompileError::Validate("could not deserialize passive data".into()))?;
+        let data_segments = executable.data_initializers.iter();
+        let data_segments = data_segments
+            .map(|s| DataInitializer::from(s).into())
+            .collect();
+        let element_segments = unrkyv(&module.table_initializers);
+        let passive_elements: BTreeMap<wasmer_types::ElemIndex, Box<[FunctionIndex]>> =
+            unrkyv(&module.passive_elements);
+
+        let import_counts: EntityCounts = unrkyv(&module.import_counts);
+        let mut inner_engine = self.inner_mut();
+
+        let local_functions = executable.function_bodies.iter().map(|(idx, b)| {
+            let func_idx = FunctionIndex::new(import_counts.functions + idx.index());
+            let sig = &module.signatures[&module.functions[&func_idx]];
+            (sig.into(), b.into())
+        });
+        let call_trampolines = executable.function_call_trampolines.iter();
+        let dynamic_trampolines = executable.dynamic_function_trampolines.iter();
+        let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
+            .allocate(
+                local_functions,
+                call_trampolines.map(|(_, b)| b.into()),
+                dynamic_trampolines.map(|(_, b)| b.into()),
+                executable.custom_sections.iter().map(|(_, s)| s.into()),
+            )?;
+
+        let function_relocations = executable.function_relocations.iter();
+        let section_relocations = executable.custom_section_relocations.iter();
+        crate::link_module(
+            &functions,
             |func_idx, jt_idx| {
                 let func_idx = rkyv::Archived::<LocalFunctionIndex>::new(func_idx.index());
                 let jt_idx = rkyv::Archived::<JumpTable>::new(jt_idx.index());
                 executable.function_jt_offsets[&func_idx][&jt_idx]
             },
-            executable
-                .function_relocations
-                .iter()
-                .map(|(i, r)| (i, r.iter().map(unrkyv))),
-            executable
-                .custom_section_relocations
-                .iter()
-                .map(|(i, r)| (i, r.iter().map(unrkyv))),
-            &unrkyv(&executable.trampolines),
-            executable.debug.as_ref().map(|d| {
-                (
-                    unrkyv(&d.eh_frame),
-                    (&executable.custom_sections[&d.eh_frame]).into(),
-                )
-            }),
-            executable.data_initializers.iter().map(Into::into),
-            // TODO(0-copy): the passive data could be a single heap buffer with indices into it.
-            passive_data,
-            imports,
-            unrkyv(&module.import_counts),
-            VMOffsets::for_host().with_archived_module_info(&*module),
-            local_memories,
-            local_tables,
-            local_globals,
-        )
-    }
-
-    fn load_common<'a>(
-        &self,
-        signatures: impl Iterator<Item = FunctionTypeRef<'a>>,
-        local_functions: impl ExactSizeIterator<Item = (FunctionTypeRef<'a>, FunctionBodyRef<'a>)>,
-        call_trampolines: impl ExactSizeIterator<Item = FunctionBodyRef<'a>>,
-        dynamic_trampolines: impl ExactSizeIterator<Item = FunctionBodyRef<'a>>,
-        local_sections: impl ExactSizeIterator<Item = CustomSectionRef<'a>>,
-        jt_offsets: impl Fn(LocalFunctionIndex, JumpTable) -> wasmer_compiler::CodeOffset,
-        function_relocations: impl Iterator<
-            Item = (LocalFunctionIndex, impl Iterator<Item = Relocation>),
-        >,
-        section_relocations: impl Iterator<Item = (SectionIndex, impl Iterator<Item = Relocation>)>,
-        trampolines: &Option<TrampolinesSection>,
-        eh_frame: Option<(SectionIndex, CustomSectionRef<'a>)>,
-        data_initializers: impl Iterator<Item = DataInitializer<'a>>,
-        passive_data: BTreeMap<DataIndex, Arc<[u8]>>,
-        imports: Vec<VMImport>,
-        import_counts: EntityCounts,
-        vmoffsets: VMOffsets,
-        local_memories: Vec<(MemoryType, MemoryStyle)>,
-        local_tables: Vec<(TableType, TableStyle)>,
-        local_globals: Vec<GlobalType>,
-    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
-        let mut inner_engine = self.inner_mut();
-        let signatures: PrimaryMap<_, _> = signatures
-            .map(|sig| inner_engine.signatures.register(sig))
-            .collect();
-        // TODO(0-copy): allocate passive data here too.
-        let (
-            finished_functions,
-            finished_call_trampolines,
-            finished_dynamic_trampolines,
-            custom_sections,
-        ) = inner_engine.allocate(
-            local_functions,
-            call_trampolines,
-            dynamic_trampolines,
-            local_sections,
-        )?;
-        crate::link_module(
-            &finished_functions,
-            jt_offsets,
-            function_relocations,
+            function_relocations.map(|(i, r)| (i, r.iter().map(unrkyv))),
             &custom_sections,
-            section_relocations,
-            trampolines,
+            section_relocations.map(|(i, r)| (i, r.iter().map(unrkyv))),
+            &unrkyv(&executable.trampolines),
         );
-        let eh_frame = eh_frame.map(|(idx, section)| unsafe {
-            // SAFETY: custom sections should contain the debuginfo section at `idx`.
-            std::slice::from_raw_parts(*custom_sections[idx], section.bytes.len())
-        });
 
         // Make all code compiled thus far executable.
         inner_engine.publish_compiled_code();
-        inner_engine.publish_eh_frame(eh_frame)?;
+        if let rkyv::option::ArchivedOption::Some(d) = executable.debug {
+            unsafe {
+                // TODO: safety comment
+                let s = CustomSectionRef::from(&executable.custom_sections[&d.eh_frame]);
+                inner_engine.publish_eh_frame(std::slice::from_raw_parts(
+                    *custom_sections[unrkyv(&d.eh_frame)],
+                    s.bytes.len(),
+                ))?;
+            }
+        }
 
         Ok(Arc::new(UniversalArtifact {
-            engine: self.clone(),
-            import_counts,
-            imports,
-            finished_functions: finished_functions.into_boxed_slice(),
-            finished_function_call_trampolines: finished_call_trampolines.into_boxed_slice(),
-            finished_dynamic_function_trampolines: finished_dynamic_trampolines.into_boxed_slice(),
-            signatures: signatures.into_boxed_slice(),
-            frame_info_registration: Mutex::new(None),
-            data_initializers: data_initializers.map(Into::into).collect(),
-            passive_data,
-            local_memories,
-            local_tables,
-            local_globals,
-            vmoffsets,
+            data: Arc::new(crate::artifact::Data {
+                engine: self.clone(),
+                import_counts,
+                start_function: unrkyv(&module.start_function),
+                vmoffsets: VMOffsets::for_host().with_archived_module_info(&*module),
+                imports: imports,
+                function_call_trampolines: call_trampolines.into_boxed_slice(),
+                dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
+                frame_info_registration: Mutex::new(None),
+                functions: functions.into_boxed_slice(),
+                local_memories,
+                data_segments,
+                passive_data,
+                local_tables,
+                element_segments,
+                passive_elements,
+                local_globals,
+            }),
         }))
     }
 }
@@ -648,7 +629,7 @@ impl UniversalEngineInner {
     }
 
     /// Register DWARF-type exception handling information associated with the code.
-    pub(crate) fn publish_eh_frame(&mut self, eh_frame: Option<&[u8]>) -> Result<(), CompileError> {
+    pub(crate) fn publish_eh_frame(&mut self, eh_frame: &[u8]) -> Result<(), CompileError> {
         self.code_memory
             .last_mut()
             .unwrap()

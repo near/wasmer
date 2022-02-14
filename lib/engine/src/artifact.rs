@@ -1,9 +1,7 @@
-use crate::{InstantiationError, Resolver, Tunables};
-
+use crate::{InstanceHandle, InstantiationError, Resolver, Tunables};
 use loupe::MemoryUsage;
 use std::any::Any;
 use wasmer_types::InstanceConfig;
-use wasmer_vm::InstanceHandle;
 
 /// A predecesor of a full module Instance.
 ///
@@ -25,14 +23,4 @@ pub trait Artifact: Send + Sync + MemoryUsage {
         host_state: Box<dyn Any>,
         config: InstanceConfig,
     ) -> Result<InstanceHandle, InstantiationError>;
-
-    /// Finishes the instantiation of a just created `InstanceHandle`.
-    ///
-    /// # Safety
-    ///
-    /// See [`InstanceHandle::finish_instantiation`].
-    unsafe fn finish_instantiation(
-        &self,
-        handle: &InstanceHandle,
-    ) -> Result<(), InstantiationError>;
 }
