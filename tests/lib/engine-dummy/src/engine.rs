@@ -2,11 +2,11 @@
 use loupe::MemoryUsage;
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::{CompileError, Features, Target};
-use wasmer_engine::{Engine, EngineId, Tunables};
+use wasmer_engine::{Engine, EngineId};
 use wasmer_types::{FunctionType, FunctionTypeRef};
 use wasmer_vm::{
-    FuncDataRegistry, SignatureRegistry, VMCallerCheckedAnyfunc, VMContext, VMFuncRef,
-    VMFunctionBody, VMSharedSignatureIndex,
+    Artifact, FuncDataRegistry, SignatureRegistry, Tunables, VMCallerCheckedAnyfunc, VMContext,
+    VMFuncRef, VMFunctionBody, VMSharedSignatureIndex,
 };
 
 #[allow(dead_code)]
@@ -127,7 +127,7 @@ impl Engine for DummyEngine {
     fn load(
         &self,
         _excutable: &(dyn wasmer_engine::Executable),
-    ) -> Result<Arc<dyn wasmer_engine::Artifact>, CompileError> {
+    ) -> Result<Arc<dyn Artifact>, CompileError> {
         todo!()
     }
 }

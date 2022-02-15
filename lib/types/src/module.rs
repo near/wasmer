@@ -11,7 +11,7 @@ use crate::{
     CustomSectionIndex, DataIndex, ElemIndex, ExportIndex, ExportType, ExternType, FunctionIndex,
     FunctionType, GlobalIndex, GlobalInit, GlobalType, Import, ImportIndex, LocalFunctionIndex,
     LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex, MemoryType, SignatureIndex,
-    TableIndex, TableInitializer, TableType,
+    TableIndex, OwnedTableInitializer, TableType,
 };
 use indexmap::IndexMap;
 use loupe::MemoryUsage;
@@ -114,7 +114,7 @@ pub struct ModuleInfo {
     pub start_function: Option<FunctionIndex>,
 
     /// WebAssembly table initializers.
-    pub table_initializers: Vec<TableInitializer>,
+    pub table_initializers: Vec<OwnedTableInitializer>,
 
     /// WebAssembly passive elements.
     #[loupe(skip)] // TODO(0-copy): don't skip loupe
@@ -163,7 +163,7 @@ pub struct ArchivableModuleInfo {
     pub imports: ArchivableIndexMap<(String, String, u32), ImportIndex>,
     pub exports: ArchivableIndexMap<String, ExportIndex>,
     pub start_function: Option<FunctionIndex>,
-    pub table_initializers: Vec<TableInitializer>,
+    pub table_initializers: Vec<OwnedTableInitializer>,
     pub passive_elements: BTreeMap<ElemIndex, Box<[FunctionIndex]>>,
     pub passive_data: BTreeMap<DataIndex, Arc<[u8]>>,
     pub global_initializers: PrimaryMap<LocalGlobalIndex, GlobalInit>,

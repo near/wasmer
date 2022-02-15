@@ -16,7 +16,7 @@ use crate::sys::store::{Store, StoreObject};
 use crate::sys::ExternType;
 use loupe::MemoryUsage;
 use std::fmt;
-use wasmer_engine::Export;
+use wasmer_vm::Export;
 
 /// An `Extern` is the runtime representation of an entity that
 /// can be imported or exported.

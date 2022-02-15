@@ -44,15 +44,13 @@ impl UnwindRegistry {
     }
 
     /// Publishes all registered functions.
-    pub fn publish(&mut self, eh_frame: Option<&[u8]>) -> Result<(), String> {
+    pub fn publish(&mut self, eh_frame: &[u8]) -> Result<(), String> {
         if self.published {
             return Err("unwind registry has already been published".to_string());
         }
 
-        if let Some(eh_frame) = eh_frame {
-            unsafe {
-                self.register_frames(eh_frame);
-            }
+        unsafe {
+            self.register_frames(eh_frame);
         }
 
         self.published = true;

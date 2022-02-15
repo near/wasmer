@@ -9,17 +9,15 @@ use std::sync::{Arc, Mutex};
 use wasmer_compiler::CompileError;
 #[cfg(feature = "compiler")]
 use wasmer_compiler::ModuleEnvironment;
-use wasmer_engine::{
-    Artifact, DeserializeError, Engine as _, InstantiationError, Resolver, Tunables,
-};
+use wasmer_engine::{DeserializeError, Engine as _, InstantiationError};
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{
     Features, FunctionIndex, InstanceConfig, LocalFunctionIndex, MemoryIndex, ModuleInfo,
     OwnedDataInitializer, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    FunctionBodyPtr, InstanceHandle, MemoryStyle, TableStyle, VMContext, VMFunctionBody,
-    VMLocalFunction, VMSharedSignatureIndex, VMTrampoline,
+    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
+    VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// Serializable struct for the artifact
@@ -199,17 +197,13 @@ impl DummyArtifact {
 }
 
 impl Artifact for DummyArtifact {
-    unsafe fn finish_instantiation(&self, _: &InstanceHandle) -> Result<(), InstantiationError> {
-        todo!()
-    }
-
     unsafe fn instantiate(
         &self,
         _: &dyn Tunables,
         _: &dyn Resolver,
         _: Box<dyn std::any::Any>,
         _: InstanceConfig,
-    ) -> Result<InstanceHandle, InstantiationError> {
+    ) -> Result<InstanceHandle, Box<dyn std::error::Error + Send + Sync>> {
         todo!()
     }
 }

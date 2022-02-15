@@ -66,7 +66,7 @@ impl ValFuncRef for Val {
             let anyfunc: *const wasmer_vm::VMCallerCheckedAnyfunc = *func_ref;
             &*anyfunc
         };
-        let export = wasmer_engine::ExportFunction {
+        let export = wasmer_vm::ExportFunction {
             // TODO:
             // figure out if we ever need a value here: need testing with complicated import patterns
             metadata: None,

@@ -1,4 +1,4 @@
-use crate::{InstanceHandle, InstantiationError, Resolver, Tunables};
+use crate::{InstanceHandle, Resolver, Tunables};
 use loupe::MemoryUsage;
 use std::any::Any;
 use wasmer_types::InstanceConfig;
@@ -22,5 +22,5 @@ pub trait Artifact: Send + Sync + MemoryUsage {
         resolver: &dyn Resolver,
         host_state: Box<dyn Any>,
         config: InstanceConfig,
-    ) -> Result<InstanceHandle, InstantiationError>;
+    ) -> Result<InstanceHandle, Box<dyn std::error::Error + Send + Sync>>;
 }

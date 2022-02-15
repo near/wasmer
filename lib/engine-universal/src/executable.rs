@@ -9,9 +9,10 @@ use wasmer_compiler::{
     CompileError, CompileModuleInfo, CompiledFunctionFrameInfo, CpuFeature, CustomSection, Dwarf,
     Features, FunctionBody, JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
 };
-use wasmer_engine::{Artifact, DeserializeError, Engine};
+use wasmer_engine::{DeserializeError, Engine};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, OwnedDataInitializer, SignatureIndex};
+use wasmer_vm::Artifact;
 
 static MAGIC_HEADER: [u8; 22] = *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF";
 

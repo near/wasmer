@@ -8,8 +8,7 @@ use crate::sys::RuntimeError;
 use loupe::MemoryUsage;
 use std::fmt;
 use std::sync::Arc;
-use wasmer_engine::Export;
-use wasmer_vm::{Global as RuntimeGlobal, VMGlobal};
+use wasmer_vm::{Export, Global as RuntimeGlobal, VMGlobal};
 
 /// A WebAssembly `global` instance.
 ///

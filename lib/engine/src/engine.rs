@@ -1,14 +1,12 @@
 //! Engine trait and associated types.
 
-use crate::tunables::Tunables;
-
 use loupe::MemoryUsage;
 
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
 use wasmer_types::{FunctionType, FunctionTypeRef};
-use wasmer_vm::{VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+use wasmer_vm::{Artifact, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
 
 mod private {
     pub struct Internal(pub(super) ());
@@ -44,10 +42,8 @@ pub trait Engine: MemoryUsage {
     ) -> Result<Box<dyn crate::Executable>, CompileError>;
 
     /// Load a compiled executable with this engine.
-    fn load(
-        &self,
-        executable: &(dyn crate::Executable),
-    ) -> Result<Arc<dyn crate::Artifact>, CompileError>;
+    fn load(&self, executable: &(dyn crate::Executable))
+        -> Result<Arc<dyn Artifact>, CompileError>;
 
     /// A unique identifier for this object.
     ///

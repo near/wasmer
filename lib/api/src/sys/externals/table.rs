@@ -6,8 +6,7 @@ use crate::sys::RuntimeError;
 use crate::sys::TableType;
 use loupe::MemoryUsage;
 use std::sync::Arc;
-use wasmer_engine::Export;
-use wasmer_vm::{Table as RuntimeTable, TableElement, VMTable};
+use wasmer_vm::{Export, Table as RuntimeTable, TableElement, VMTable};
 
 /// A WebAssembly `table` instance.
 ///

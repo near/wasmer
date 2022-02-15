@@ -10,9 +10,9 @@ use thiserror::Error;
 use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
-use wasmer_engine::{Artifact, Resolver};
+use wasmer_engine::RuntimeError;
 use wasmer_types::{ExportsIterator, ImportsIterator, InstanceConfig};
-use wasmer_vm::InstanceHandle;
+use wasmer_vm::{Artifact, InstanceHandle, Resolver};
 
 #[derive(Error, Debug)]
 pub enum IoCompileError {
@@ -179,19 +179,24 @@ impl Module {
         config: InstanceConfig,
     ) -> Result<InstanceHandle, InstantiationError> {
         unsafe {
-            let instance_handle = self.artifact.instantiate(
-                self.store.tunables(),
-                resolver,
-                Box::new((self.store.clone(), self.artifact.clone())),
-                config,
-            )?;
+            let instance_handle = self
+                .artifact
+                .instantiate(
+                    self.store.tunables(),
+                    resolver,
+                    Box::new((self.store.clone(), self.artifact.clone())),
+                    config,
+                )
+                .map_err(InstantiationError::Instantiation)?;
 
             // After the instance handle is created, we need to initialize
             // the data, call the start function and so. However, if any
             // of this steps traps, we still need to keep the instance alive
             // as some of the Instance elements may have placed in other
             // instance tables.
-            self.artifact.finish_instantiation(&instance_handle)?;
+            instance_handle
+                .finish_instantiation()
+                .map_err(|t| InstantiationError::Start(RuntimeError::from_trap(t)))?;
 
             Ok(instance_handle)
         }

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
     derive(RkyvSerialize, RkyvDeserialize, Archive)
 )]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-pub struct TableInitializer {
+pub struct OwnedTableInitializer {
     /// The index of a table to initialize.
     pub table_index: TableIndex,
     /// Optionally, a global variable giving a base index.

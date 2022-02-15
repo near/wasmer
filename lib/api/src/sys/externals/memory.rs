@@ -6,9 +6,8 @@ use loupe::MemoryUsage;
 use std::convert::TryInto;
 use std::slice;
 use std::sync::Arc;
-use wasmer_engine::Export;
 use wasmer_types::{Pages, ValueType};
-use wasmer_vm::{MemoryError, VMMemory};
+use wasmer_vm::{Export, MemoryError, VMMemory};
 
 /// A WebAssembly `memory` instance.
 ///

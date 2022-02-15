@@ -14,8 +14,8 @@ use wasmer_types::FunctionType;
 use wasmer_types::{
     CustomSectionIndex, DataIndex, DataInitializer, DataInitializerLocation, ElemIndex,
     ExportIndex, FunctionIndex, GlobalIndex, GlobalInit, GlobalType, ImportIndex,
-    LocalFunctionIndex, MemoryIndex, MemoryType, ModuleInfo, SignatureIndex, TableIndex,
-    TableInitializer, TableType,
+    LocalFunctionIndex, MemoryIndex, MemoryType, ModuleInfo, OwnedTableInitializer, SignatureIndex,
+    TableIndex, TableType,
 };
 
 /// Contains function data: bytecode and its offset in the module.
@@ -339,7 +339,7 @@ impl<'data> ModuleEnvironment<'data> {
         offset: usize,
         elements: Box<[FunctionIndex]>,
     ) -> WasmResult<()> {
-        self.module.table_initializers.push(TableInitializer {
+        self.module.table_initializers.push(OwnedTableInitializer {
             table_index,
             base,
             offset,

@@ -49,8 +49,8 @@ use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, 
 use wasmer_types::{
     DataIndex, DataInitializer, ElemIndex, ExportIndex, FastGasCounter, FunctionIndex, GlobalIndex,
     GlobalInit, InstanceConfig, LocalFunctionIndex, LocalGlobalIndex, LocalMemoryIndex,
-    LocalTableIndex, MemoryIndex, ModuleInfo, NamedFunction, Pages, SignatureIndex, TableIndex,
-    TableInitializer,
+    LocalTableIndex, MemoryIndex, ModuleInfo, NamedFunction, OwnedTableInitializer, Pages,
+    SignatureIndex, TableIndex,
 };
 
 /// The function pointer to call with data and an [`Instance`] pointer to
@@ -1084,15 +1084,13 @@ impl InstanceHandle {
     /// # Safety
     ///
     /// Only safe to call immediately after instantiation.
-    pub unsafe fn finish_instantiation<'a>(
-        &self,
-        data_initializers: impl Iterator<Item = DataInitializer<'a>>,
-    ) -> Result<(), Trap> {
+    pub unsafe fn finish_instantiation<'a>(&self) -> Result<(), Trap> {
         let instance = self.instance().as_ref();
 
         // Apply the initializers.
         initialize_tables(instance)?;
-        initialize_memories(instance, data_initializers)?;
+        //TODO(0-copy)
+        initialize_memories(instance, /*data_initializers*/ std::iter::empty())?;
 
         // The WebAssembly spec specifies that the start function is
         // invoked automatically at instantiation time.
@@ -1369,7 +1367,7 @@ unsafe fn get_memory_slice<'instance>(
 }
 
 /// Compute the offset for a table element initializer.
-fn get_table_init_start(init: &TableInitializer, instance: &Instance) -> usize {
+fn get_table_init_start(init: &OwnedTableInitializer, instance: &Instance) -> usize {
     todo!()
     // let mut start = init.offset;
 

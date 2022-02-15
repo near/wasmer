@@ -13,7 +13,7 @@ use wasmer_compiler::{
     CompileError, CustomSectionProtection, CustomSectionRef, FunctionBodyRef, JumpTable,
     ModuleMiddlewareChain, Relocation, SectionIndex, Target, TrampolinesSection,
 };
-use wasmer_engine::{Artifact, Engine, EngineId, Tunables};
+use wasmer_engine::{Engine, EngineId};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{
     DataIndex, DataInitializer, EntityCounts, Features, FunctionIndex, FunctionType,
@@ -21,9 +21,9 @@ use wasmer_types::{
     MemoryIndex, MemoryType, SignatureIndex, TableIndex, TableType,
 };
 use wasmer_vm::{
-    FuncDataRegistry, FunctionBodyPtr, MemoryStyle, SectionBodyPtr, SignatureRegistry, TableStyle,
-    VMCallerCheckedAnyfunc, VMFuncRef, VMFunctionBody, VMImport, VMImportType, VMLocalFunction,
-    VMOffsets, VMSharedSignatureIndex, VMTrampoline,
+    Artifact, FuncDataRegistry, FunctionBodyPtr, MemoryStyle, SectionBodyPtr, SignatureRegistry,
+    TableStyle, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMFunctionBody, VMImport,
+    VMImportType, VMLocalFunction, VMOffsets, VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// A WebAssembly `Universal` Engine.
@@ -158,7 +158,7 @@ impl UniversalEngine {
                 executable.custom_sections.iter().map(|(_, s)| s.into()),
             )?;
 
-        let function_relocations = &executable.function_relocations.iter();
+        let function_relocations = executable.function_relocations.iter();
         let section_relocations = executable.custom_section_relocations.iter();
         crate::link_module(
             &functions,
@@ -171,7 +171,7 @@ impl UniversalEngine {
 
         // Make all code loaded executable.
         inner_engine.publish_compiled_code();
-        if let Some(d) = executable.debug {
+        if let Some(ref d) = executable.debug {
             unsafe {
                 // TODO: safety comment
                 inner_engine.publish_eh_frame(std::slice::from_raw_parts(
@@ -182,24 +182,22 @@ impl UniversalEngine {
         }
 
         Ok(Arc::new(UniversalArtifact {
-            data: Arc::new(crate::artifact::Data {
-                engine: self.clone(),
-                import_counts: module.import_counts,
-                start_function: module.start_function,
-                vmoffsets: VMOffsets::for_host().with_module_info(&*module),
-                imports,
-                function_call_trampolines: call_trampolines.into_boxed_slice(),
-                dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
-                frame_info_registration: Mutex::new(None),
-                functions: functions.into_boxed_slice(),
-                local_memories,
-                data_segments: executable.data_initializers.clone(),
-                passive_data: module.passive_data.clone(),
-                local_tables,
-                element_segments: module.table_initializers.clone(),
-                passive_elements: module.passive_elements.clone(),
-                local_globals,
-            }),
+            engine: self.clone(),
+            import_counts: module.import_counts,
+            start_function: module.start_function,
+            vmoffsets: VMOffsets::for_host().with_module_info(&*module),
+            imports,
+            function_call_trampolines: call_trampolines.into_boxed_slice(),
+            dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
+            frame_info_registration: Mutex::new(None),
+            functions: functions.into_boxed_slice(),
+            local_memories,
+            data_segments: executable.data_initializers.clone(),
+            passive_data: module.passive_data.clone(),
+            local_tables,
+            element_segments: module.table_initializers.clone(),
+            passive_elements: module.passive_elements.clone(),
+            local_globals,
         }))
     }
 
@@ -306,7 +304,7 @@ impl UniversalEngine {
 
         // Make all code compiled thus far executable.
         inner_engine.publish_compiled_code();
-        if let rkyv::option::ArchivedOption::Some(d) = executable.debug {
+        if let rkyv::option::ArchivedOption::Some(ref d) = executable.debug {
             unsafe {
                 // TODO: safety comment
                 let s = CustomSectionRef::from(&executable.custom_sections[&d.eh_frame]);
@@ -318,24 +316,22 @@ impl UniversalEngine {
         }
 
         Ok(Arc::new(UniversalArtifact {
-            data: Arc::new(crate::artifact::Data {
-                engine: self.clone(),
-                import_counts,
-                start_function: unrkyv(&module.start_function),
-                vmoffsets: VMOffsets::for_host().with_archived_module_info(&*module),
-                imports: imports,
-                function_call_trampolines: call_trampolines.into_boxed_slice(),
-                dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
-                frame_info_registration: Mutex::new(None),
-                functions: functions.into_boxed_slice(),
-                local_memories,
-                data_segments,
-                passive_data,
-                local_tables,
-                element_segments,
-                passive_elements,
-                local_globals,
-            }),
+            engine: self.clone(),
+            import_counts,
+            start_function: unrkyv(&module.start_function),
+            vmoffsets: VMOffsets::for_host().with_archived_module_info(&*module),
+            imports: imports,
+            function_call_trampolines: call_trampolines.into_boxed_slice(),
+            dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
+            frame_info_registration: Mutex::new(None),
+            functions: functions.into_boxed_slice(),
+            local_memories,
+            data_segments,
+            passive_data,
+            local_tables,
+            element_segments,
+            passive_elements,
+            local_globals,
         }))
     }
 }
@@ -444,7 +440,7 @@ impl Engine for UniversalEngine {
     fn load(
         &self,
         executable: &(dyn wasmer_engine::Executable),
-    ) -> Result<Arc<dyn wasmer_engine::Artifact>, CompileError> {
+    ) -> Result<Arc<dyn wasmer_vm::Artifact>, CompileError> {
         executable.load(self)
     }
 

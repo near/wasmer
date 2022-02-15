@@ -7,9 +7,8 @@ use loupe::MemoryUsage;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use wasmer_engine::Resolver;
 use wasmer_types::{InstanceConfig, NamedFunction};
-use wasmer_vm::{InstanceHandle, VMContext};
+use wasmer_vm::{InstanceHandle, VMContext, Resolver};
 
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
@@ -55,8 +54,12 @@ pub enum InstantiationError {
     #[error(transparent)]
     Link(LinkError),
 
-    /// A runtime error occured while invoking the start function
+    /// Could not instantiate the artifact.
     #[error(transparent)]
+    Instantiation(Box<dyn std::error::Error + Send + Sync>),
+
+    /// A runtime error occured while invoking the start function
+    #[error("could not invoke the start function")]
     Start(RuntimeError),
 
     /// The module was compiled with a CPU feature that is not available on

@@ -77,7 +77,7 @@ pub use crate::indexes::{
     SignatureIndex, TableIndex,
 };
 pub use crate::initializers::{
-    DataInitializer, DataInitializerLocation, OwnedDataInitializer, TableInitializer,
+    DataInitializer, DataInitializerLocation, OwnedDataInitializer, OwnedTableInitializer,
 };
 pub use crate::memory_view::{Atomically, MemoryView};
 pub use crate::module::{EntityCounts, ExportsIterator, ImportsIterator, ModuleInfo};

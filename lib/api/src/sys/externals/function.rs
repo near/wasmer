@@ -13,11 +13,11 @@ use std::cmp::max;
 use std::ffi::c_void;
 use std::fmt;
 use std::sync::Arc;
-use wasmer_engine::{Export, ExportFunction, ExportFunctionMetadata};
 use wasmer_vm::{
-    raise_user_trap, resume_panic, wasmer_call_trampoline, ImportInitializerFuncPtr,
-    VMCallerCheckedAnyfunc, VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody,
-    VMFunctionEnvironment, VMFunctionKind, VMTrampoline,
+    raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
+    ExportFunctionMetadata, ImportInitializerFuncPtr, VMCallerCheckedAnyfunc,
+    VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody, VMFunctionEnvironment,
+    VMFunctionKind, VMTrampoline,
 };
 
 /// A WebAssembly `function` instance.

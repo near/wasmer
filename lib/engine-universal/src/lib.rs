@@ -32,7 +32,6 @@ mod engine;
 mod executable;
 mod link;
 mod unwind;
-mod instance;
 
 pub use crate::artifact::UniversalArtifact;
 pub use crate::builder::Universal;

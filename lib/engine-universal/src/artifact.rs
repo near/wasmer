@@ -5,23 +5,21 @@ use loupe::MemoryUsage;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
-use wasmer_engine::{
-    Artifact, GlobalFrameInfoRegistration, InstanceHandle, InstantiationError, RuntimeError,
-};
+use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{
     DataIndex, ElemIndex, EntityCounts, FunctionIndex, GlobalInit, GlobalType, LocalFunctionIndex,
-    MemoryType, OwnedDataInitializer, OwnedTableInitializer, SignatureIndex, TableType, LocalGlobalIndex,
+    LocalGlobalIndex, MemoryType, OwnedDataInitializer, OwnedTableInitializer, SignatureIndex,
+    TableType,
 };
 use wasmer_vm::{
-    FunctionBodyPtr, MemoryStyle, TableStyle, VMImport, VMLocalFunction, VMOffsets,
-    VMSharedSignatureIndex, VMTrampoline,
+    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
+    VMImport, VMLocalFunction, VMOffsets, VMSharedSignatureIndex, VMTrampoline,
 };
 
-use crate::instance::UniversalInstance;
-
+/// A compiled wasm module, containing everything necessary for instantiation.
 #[derive(MemoryUsage)]
-pub(crate) struct Data {
+pub struct UniversalArtifact {
     // TODO: figure out how to allocate fewer structures onto heap. Maybe have an arena…?
     pub(crate) engine: crate::UniversalEngine,
     pub(crate) import_counts: EntityCounts,
@@ -50,12 +48,6 @@ pub(crate) struct Data {
     pub(crate) local_globals: Vec<(GlobalType, GlobalInit)>,
 }
 
-/// A compiled wasm module, containing everything necessary for instantiation.
-#[derive(MemoryUsage, Clone)]
-pub struct UniversalArtifact {
-    data: Arc<Data>,
-}
-
 impl UniversalArtifact {
     /// Get the default extension when serializing this artifact
     pub fn get_default_extension(_triple: &Triple) -> &'static str {
@@ -68,19 +60,18 @@ impl UniversalArtifact {
 impl Artifact for UniversalArtifact {
     unsafe fn instantiate(
         &self,
-        tunables: &dyn wasmer_engine::Tunables,
-        resolver: &dyn wasmer_engine::Resolver,
+        tunables: &dyn Tunables,
+        resolver: &dyn Resolver,
         host_state: Box<dyn std::any::Any>,
         config: wasmer_types::InstanceConfig,
-    ) -> Result<wasmer_engine::InstanceHandle, wasmer_engine::InstantiationError> {
-        let data = &*self.data;
+    ) -> Result<InstanceHandle, Box<dyn std::error::Error + Send + Sync>> {
         let (imports, import_function_envs) = {
             let mut imports = wasmer_engine::resolve_imports(
-                &data.engine,
+                &self.engine,
                 resolver,
-                &data.import_counts,
-                &data.imports,
-                &data.dynamic_function_trampolines,
+                &self.import_counts,
+                &self.imports,
+                &self.dynamic_function_trampolines,
             )
             .map_err(InstantiationError::Link)?;
 
@@ -92,12 +83,12 @@ impl Artifact for UniversalArtifact {
         };
 
         let (allocator, memory_definition_locations, table_definition_locations) =
-            wasmer_vm::InstanceAllocator::new(data.vmoffsets.clone());
+            wasmer_vm::InstanceAllocator::new(self.vmoffsets.clone());
 
         // Memories
         let mut memories: PrimaryMap<wasmer_types::LocalMemoryIndex, _> =
-            PrimaryMap::with_capacity(data.local_memories.len());
-        for (idx, (ty, style)) in (data.import_counts.memories..).zip(data.local_memories.iter()) {
+            PrimaryMap::with_capacity(self.local_memories.len());
+        for (idx, (ty, style)) in (self.import_counts.memories..).zip(self.local_memories.iter()) {
             let memory = tunables
                 .create_vm_memory(&ty, &style, memory_definition_locations[idx])
                 .map_err(|e| {
@@ -111,8 +102,8 @@ impl Artifact for UniversalArtifact {
 
         // Tables
         let mut tables: PrimaryMap<wasmer_types::LocalTableIndex, _> =
-            PrimaryMap::with_capacity(data.local_tables.len());
-        for (idx, (ty, style)) in (data.import_counts.tables..).zip(data.local_tables.iter()) {
+            PrimaryMap::with_capacity(self.local_tables.len());
+        for (idx, (ty, style)) in (self.import_counts.tables..).zip(self.local_tables.iter()) {
             let table = tunables
                 .create_vm_table(ty, style, table_definition_locations[idx])
                 .map_err(|e| InstantiationError::Link(wasmer_engine::LinkError::Resource(e)))?;
@@ -121,20 +112,21 @@ impl Artifact for UniversalArtifact {
 
         // Globals
         let mut globals =
-            PrimaryMap::<LocalGlobalIndex, _>::with_capacity(data.local_globals.len());
-        for (ty, _) in data.local_globals.iter() {
+            PrimaryMap::<LocalGlobalIndex, _>::with_capacity(self.local_globals.len());
+        for (ty, _) in self.local_globals.iter() {
             globals.push(Arc::new(wasmer_vm::Global::new(*ty)));
         }
 
-        let instance = Arc::new(UniversalInstance {
-            artifact: self.data.clone(),
-            config,
-            // memories: memories.into_boxed_slice(),
-            // tables: tables.into_boxed_slice(),
-            // globals: globals.into_boxed_slice(),
-        }) as Arc<_>;
+        todo!() // TODO(0-copy)
+                // let instance = Arc::new(wasmer_vm::Instance {
+                //     artifact: self.data.clone(),
+                //     config,
+                //     // memories: memories.into_boxed_slice(),
+                //     // tables: tables.into_boxed_slice(),
+                //     // globals: globals.into_boxed_slice(),
+                // }) as Arc<_>;
 
-        Ok(InstanceHandle { instance })
+        // Ok(InstanceHandle { instance })
 
         // TODO(0-copy): avoid the clones here, just keep reference to the artifact in the
         // instance.

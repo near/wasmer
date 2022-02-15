@@ -21,6 +21,7 @@
     )
 )]
 
+mod artifact;
 mod export;
 mod func_data_registry;
 mod global;
@@ -29,14 +30,17 @@ mod instance;
 mod memory;
 mod mmap;
 mod probestack;
+mod resolver;
 mod sig_registry;
 mod table;
 mod trap;
+mod tunables;
 mod vmcontext;
 mod vmoffsets;
 
 pub mod libcalls;
 
+pub use crate::artifact::Artifact;
 pub use crate::export::*;
 pub use crate::func_data_registry::{FuncDataRegistry, VMFuncRef};
 pub use crate::global::*;
@@ -48,9 +52,14 @@ pub use crate::instance::{
 pub use crate::memory::{LinearMemory, Memory, MemoryError, MemoryStyle};
 pub use crate::mmap::Mmap;
 pub use crate::probestack::PROBESTACK;
+pub use crate::resolver::{
+    ChainableNamedResolver, Export, ExportFunction, ExportFunctionMetadata, NamedResolver,
+    NamedResolverChain, NullResolver, Resolver,
+};
 pub use crate::sig_registry::{SignatureRegistry, VMSharedSignatureIndex};
 pub use crate::table::{LinearTable, Table, TableElement, TableStyle};
 pub use crate::trap::*;
+pub use crate::tunables::Tunables;
 pub use crate::vmcontext::{
     VMBuiltinFunctionIndex, VMCallerCheckedAnyfunc, VMContext, VMDynamicFunctionContext,
     VMFunctionBody, VMFunctionEnvironment, VMFunctionImport, VMFunctionKind, VMGlobalDefinition,

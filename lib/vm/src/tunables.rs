@@ -2,10 +2,10 @@ use loupe::MemoryUsage;
 use std::ptr::NonNull;
 use std::sync::Arc;
 use wasmer_types::{MemoryType, TableType};
-use wasmer_vm::MemoryError;
-use wasmer_vm::{Memory, Table};
-use wasmer_vm::{MemoryStyle, TableStyle};
-use wasmer_vm::{VMMemoryDefinition, VMTableDefinition};
+use crate::MemoryError;
+use crate::{Memory, Table};
+use crate::{MemoryStyle, TableStyle};
+use crate::{VMMemoryDefinition, VMTableDefinition};
 
 /// An engine delegates the creation of memories, tables, and globals
 /// to a foreign implementor of this trait.

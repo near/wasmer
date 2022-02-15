@@ -1,6 +1,7 @@
-use crate::{Artifact, Engine};
+use crate::Engine;
 use enumset::EnumSet;
 use wasmer_compiler::{CompileError, CpuFeature, Features};
+use wasmer_vm::Artifact;
 
 mod private {
     pub struct Internal(pub(super) ());
