@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use wasmer::*;
+use wasmer_engine_universal::UniversalExecutableRef;
 
 fn call_many_functions(n: usize) -> String {
     let fndefs = (0..n)
@@ -58,18 +59,21 @@ fn nops(c: &mut Criterion) {
         drop(call_single);
 
         let mut serialize = c.benchmark_group("serialize");
+        let wasm = wat::parse_bytes(wat.as_ref()).unwrap();
+        let executable = store.engine().compile(&wasm, store.tunables()).unwrap();
         serialize.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {
-                black_box(module.serialize().unwrap());
+                black_box(executable.serialize().unwrap());
             })
         });
         drop(serialize);
 
-        let serialized = module.serialize().unwrap();
+        let serialized = executable.serialize().unwrap();
         let mut deserialize = c.benchmark_group("deserialize");
         deserialize.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| unsafe {
-                black_box(Module::deserialize(&store, &serialized).unwrap());
+                let deserialized = UniversalExecutableRef::deserialize(&serialized).unwrap();
+                black_box(store.engine().load(&deserialized).unwrap());
             })
         });
     }

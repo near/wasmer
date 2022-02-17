@@ -64,12 +64,14 @@ loupe = "0.1"
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tracing = { version = "0.1", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+wat = "1.0"
+
 
 [features]
 # Don't add the compiler features in default, please add them on the Makefile
 # since we might want to autoconfigure them depending on the availability on the host.
 default = [
-    "wat",
+    "wasmer/wat",
     "wast",
     "universal",
     "singlepass",
@@ -80,7 +82,6 @@ universal = [
     "engine",
 ]
 wast = ["wasmer-wast"]
-wat = ["wasmer/wat"]
 compiler = [
     "wasmer/compiler",
     "wasmer-compiler/translator",

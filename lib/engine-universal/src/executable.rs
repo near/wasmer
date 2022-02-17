@@ -2,8 +2,8 @@ use enumset::EnumSet;
 use loupe::MemoryUsage;
 use rkyv::de::deserializers::SharedDeserializeMap;
 use rkyv::ser::serializers::{
-    AllocScratch, AllocScratchError, CompositeSerializer, CompositeSerializerError,
-    SharedSerializeMap, SharedSerializeMapError, WriteSerializer,
+    AllocScratch, AllocScratchError, AllocSerializer, CompositeSerializer,
+    CompositeSerializerError, SharedSerializeMap, SharedSerializeMapError, WriteSerializer,
 };
 use wasmer_compiler::{
     CompileError, CompileModuleInfo, CompiledFunctionFrameInfo, CpuFeature, CustomSection, Dwarf,
@@ -14,7 +14,8 @@ use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, OwnedDataInitializer, SignatureIndex};
 use wasmer_vm::Artifact;
 
-static MAGIC_HEADER: [u8; 22] = *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF";
+static MAGIC_HEADER: [u8; 32] =
+    *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF";
 
 /// A 0-copy view of the encoded `UniversalExecutable` payload.
 #[derive(Clone, Copy)]
@@ -39,10 +40,10 @@ impl<'a> UniversalExecutableRef<'a> {
         if data.len() < MAGIC_HEADER.len() + 8 {
             return Err("the data buffer is too small to be valid");
         }
-        let (_, position) = data.split_at(data.len() - 8);
+        let (remaining, position) = data.split_at(data.len() - 8);
         let mut position_value = [0u8; 8];
         position_value.copy_from_slice(position);
-        if u64::from_le_bytes(position_value) < data.len() as u64 {
+        if u64::from_le_bytes(position_value) > remaining.len() as u64 {
             return Err("the buffer is malformed");
         }
         // TODO(0-copy): bytecheck too.
@@ -63,10 +64,11 @@ impl<'a> UniversalExecutableRef<'a> {
         let (archive, position) = data.split_at(data.len() - 8);
         let mut position_value = [0u8; 8];
         position_value.copy_from_slice(position);
+        let (_, data) = archive.split_at(MAGIC_HEADER.len());
         Ok(UniversalExecutableRef {
             buffer: data,
             archive: rkyv::archived_value::<UniversalExecutable>(
-                archive,
+                data,
                 u64::from_le_bytes(position_value) as usize,
             ),
         })
@@ -110,7 +112,11 @@ pub enum ExecutableSerializeError {
     #[error("could not serialize the executable data")]
     Executable(
         #[source]
-        CompositeSerializerError<std::io::Error, AllocScratchError, SharedSerializeMapError>,
+        CompositeSerializerError<
+            std::convert::Infallible,
+            AllocScratchError,
+            SharedSerializeMapError,
+        >,
     ),
 }
 
@@ -149,13 +155,10 @@ impl wasmer_engine::Executable for UniversalExecutable {
         // It is expected that any framing for message length is handled by the caller.
         let mut out = Vec::with_capacity(32);
         out.extend(&MAGIC_HEADER);
-        let mut serializer = CompositeSerializer::new(
-            WriteSerializer::with_pos(std::io::Cursor::new(&mut out), MAGIC_HEADER.len()),
-            AllocScratch::new(),
-            SharedSerializeMap::new(),
-        );
+        let mut serializer = AllocSerializer::<1024>::default();
         let pos = rkyv::ser::Serializer::serialize_value(&mut serializer, self)
             .map_err(ExecutableSerializeError::Executable)? as u64;
+        out.extend(serializer.into_serializer().into_inner().as_slice());
         out.extend(&pos.to_le_bytes());
         Ok(out)
     }

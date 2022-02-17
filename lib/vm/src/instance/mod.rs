@@ -1099,7 +1099,6 @@ impl InstanceHandle {
         let imports = instance.artifact.import_counts().functions;
         let (address, signature, vmctx, trampoline) = if idx.index() < imports {
             let import = instance.imported_function(idx);
-            let initializer = instance.imported_function_env_initializer(idx);
             let trampoline = instance.artifact.function_trampoline(import.signature)?;
             (
                 *(import.body),

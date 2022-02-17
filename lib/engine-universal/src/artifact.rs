@@ -2,7 +2,7 @@
 //! done as separate steps.
 
 use loupe::MemoryUsage;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
@@ -34,7 +34,7 @@ pub struct UniversalArtifact {
     pub(crate) dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
-    #[loupe(skip)] // TODO(0-copy): loupe skip...
+    #[loupe(skip)] // TODO(0-copy):
     pub(crate) exported_functions: BTreeMap<String, FunctionIndex>,
 
     pub(crate) local_memories: Vec<(MemoryType, MemoryStyle)>,

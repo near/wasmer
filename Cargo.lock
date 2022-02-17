@@ -2001,6 +2001,7 @@ dependencies = [
  "wasmer-types-near",
  "wasmer-vm-near",
  "wasmer-wast",
+ "wat",
 ]
 
 [[package]]
