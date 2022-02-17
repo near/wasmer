@@ -406,7 +406,9 @@ impl Wast {
         args: &[Val],
     ) -> Result<Vec<Val>> {
         let instance = self.get_instance(instance_name.as_deref())?;
-        let func: &Function = instance.exports.get(field)?;
+        let func: Function = instance
+            .lookup_function(field)
+            .expect("should find the function");
         match func.call(args) {
             Ok(result) => Ok(result.into()),
             Err(e) => Err(e.into()),
@@ -415,9 +417,10 @@ impl Wast {
 
     /// Get the value of an exported global from an instance.
     fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<Val>> {
-        let instance = self.get_instance(instance_name.as_deref())?;
-        let global: &Global = instance.exports.get(field)?;
-        Ok(vec![global.get()])
+        // let instance = self.get_instance(instance_name.as_deref())?;
+        // let global: &Global = instance.exports.get(field)?;
+        // Ok(vec![global.get()])
+        todo!() // TODO(0-copy):
     }
 
     /// Translate from a `script::Value` to a `Val`.

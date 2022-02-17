@@ -229,7 +229,10 @@ impl Function {
         // generated dynamic trampoline.
         let address = std::ptr::null() as *const VMFunctionBody;
         let vmctx = VMFunctionEnvironment { host_env };
-        let signature = store.engine().register_signature((&ty).into());
+        let signature = store
+            .engine()
+            .ensure_signature((&ty).into())
+            .expect("signature should have been registered already");
 
         Self {
             store: store.clone(),
@@ -279,7 +282,10 @@ impl Function {
         let vmctx = VMFunctionEnvironment {
             host_env: std::ptr::null_mut() as *mut _,
         };
-        let signature = store.engine().register_signature((&function.ty()).into());
+        let signature = store
+            .engine()
+            .ensure_signature((&function.ty()).into())
+            .expect("signature should have been registered already");
 
         Self {
             store: store.clone(),
@@ -339,7 +345,10 @@ impl Function {
             build_export_function_metadata::<Env>(env, Env::init_with_instance);
 
         let vmctx = VMFunctionEnvironment { host_env };
-        let signature = store.engine().register_signature((&function.ty()).into());
+        let signature = store
+            .engine()
+            .ensure_signature((&function.ty()).into())
+            .expect("signature should have been registered already");
         Self {
             store: store.clone(),
             exported: ExportFunction {

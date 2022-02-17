@@ -28,17 +28,18 @@ fn nops(c: &mut Criterion) {
             })
         });
         drop(compile);
+
         let module = Module::new(&store, &wat).unwrap();
         let imports = imports! {};
         let instance = Instance::new(&module, &imports).unwrap();
         let mut get_main = c.benchmark_group("get_main");
         get_main.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {
-                let _: &Function = instance.exports.get("main").unwrap();
+                let _: Function = instance.lookup_function("main").unwrap();
             })
         });
         drop(get_main);
-        let main: &Function = instance.exports.get("main").unwrap();
+        let main: Function = instance.lookup_function("main").unwrap();
         let mut call_main = c.benchmark_group("call_main");
         call_main.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {
@@ -47,7 +48,7 @@ fn nops(c: &mut Criterion) {
         });
         drop(call_main);
 
-        let single: &Function = instance.exports.get("single").unwrap();
+        let single: Function = instance.lookup_function("single").unwrap();
         let mut call_single = c.benchmark_group("call_single");
         call_single.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {

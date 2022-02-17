@@ -2,7 +2,7 @@
 //! done as separate steps.
 
 use loupe::MemoryUsage;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
@@ -14,13 +14,13 @@ use wasmer_types::{
 };
 use wasmer_vm::{
     Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
-    VMImport, VMLocalFunction, VMOffsets, VMSharedSignatureIndex, VMTrampoline,
+    VMImport, VMLocalFunction, VMOffsets, VMTrampoline,
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
 #[derive(MemoryUsage)]
 pub struct UniversalArtifact {
-    // TODO: figure out how to allocate fewer structures onto heap. Maybe have an arena…?
+    // TODO: figure out how to allocate fewer distinct structures onto heap. Maybe have an arena…?
     pub(crate) engine: crate::UniversalEngine,
     pub(crate) import_counts: EntityCounts,
     pub(crate) start_function: Option<FunctionIndex>,
@@ -34,6 +34,8 @@ pub struct UniversalArtifact {
     pub(crate) dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
+    #[loupe(skip)] // TODO(0-copy): loupe skip...
+    pub(crate) exported_functions: BTreeMap<String, FunctionIndex>,
 
     pub(crate) local_memories: Vec<(MemoryType, MemoryStyle)>,
     pub(crate) data_segments: Vec<OwnedDataInitializer>,
@@ -43,6 +45,7 @@ pub struct UniversalArtifact {
     pub(crate) local_tables: Vec<(TableType, TableStyle)>,
     pub(crate) element_segments: Vec<OwnedTableInitializer>,
     #[loupe(skip)] // TODO(0-copy): loupe skip...
+    // TODO: does this need to be a BTreeMap? Can it be a plain vector?
     pub(crate) passive_elements: BTreeMap<ElemIndex, Box<[FunctionIndex]>>,
 
     pub(crate) local_globals: Vec<(GlobalType, GlobalInit)>,
@@ -59,7 +62,7 @@ impl UniversalArtifact {
 
 impl Artifact for UniversalArtifact {
     unsafe fn instantiate(
-        &self,
+        self: Arc<Self>,
         tunables: &dyn Tunables,
         resolver: &dyn Resolver,
         host_state: Box<dyn std::any::Any>,
@@ -117,34 +120,59 @@ impl Artifact for UniversalArtifact {
             globals.push(Arc::new(wasmer_vm::Global::new(*ty)));
         }
 
-        todo!() // TODO(0-copy)
-                // let instance = Arc::new(wasmer_vm::Instance {
-                //     artifact: self.data.clone(),
-                //     config,
-                //     // memories: memories.into_boxed_slice(),
-                //     // tables: tables.into_boxed_slice(),
-                //     // globals: globals.into_boxed_slice(),
-                // }) as Arc<_>;
+        let passive_data = self.passive_data.clone();
+        Ok(InstanceHandle::new(
+            self,
+            allocator,
+            memories.into_boxed_slice(),
+            tables.into_boxed_slice(),
+            globals.into_boxed_slice(),
+            imports,
+            passive_data,
+            host_state,
+            import_function_envs,
+            config,
+        ) // FIXME(0-copy): wrong error type, fix
+        .map_err(|t| InstantiationError::Start(RuntimeError::from_trap(t)))?)
+    }
 
-        // Ok(InstanceHandle { instance })
+    fn offsets(&self) -> &wasmer_vm::VMOffsets {
+        &self.vmoffsets
+    }
 
-        // TODO(0-copy): avoid the clones here, just keep reference to the artifact in the
-        // instance.
-        // let handle = wasmer_vm::InstanceHandle::new(
-        //     allocator,
-        //     self.finished_functions.clone(),
-        //     self.finished_function_call_trampolines.clone(),
-        //     vmctx_memories.into_boxed_slice(),
-        //     vmctx_tables.into_boxed_slice(),
-        //     vmctx_globals.into_boxed_slice(),
-        //     imports,
-        //     self.signatures.clone(),
-        //     self.passive_data.clone(),
-        //     host_state,
-        //     import_function_envs,
-        //     config,
-        // )
-        // .map_err(|trap| InstantiationError::Start(RuntimeError::from_trap(trap)))?;
-        // Ok(handle)
+    fn import_counts(&self) -> &EntityCounts {
+        &self.import_counts
+    }
+
+    fn functions(&self) -> &BoxedSlice<LocalFunctionIndex, VMLocalFunction> {
+        &self.functions
+    }
+
+    fn passive_elements(&self) -> &BTreeMap<ElemIndex, Box<[FunctionIndex]>> {
+        &self.passive_elements
+    }
+
+    fn element_segments(&self) -> &[OwnedTableInitializer] {
+        &self.element_segments[..]
+    }
+
+    fn data_segments(&self) -> &[OwnedDataInitializer] {
+        &self.data_segments[..]
+    }
+
+    fn globals(&self) -> &[(GlobalType, GlobalInit)] {
+        &self.local_globals[..]
+    }
+
+    fn start_function(&self) -> Option<FunctionIndex> {
+        self.start_function
+    }
+
+    fn function_by_export_field(&self, name: &str) -> Option<FunctionIndex> {
+        self.exported_functions.get(name).copied()
+    }
+
+    fn function_trampoline(&self, idx: wasmer_vm::VMSharedSignatureIndex) -> Option<VMTrampoline> {
+        self.engine.inner().signatures.lookup(idx).map(|r| *r.1)
     }
 }

@@ -1,7 +1,10 @@
-use crate::{InstanceHandle, Resolver, Tunables};
+use crate::{InstanceHandle, Resolver, Tunables, VMLocalFunction, VMSharedSignatureIndex, VMTrampoline, SignatureRegistry};
 use loupe::MemoryUsage;
-use std::any::Any;
-use wasmer_types::InstanceConfig;
+use std::{any::Any, collections::BTreeMap, sync::Arc};
+use wasmer_types::{
+    entity::BoxedSlice, ElemIndex, EntityCounts, FunctionIndex, GlobalInit, GlobalType,
+    InstanceConfig, LocalFunctionIndex, OwnedDataInitializer, OwnedTableInitializer,
+};
 
 /// A predecesor of a full module Instance.
 ///
@@ -17,10 +20,45 @@ pub trait Artifact: Send + Sync + MemoryUsage {
     ///
     /// See [`InstanceHandle::new`].
     unsafe fn instantiate(
-        &self,
+        self: Arc<Self>,
         tunables: &dyn Tunables,
         resolver: &dyn Resolver,
         host_state: Box<dyn Any>,
         config: InstanceConfig,
     ) -> Result<InstanceHandle, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// The information about offsets into the VM context table.
+    fn offsets(&self) -> &crate::VMOffsets;
+
+    /// The count of imported entities.
+    fn import_counts(&self) -> &EntityCounts;
+
+    /// The locally defined functions.
+    ///
+    /// These are published and ready to call.
+    fn functions(&self) -> &BoxedSlice<LocalFunctionIndex, VMLocalFunction>;
+
+    /// Passive table elements.
+    fn passive_elements(&self) -> &BTreeMap<ElemIndex, Box<[FunctionIndex]>>;
+
+    /// Table initializers.
+    fn element_segments(&self) -> &[OwnedTableInitializer];
+
+    /// Memory initializers.
+    /// TODO: consider making it an iterator of `DataInitializer`s instead?
+    fn data_segments(&self) -> &[OwnedDataInitializer];
+
+    /// Passive table elements.
+    fn globals(&self) -> &[(GlobalType, GlobalInit)];
+
+    /// The function index to the start function.
+    fn start_function(&self) -> Option<FunctionIndex>;
+
+    /// Function by export name.
+    fn function_by_export_field(&self, name: &str) -> Option<FunctionIndex>;
+
+    /// The signature registry for this artifact.
+    ///
+    /// This registry is only valid to be used with `VMSharedSignatureIndex`es from this artifact.
+    fn function_trampoline(&self, idx: VMSharedSignatureIndex) -> Option<VMTrampoline>;
 }

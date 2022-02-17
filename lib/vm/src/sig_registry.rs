@@ -9,6 +9,8 @@ use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use wasmer_types::{FunctionType, FunctionTypeRef};
 
+use crate::VMTrampoline;
+
 /// An index into the shared signature registry, usable for checking signatures
 /// at indirect calls.
 #[repr(C)]
@@ -29,7 +31,8 @@ impl VMSharedSignatureIndex {
 #[derive(Debug, MemoryUsage)]
 pub struct SignatureRegistry {
     signature2index: HashMap<FunctionType, VMSharedSignatureIndex>,
-    index2signature: Vec<FunctionType>,
+    #[loupe(skip)] // TODO(0-copy):
+    index2signature: Vec<(FunctionType, VMTrampoline)>,
 }
 
 impl SignatureRegistry {
@@ -41,8 +44,19 @@ impl SignatureRegistry {
         }
     }
 
+    /// Ensure that the specified signature has been registered already and return its index.
+    pub fn ensure(&mut self, sig: FunctionTypeRef<'_>) -> Option<VMSharedSignatureIndex> {
+        // TODO(0-copy): no need to clone here.
+        let sig = FunctionType::new(sig.params(), sig.results());
+        self.signature2index.get(&sig).copied()
+    }
+
     /// Register a signature and return its unique index.
-    pub fn register(&mut self, sig: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
+    pub fn register(
+        &mut self,
+        sig: FunctionTypeRef<'_>,
+        trampoline: VMTrampoline,
+    ) -> VMSharedSignatureIndex {
         let len = self.index2signature.len();
         // TODO(0-copy): this. should. not. allocate.
         //
@@ -61,7 +75,7 @@ impl SignatureRegistry {
                 );
                 let sig_id = VMSharedSignatureIndex::new(u32::try_from(len).unwrap());
                 entry.insert(sig_id);
-                self.index2signature.push(sig);
+                self.index2signature.push((sig, trampoline));
                 sig_id
             }
         }
@@ -71,7 +85,9 @@ impl SignatureRegistry {
     ///
     /// Note that for this operation to be semantically correct the `idx` must
     /// have previously come from a call to `register` of this same object.
-    pub fn lookup(&self, idx: VMSharedSignatureIndex) -> Option<&FunctionType> {
-        self.index2signature.get(idx.0 as usize)
+    pub fn lookup(&self, idx: VMSharedSignatureIndex) -> Option<(&FunctionType, &VMTrampoline)> {
+        self.index2signature
+            .get(idx.0 as usize)
+            .map(|(a, b)| (a, b))
     }
 }

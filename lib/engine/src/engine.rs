@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
 use wasmer_types::{FunctionType, FunctionTypeRef};
-use wasmer_vm::{Artifact, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+use wasmer_vm::{Artifact, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex, VMTrampoline};
 
 mod private {
     pub struct Internal(pub(super) ());
@@ -23,7 +23,17 @@ pub trait Engine: MemoryUsage {
     fn target(&self) -> &Target;
 
     /// Register a signature
-    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex;
+    fn register_signature(
+        &self,
+        func_type: FunctionTypeRef<'_>,
+        trampoline: VMTrampoline,
+    ) -> VMSharedSignatureIndex;
+
+    /// Ensure a signature specified has already been registered.
+    fn ensure_signature(
+        &self,
+        func_type: FunctionTypeRef<'_>,
+    ) -> Option<VMSharedSignatureIndex>;
 
     /// Register a function's data.
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef;

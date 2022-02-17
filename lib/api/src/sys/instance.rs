@@ -8,7 +8,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use wasmer_types::{InstanceConfig, NamedFunction};
-use wasmer_vm::{InstanceHandle, VMContext, Resolver};
+use wasmer_vm::{InstanceHandle, Resolver, VMContext, ExportFunction};
 
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
@@ -22,8 +22,6 @@ use wasmer_vm::{InstanceHandle, VMContext, Resolver};
 pub struct Instance {
     handle: Arc<Mutex<InstanceHandle>>,
     module: Module,
-    /// The exports for an instance.
-    pub exports: Exports,
 }
 
 #[cfg(test)]
@@ -145,20 +143,10 @@ impl Instance {
         }
         let store = module.store();
         let handle = module.instantiate(resolver, config)?;
-        let exports = module
-            .exports()
-            .map(|export| {
-                let name = export.name().to_string();
-                let export = handle.lookup(&name).expect("export");
-                let extern_ = Extern::from_vm_export(store, export.into());
-                (name, extern_)
-            })
-            .collect::<Exports>();
 
         let instance = Self {
             handle: Arc::new(Mutex::new(handle)),
             module: module.clone(),
-            exports,
         };
 
         // # Safety
@@ -195,6 +183,15 @@ impl Instance {
         self.handle.lock().unwrap().named_functions()
     }
 
+    /// Lookup an exported function by its name..
+    pub fn lookup_function(&self, field: &str) -> Option<crate::Function> {
+        let vm_function = self.handle.lock().unwrap().lookup_function(field)?;
+        Some(crate::Function::from_vm_export(self.store(), ExportFunction {
+            vm_function,
+            metadata: None,
+        }))
+    }
+
     #[doc(hidden)]
     pub fn vmctx_ptr(&self) -> *mut VMContext {
         self.handle.lock().unwrap().vmctx_ptr()
@@ -203,8 +200,6 @@ impl Instance {
 
 impl fmt::Debug for Instance {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Instance")
-            .field("exports", &self.exports)
-            .finish()
+        f.debug_struct("Instance").finish()
     }
 }

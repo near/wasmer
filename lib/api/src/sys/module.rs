@@ -181,6 +181,7 @@ impl Module {
         unsafe {
             let instance_handle = self
                 .artifact
+                .clone()
                 .instantiate(
                     self.store.tunables(),
                     resolver,
@@ -256,76 +257,76 @@ impl Module {
                 //     .unwrap_or(false)
     }
 
-    /// Returns an iterator over the imported types in the Module.
-    ///
-    /// The order of the imports is guaranteed to be the same as in the
-    /// WebAssembly bytecode.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// let wat = r#"(module
-    ///     (import "host" "func1" (func))
-    ///     (import "host" "func2" (func))
-    /// )"#;
-    /// let module = Module::new(&store, wat)?;
-    /// for import in module.imports() {
-    ///     assert_eq!(import.module(), "host");
-    ///     assert!(import.name().contains("func"));
-    ///     import.ty();
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn imports<'a>(&'a self) -> ImportsIterator {
-        todo!() // could likely be fetched from the instance.
-                // self.artifact.module_ref().imports()
-    }
+    // /// Returns an iterator over the imported types in the Module.
+    // ///
+    // /// The order of the imports is guaranteed to be the same as in the
+    // /// WebAssembly bytecode.
+    // ///
+    // /// # Example
+    // ///
+    // /// ```
+    // /// # use wasmer::*;
+    // /// # fn main() -> anyhow::Result<()> {
+    // /// # let store = Store::default();
+    // /// let wat = r#"(module
+    // ///     (import "host" "func1" (func))
+    // ///     (import "host" "func2" (func))
+    // /// )"#;
+    // /// let module = Module::new(&store, wat)?;
+    // /// for import in module.imports() {
+    // ///     assert_eq!(import.module(), "host");
+    // ///     assert!(import.name().contains("func"));
+    // ///     import.ty();
+    // /// }
+    // /// # Ok(())
+    // /// # }
+    // /// ```
+    // pub fn imports<'a>(&'a self) -> ImportsIterator {
+    //     todo!() // could likely be fetched from the instance.
+    //             // self.artifact.module_ref().imports()
+    // }
 
-    /// Returns an iterator over the exported types in the Module.
-    ///
-    /// The order of the exports is guaranteed to be the same as in the
-    /// WebAssembly bytecode.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// let wat = r#"(module
-    ///     (func (export "namedfunc"))
-    ///     (memory (export "namedmemory") 1)
-    /// )"#;
-    /// let module = Module::new(&store, wat)?;
-    /// for export_ in module.exports() {
-    ///     assert!(export_.name().contains("named"));
-    ///     export_.ty();
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn exports<'a>(&'a self) -> ExportsIterator<impl Iterator<Item = ExportType> + 'a> {
-        // TODO(0-copy) could probably be fetched from the instance.
-        ExportsIterator::new(std::iter::empty(), 0)
-        // self.artifact.module_ref().exports()
-    }
+    // /// Returns an iterator over the exported types in the Module.
+    // ///
+    // /// The order of the exports is guaranteed to be the same as in the
+    // /// WebAssembly bytecode.
+    // ///
+    // /// # Example
+    // ///
+    // /// ```
+    // /// # use wasmer::*;
+    // /// # fn main() -> anyhow::Result<()> {
+    // /// # let store = Store::default();
+    // /// let wat = r#"(module
+    // ///     (func (export "namedfunc"))
+    // ///     (memory (export "namedmemory") 1)
+    // /// )"#;
+    // /// let module = Module::new(&store, wat)?;
+    // /// for export_ in module.exports() {
+    // ///     assert!(export_.name().contains("named"));
+    // ///     export_.ty();
+    // /// }
+    // /// # Ok(())
+    // /// # }
+    // /// ```
+    // pub fn exports<'a>(&'a self) -> ExportsIterator<impl Iterator<Item = ExportType> + 'a> {
+    //     // TODO(0-copy) could probably be fetched from the instance.
+    //     ExportsIterator::new(std::iter::empty(), 0)
+    //     // self.artifact.module_ref().exports()
+    // }
 
-    /// Get the custom sections of the module given a `name`.
-    ///
-    /// # Important
-    ///
-    /// Following the WebAssembly spec, one name can have multiple
-    /// custom sections. That's why an iterator (rather than one element)
-    /// is returned.
-    pub fn custom_sections<'a>(&'a self, name: &'a str) -> impl Iterator<Item = Arc<[u8]>> + 'a {
-        // TODO(0-copy): could probably fetched from instance
-        std::iter::empty()
-        // self.artifact.module_ref().custom_sections(name)
-    }
+    // /// Get the custom sections of the module given a `name`.
+    // ///
+    // /// # Important
+    // ///
+    // /// Following the WebAssembly spec, one name can have multiple
+    // /// custom sections. That's why an iterator (rather than one element)
+    // /// is returned.
+    // pub fn custom_sections<'a>(&'a self, name: &'a str) -> impl Iterator<Item = Arc<[u8]>> + 'a {
+    //     // TODO(0-copy): could probably fetched from instance
+    //     std::iter::empty()
+    //     // self.artifact.module_ref().custom_sections(name)
+    // }
 
     /// Returns the [`Store`] where the `Instance` belongs.
     pub fn store(&self) -> &Store {

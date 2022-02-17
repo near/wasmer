@@ -17,7 +17,7 @@ use wasmer_types::{
 };
 use wasmer_vm::{
     Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
-    VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex, VMTrampoline,
+    VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex, VMTrampoline, SignatureRegistry,
 };
 
 /// Serializable struct for the artifact
@@ -144,66 +144,60 @@ impl DummyArtifact {
         engine: &DummyEngine,
         metadata: DummyArtifactMetadata,
     ) -> Result<Self, CompileError> {
-        let num_local_functions =
-            metadata.module.functions.len() - metadata.module.import_counts.functions;
-        // We prepare the pointers for the finished functions.
-        let finished_functions: PrimaryMap<LocalFunctionIndex, VMLocalFunction> = (0
-            ..num_local_functions)
-            .map(|fnidx| VMLocalFunction {
-                body: FunctionBodyPtr(dummy_function as _),
-                length: 0,
-                signature: None.unwrap(), /* TODO(0-copy): metadata.module.functions[FunctionIndex::new(fnidx)], */
-            })
-            .collect::<PrimaryMap<_, _>>();
-
-        // We prepare the pointers for the finished function call trampolines.
-        let finished_function_call_trampolines: PrimaryMap<SignatureIndex, VMTrampoline> = (0
-            ..metadata.module.signatures.len())
-            .map(|_| dummy_trampoline as VMTrampoline)
-            .collect::<PrimaryMap<_, _>>();
-
-        // We prepare the pointers for the finished dynamic function trampolines.
-        let finished_dynamic_function_trampolines: PrimaryMap<FunctionIndex, FunctionBodyPtr> = (0
-            ..metadata.module.import_counts.functions)
-            .map(|_| FunctionBodyPtr(dummy_function as _))
-            .collect::<PrimaryMap<_, _>>();
-
-        // Compute indices into the shared signature table.
-        let signatures = {
-            metadata
-                .module
-                .signatures
-                .values()
-                .map(|sig| engine.register_signature(sig.into()))
-                .collect::<PrimaryMap<_, _>>()
-        };
-
-        let finished_functions = finished_functions.into_boxed_slice();
-        let finished_function_call_trampolines =
-            finished_function_call_trampolines.into_boxed_slice();
-        let finished_dynamic_function_trampolines =
-            finished_dynamic_function_trampolines.into_boxed_slice();
-        let signatures = signatures.into_boxed_slice();
-
-        Ok(Self {
-            metadata,
-            finished_functions,
-            finished_function_call_trampolines,
-            finished_dynamic_function_trampolines,
-            signatures,
-            engine: Arc::clone(&engine.inner),
-        })
+        todo!()
     }
 }
 
 impl Artifact for DummyArtifact {
     unsafe fn instantiate(
-        &self,
+        self: Arc<Self>,
         _: &dyn Tunables,
         _: &dyn Resolver,
         _: Box<dyn std::any::Any>,
         _: InstanceConfig,
     ) -> Result<InstanceHandle, Box<dyn std::error::Error + Send + Sync>> {
+        todo!()
+    }
+
+    fn offsets(&self) -> &wasmer_vm::VMOffsets {
+        todo!()
+    }
+
+    fn import_counts(&self) -> &wasmer_types::EntityCounts {
+        todo!()
+    }
+
+    fn functions(&self) -> &BoxedSlice<LocalFunctionIndex, VMLocalFunction> {
+        todo!()
+    }
+
+    fn passive_elements(
+        &self,
+    ) -> &std::collections::BTreeMap<wasmer_types::ElemIndex, Box<[FunctionIndex]>> {
+        todo!()
+    }
+
+    fn element_segments(&self) -> &[wasmer_types::OwnedTableInitializer] {
+        todo!()
+    }
+
+    fn data_segments(&self) -> &[OwnedDataInitializer] {
+        todo!()
+    }
+
+    fn globals(&self) -> &[(wasmer_types::GlobalType, wasmer_types::GlobalInit)] {
+        todo!()
+    }
+
+    fn start_function(&self) -> Option<FunctionIndex> {
+        todo!()
+    }
+
+    fn function_by_export_field(&self, name: &str) -> Option<FunctionIndex> {
+        todo!()
+    }
+
+    fn function_trampoline(&self, idx: VMSharedSignatureIndex) -> Option<VMTrampoline> {
         todo!()
     }
 }

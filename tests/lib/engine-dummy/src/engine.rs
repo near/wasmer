@@ -6,7 +6,7 @@ use wasmer_engine::{Engine, EngineId};
 use wasmer_types::{FunctionType, FunctionTypeRef};
 use wasmer_vm::{
     Artifact, FuncDataRegistry, SignatureRegistry, Tunables, VMCallerCheckedAnyfunc, VMContext,
-    VMFuncRef, VMFunctionBody, VMSharedSignatureIndex,
+    VMFuncRef, VMFunctionBody, VMSharedSignatureIndex, VMTrampoline,
 };
 
 #[allow(dead_code)]
@@ -59,8 +59,23 @@ impl Engine for DummyEngine {
     }
 
     /// Register a signature
-    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
-        self.inner.lock().unwrap().signatures.register(func_type)
+    fn register_signature(
+        &self,
+        func_type: FunctionTypeRef<'_>,
+        trampoline: VMTrampoline,
+    ) -> VMSharedSignatureIndex {
+        self.inner
+            .lock()
+            .unwrap()
+            .signatures
+            .register(func_type, trampoline)
+    }
+
+    fn ensure_signature(
+        &self,
+        _: FunctionTypeRef<'_>,
+    ) -> std::option::Option<VMSharedSignatureIndex> {
+        todo!()
     }
 
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {
@@ -69,7 +84,12 @@ impl Engine for DummyEngine {
 
     /// Lookup a signature
     fn lookup_signature(&self, sig: VMSharedSignatureIndex) -> Option<FunctionType> {
-        self.inner.lock().unwrap().signatures.lookup(sig).cloned()
+        self.inner
+            .lock()
+            .unwrap()
+            .signatures
+            .lookup(sig)
+            .map(|(s, _)| s.clone())
     }
 
     #[cfg(feature = "compiler")]
@@ -116,18 +136,18 @@ impl Engine for DummyEngine {
         // Ok(Box::new(DummyArtifact::new(&self, binary, tunables)?))
     }
 
+    fn load(
+        &self,
+        _excutable: &(dyn wasmer_engine::Executable),
+    ) -> Result<Arc<dyn Artifact>, CompileError> {
+        todo!()
+    }
+
     fn id(&self) -> &EngineId {
         &self.engine_id
     }
 
     fn cloned(&self) -> Arc<dyn Engine + Send + Sync> {
         Arc::new(self.clone())
-    }
-
-    fn load(
-        &self,
-        _excutable: &(dyn wasmer_engine::Executable),
-    ) -> Result<Arc<dyn Artifact>, CompileError> {
-        todo!()
     }
 }

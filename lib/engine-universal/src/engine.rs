@@ -16,7 +16,7 @@ use wasmer_compiler::{
 use wasmer_engine::{Engine, EngineId};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataIndex, DataInitializer, EntityCounts, Features, FunctionIndex, FunctionType,
+    DataIndex, DataInitializer, EntityCounts, ExportIndex, Features, FunctionIndex, FunctionType,
     FunctionTypeRef, GlobalInit, GlobalType, ImportIndex, LocalFunctionIndex, LocalGlobalIndex,
     MemoryIndex, MemoryType, SignatureIndex, TableIndex, TableType,
 };
@@ -94,32 +94,6 @@ impl UniversalEngine {
     ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
         let info = &executable.compile_info;
         let module = &info.module;
-
-        let imports = {
-            let mut inner_engine = self.inner_mut();
-            module
-                .imports
-                .iter()
-                .map(|((module_name, field, idx), entity)| wasmer_vm::VMImport {
-                    module: String::from(module_name),
-                    field: String::from(field),
-                    import_no: *idx,
-                    ty: match entity {
-                        ImportIndex::Function(i) => {
-                            let sig_idx = module.functions[*i];
-                            let sig = (&module.signatures[sig_idx]).into();
-                            VMImportType::Function(inner_engine.signatures.register(sig))
-                        }
-                        ImportIndex::Table(i) => VMImportType::Table(module.tables[*i]),
-                        &ImportIndex::Memory(i) => {
-                            let ty = module.memories[i];
-                            VMImportType::Memory(ty, info.memory_styles[i].clone())
-                        }
-                        ImportIndex::Global(i) => VMImportType::Global(module.globals[*i]),
-                    },
-                })
-                .collect()
-        };
         let local_memories = (module.import_counts.memories..module.memories.len())
             .map(|idx| {
                 let idx = MemoryIndex::new(idx);
@@ -144,10 +118,7 @@ impl UniversalEngine {
             .collect();
         let mut inner_engine = self.inner_mut();
 
-        let local_functions = executable.function_bodies.iter().map(|(idx, b)| {
-            let sig = &module.signatures[module.functions[module.func_index(idx)]];
-            (sig.into(), b.into())
-        });
+        let local_functions = executable.function_bodies.iter().map(|(_, b)| b.into());
         let function_call_trampolines = &executable.function_call_trampolines;
         let dynamic_function_trampolines = &executable.dynamic_function_trampolines;
         let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
@@ -156,7 +127,40 @@ impl UniversalEngine {
                 function_call_trampolines.iter().map(|(_, b)| b.into()),
                 dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
                 executable.custom_sections.iter().map(|(_, s)| s.into()),
+                |idx: LocalFunctionIndex| {
+                    let func_idx = FunctionIndex::new(module.import_counts.functions + idx.index());
+                    let sig_idx = module.functions[func_idx];
+                    let sig = &module.signatures[sig_idx];
+                    (sig_idx, sig.into())
+                },
             )?;
+        let imports = {
+            module
+                .imports
+                .iter()
+                .map(|((module_name, field, idx), entity)| wasmer_vm::VMImport {
+                    module: String::from(module_name),
+                    field: String::from(field),
+                    import_no: *idx,
+                    ty: match entity {
+                        ImportIndex::Function(i) => {
+                            let sig_idx = module.functions[*i];
+                            let sig = (&module.signatures[sig_idx]).into();
+                            let trampoline = call_trampolines[sig_idx];
+                            VMImportType::Function(
+                                inner_engine.signatures.register(sig, trampoline),
+                            )
+                        }
+                        ImportIndex::Table(i) => VMImportType::Table(module.tables[*i]),
+                        &ImportIndex::Memory(i) => {
+                            let ty = module.memories[i];
+                            VMImportType::Memory(ty, info.memory_styles[i].clone())
+                        }
+                        ImportIndex::Global(i) => VMImportType::Global(module.globals[*i]),
+                    },
+                })
+                .collect()
+        };
 
         let function_relocations = executable.function_relocations.iter();
         let section_relocations = executable.custom_section_relocations.iter();
@@ -180,6 +184,14 @@ impl UniversalEngine {
                 ))?;
             }
         }
+        let exported_functions = module
+            .exports
+            .iter()
+            .filter_map(|(s, v)| match v {
+                ExportIndex::Function(f) => Some((s.clone(), *f)),
+                _ => None,
+            })
+            .collect();
 
         Ok(Arc::new(UniversalArtifact {
             engine: self.clone(),
@@ -198,6 +210,7 @@ impl UniversalEngine {
             element_segments: module.table_initializers.clone(),
             passive_elements: module.passive_elements.clone(),
             local_globals,
+            exported_functions,
         }))
     }
 
@@ -207,31 +220,6 @@ impl UniversalEngine {
     ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
         let info = &executable.compile_info;
         let module = &info.module;
-        let imports = {
-            let mut inner_engine = self.inner_mut();
-            module
-                .imports
-                .iter()
-                .map(|((module_name, field, idx), entity)| wasmer_vm::VMImport {
-                    module: String::from(module_name.as_str()),
-                    field: String::from(field.as_str()),
-                    import_no: *idx,
-                    ty: match entity {
-                        ImportIndex::Function(i) => {
-                            let sig_idx = module.functions[i];
-                            let sig = (&module.signatures[&sig_idx]).into();
-                            VMImportType::Function(inner_engine.signatures.register(sig))
-                        }
-                        ImportIndex::Table(i) => VMImportType::Table(unrkyv(&module.tables[i])),
-                        ImportIndex::Memory(i) => {
-                            let ty = unrkyv(&module.memories[i]);
-                            VMImportType::Memory(ty, unrkyv(&info.memory_styles[i]))
-                        }
-                        ImportIndex::Global(i) => VMImportType::Global(unrkyv(&module.globals[i])),
-                    },
-                })
-                .collect()
-        };
         let import_counts: EntityCounts = unrkyv(&module.import_counts);
         let local_memories = (import_counts.memories..module.memories.len())
             .map(|idx| {
@@ -272,11 +260,7 @@ impl UniversalEngine {
         let import_counts: EntityCounts = unrkyv(&module.import_counts);
         let mut inner_engine = self.inner_mut();
 
-        let local_functions = executable.function_bodies.iter().map(|(idx, b)| {
-            let func_idx = FunctionIndex::new(import_counts.functions + idx.index());
-            let sig = &module.signatures[&module.functions[&func_idx]];
-            (sig.into(), b.into())
-        });
+        let local_functions = executable.function_bodies.iter().map(|(_, b)| b.into());
         let call_trampolines = executable.function_call_trampolines.iter();
         let dynamic_trampolines = executable.dynamic_function_trampolines.iter();
         let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
@@ -285,7 +269,40 @@ impl UniversalEngine {
                 call_trampolines.map(|(_, b)| b.into()),
                 dynamic_trampolines.map(|(_, b)| b.into()),
                 executable.custom_sections.iter().map(|(_, s)| s.into()),
+                |idx: LocalFunctionIndex| {
+                    let func_idx = FunctionIndex::new(import_counts.functions + idx.index());
+                    let sig_idx = module.functions[&func_idx];
+                    let sig = &module.signatures[&sig_idx];
+                    (sig_idx, sig.into())
+                },
             )?;
+        let imports = {
+            module
+                .imports
+                .iter()
+                .map(|((module_name, field, idx), entity)| wasmer_vm::VMImport {
+                    module: String::from(module_name.as_str()),
+                    field: String::from(field.as_str()),
+                    import_no: *idx,
+                    ty: match entity {
+                        ImportIndex::Function(i) => {
+                            let sig_idx = module.functions[i];
+                            let sig = (&module.signatures[&sig_idx]).into();
+                            let trampoline = call_trampolines[sig_idx];
+                            VMImportType::Function(
+                                inner_engine.signatures.register(sig, trampoline),
+                            )
+                        }
+                        ImportIndex::Table(i) => VMImportType::Table(unrkyv(&module.tables[i])),
+                        ImportIndex::Memory(i) => {
+                            let ty = unrkyv(&module.memories[i]);
+                            VMImportType::Memory(ty, unrkyv(&info.memory_styles[i]))
+                        }
+                        ImportIndex::Global(i) => VMImportType::Global(unrkyv(&module.globals[i])),
+                    },
+                })
+                .collect()
+        };
 
         let function_relocations = executable.function_relocations.iter();
         let section_relocations = executable.custom_section_relocations.iter();
@@ -314,6 +331,14 @@ impl UniversalEngine {
                 ))?;
             }
         }
+        let exported_functions = module
+            .exports
+            .iter()
+            .filter_map(|(s, v)| match v {
+                ExportIndex::Function(f) => Some((unrkyv(s), *f)),
+                _ => None,
+            })
+            .collect();
 
         Ok(Arc::new(UniversalArtifact {
             engine: self.clone(),
@@ -332,6 +357,7 @@ impl UniversalEngine {
             element_segments,
             passive_elements,
             local_globals,
+            exported_functions,
         }))
     }
 }
@@ -343,8 +369,19 @@ impl Engine for UniversalEngine {
     }
 
     /// Register a signature
-    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
-        self.inner().signatures.register(func_type)
+    fn register_signature(
+        &self,
+        func_type: FunctionTypeRef<'_>,
+        trampoline: VMTrampoline,
+    ) -> VMSharedSignatureIndex {
+        self.inner().signatures.register(func_type, trampoline)
+    }
+
+    fn ensure_signature(
+        &self,
+        func_type: FunctionTypeRef<'_>,
+    ) -> Option<VMSharedSignatureIndex> {
+        self.inner().signatures.ensure(func_type)
     }
 
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {
@@ -353,7 +390,7 @@ impl Engine for UniversalEngine {
 
     /// Lookup a signature
     fn lookup_signature(&self, sig: VMSharedSignatureIndex) -> Option<FunctionType> {
-        self.inner().signatures.lookup(sig).cloned()
+        self.inner().signatures.lookup(sig).map(|(s, _)| s.clone())
     }
 
     /// Validates a WebAssembly module
@@ -466,7 +503,7 @@ pub struct UniversalEngineInner {
     code_memory: Vec<CodeMemory>,
     /// The signature registry is used mainly to operate with trampolines
     /// performantly.
-    signatures: SignatureRegistry,
+    pub(crate) signatures: SignatureRegistry,
     /// The backing storage of `VMFuncRef`s. This centralized store ensures that 2
     /// functions with the same `VMCallerCheckedAnyfunc` will have the same `VMFuncRef`.
     /// It also guarantees that the `VMFuncRef`s stay valid until the engine is dropped.
@@ -507,10 +544,11 @@ impl UniversalEngineInner {
     #[allow(clippy::type_complexity)]
     pub(crate) fn allocate<'a>(
         &mut self,
-        local_functions: impl ExactSizeIterator<Item = (FunctionTypeRef<'a>, FunctionBodyRef<'a>)>,
+        local_functions: impl ExactSizeIterator<Item = FunctionBodyRef<'a>>,
         call_trampolines: impl ExactSizeIterator<Item = FunctionBodyRef<'a>>,
         dynamic_trampolines: impl ExactSizeIterator<Item = FunctionBodyRef<'a>>,
         custom_sections: impl ExactSizeIterator<Item = CustomSectionRef<'a>>,
+        function_signature: impl Fn(LocalFunctionIndex) -> (SignatureIndex, FunctionTypeRef<'a>),
     ) -> Result<
         (
             PrimaryMap<LocalFunctionIndex, VMLocalFunction>,
@@ -520,16 +558,15 @@ impl UniversalEngineInner {
         ),
         CompileError,
     > {
+        let Self {
+            ref mut code_memory,
+            ref mut signatures,
+            ..
+        } = self;
         let function_count = local_functions.len();
         let call_trampoline_count = call_trampolines.len();
-        // TODO: these allocations should be unnecessary somehow.
-        let mut function_types = Vec::with_capacity(function_count);
-        let local_functions = local_functions.map(|(sig, b)| {
-            function_types.push(self.signatures.register(sig));
-            b
-        });
-        let function_bodies = local_functions
-            .chain(call_trampolines)
+        let function_bodies = call_trampolines
+            .chain(local_functions)
             .chain(dynamic_trampolines)
             .collect::<Vec<_>>();
 
@@ -545,8 +582,7 @@ impl UniversalEngineInner {
             }
             section_types.push(section.protection);
         }
-
-        self.code_memory.push(CodeMemory::new());
+        code_memory.push(CodeMemory::new());
         let code_memory = self.code_memory.last_mut().expect("infallible");
 
         let (mut allocated_functions, allocated_executable_sections, allocated_data_sections) =
@@ -563,20 +599,6 @@ impl UniversalEngineInner {
                     ))
                 })?;
 
-        let allocated_functions_result = allocated_functions
-            .drain(0..function_count)
-            .zip(function_types.into_iter())
-            .map(|(slice, signature)| -> Result<_, CompileError> {
-                Ok(VMLocalFunction {
-                    body: FunctionBodyPtr(slice.as_ptr()),
-                    length: u32::try_from(slice.len()).map_err(|_| {
-                        CompileError::Codegen("function body length exceeds 4GiB".into())
-                    })?,
-                    signature,
-                })
-            })
-            .collect::<Result<PrimaryMap<LocalFunctionIndex, _>, _>>()?;
-
         let mut allocated_function_call_trampolines: PrimaryMap<SignatureIndex, VMTrampoline> =
             PrimaryMap::new();
         for ptr in allocated_functions
@@ -588,6 +610,24 @@ impl UniversalEngineInner {
                 unsafe { std::mem::transmute::<*const VMFunctionBody, VMTrampoline>(ptr) };
             allocated_function_call_trampolines.push(trampoline);
         }
+
+        let allocated_functions_result = allocated_functions
+            .drain(0..function_count)
+            .enumerate()
+            .map(|(index, slice)| -> Result<_, CompileError> {
+                let index = LocalFunctionIndex::new(index);
+                let (sig_idx, sig) = function_signature(index);
+                let sig =
+                    signatures.register(sig.into(), allocated_function_call_trampolines[sig_idx]);
+                Ok(VMLocalFunction {
+                    body: FunctionBodyPtr(slice.as_ptr()),
+                    length: u32::try_from(slice.len()).map_err(|_| {
+                        CompileError::Codegen("function body length exceeds 4GiB".into())
+                    })?,
+                    signature: sig,
+                })
+            })
+            .collect::<Result<PrimaryMap<LocalFunctionIndex, _>, _>>()?;
 
         let allocated_dynamic_function_trampolines = allocated_functions
             .drain(..)
