@@ -54,6 +54,23 @@ fn nops(c: &mut Criterion) {
                 black_box(single.call(&[]).unwrap());
             })
         });
+        drop(call_single);
+
+        let mut serialize = c.benchmark_group("serialize");
+        serialize.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| {
+                black_box(module.serialize().unwrap());
+            })
+        });
+        drop(serialize);
+
+        let serialized = module.serialize().unwrap();
+        let mut deserialize = c.benchmark_group("deserialize");
+        deserialize.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| unsafe {
+                black_box(Module::deserialize(&store, &serialized).unwrap());
+            })
+        });
     }
 }
 
