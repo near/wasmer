@@ -3,11 +3,9 @@
 
 //! Module for System V ABI unwind registry.
 
-use loupe::MemoryUsage;
-use wasmer_compiler::CompiledFunctionUnwindInfo;
+use wasmer_compiler::CompiledFunctionUnwindInfoRef;
 
 /// Represents a registry of function unwind information for System V ABI.
-#[derive(MemoryUsage)]
 pub struct UnwindRegistry {
     registrations: Vec<usize>,
     published: bool,
@@ -34,25 +32,23 @@ impl UnwindRegistry {
         _base_address: usize,
         _func_start: u32,
         _func_len: u32,
-        info: &CompiledFunctionUnwindInfo,
+        info: CompiledFunctionUnwindInfoRef<'_>,
     ) -> Result<(), String> {
         match info {
-            CompiledFunctionUnwindInfo::Dwarf => {}
+            CompiledFunctionUnwindInfoRef::Dwarf => {}
             _ => return Err("unsupported unwind information".to_string()),
         };
         Ok(())
     }
 
     /// Publishes all registered functions.
-    pub fn publish(&mut self, eh_frame: Option<&[u8]>) -> Result<(), String> {
+    pub fn publish(&mut self, eh_frame: &[u8]) -> Result<(), String> {
         if self.published {
             return Err("unwind registry has already been published".to_string());
         }
 
-        if let Some(eh_frame) = eh_frame {
-            unsafe {
-                self.register_frames(eh_frame);
-            }
+        unsafe {
+            self.register_frames(eh_frame);
         }
 
         self.published = true;

@@ -41,8 +41,8 @@ pub use crate::sys::ptr::{Array, Item, WasmPtr};
 pub use crate::sys::store::{Store, StoreObject};
 pub use crate::sys::tunables::BaseTunables;
 pub use crate::sys::types::{
-    ExportType, ExternType, FunctionType, GlobalType, ImportType, MemoryType, Mutability,
-    TableType, Val, ValType,
+    ExportType, ExternType, FunctionType, GlobalType, MemoryType, Mutability, TableType, Val,
+    ValType,
 };
 pub use crate::sys::types::{Val as Value, ValType as Type};
 pub use crate::sys::utils::is_wasm;
@@ -55,15 +55,15 @@ pub use wasmer_compiler::{
 pub use wasmer_compiler::{
     CompileError, CpuFeature, Features, ParseCpuFeatureError, Target, WasmError, WasmResult,
 };
-pub use wasmer_engine::{
-    ChainableNamedResolver, DeserializeError, Engine, Export, FrameInfo, LinkError, NamedResolver,
-    NamedResolverChain, Resolver, RuntimeError, SerializeError, Tunables,
-};
+pub use wasmer_engine::{DeserializeError, Engine, FrameInfo, LinkError, RuntimeError};
 #[cfg(feature = "experimental-reference-types-extern-ref")]
 pub use wasmer_types::ExternRef;
 pub use wasmer_types::{
     Atomically, Bytes, ExportIndex, GlobalInit, LocalFunctionIndex, MemoryView, Pages, ValueType,
     WASM_MAX_PAGES, WASM_MIN_PAGES, WASM_PAGE_SIZE,
+};
+pub use wasmer_vm::{
+    ChainableNamedResolver, Export, NamedResolver, NamedResolverChain, Resolver, Tunables,
 };
 
 // TODO: should those be moved into wasmer::vm as well?

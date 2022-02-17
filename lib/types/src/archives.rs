@@ -11,6 +11,12 @@ pub struct ArchivableIndexMap<K: Hash + Ord + Archive, V: Archive> {
     entries: Vec<(K, V)>,
 }
 
+impl<K: Hash + Ord + Archive, V: Archive> ArchivedArchivableIndexMap<K, V> {
+    pub fn iter(&self) -> core::slice::Iter<'_, (K::Archived, V::Archived)> {
+        self.entries.iter()
+    }
+}
+
 impl<K: Hash + Ord + Archive + Clone, V: Archive> From<IndexMap<K, V>>
     for ArchivableIndexMap<K, V>
 {

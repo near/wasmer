@@ -92,7 +92,8 @@ impl FuncTranslator {
             .unwrap();
 
         // TODO: pointer width
-        let offsets = VMOffsets::new(8, &wasm_module);
+        let offsets = VMOffsets::new(target_data.get_pointer_byte_size(None) as u8)
+            .with_module_info(&wasm_module);
         let intrinsics = Intrinsics::declare(&module, &self.ctx, &target_data);
         let (func_type, func_attrs) =
             self.abi

@@ -5,8 +5,6 @@
 
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
-use loupe::MemoryUsage;
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -14,10 +12,19 @@ use thiserror::Error;
 /// A trap code describing the reason for a trap.
 ///
 /// All trap instructions have an explicit trap code.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Serialize, Deserialize, Error, MemoryUsage)]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Debug,
+    Hash,
+    Serialize,
+    Deserialize,
+    Error,
+    RkyvSerialize,
+    RkyvDeserialize,
+    Archive,
 )]
 #[repr(u32)]
 pub enum TrapCode {
@@ -115,18 +122,18 @@ impl FromStr for TrapCode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "stk_ovf" => Ok(TrapCode::StackOverflow),
-            "heap_get_oob" => Ok(TrapCode::HeapAccessOutOfBounds),
-            "heap_misaligned" => Ok(TrapCode::HeapMisaligned),
-            "table_get_oob" => Ok(TrapCode::TableAccessOutOfBounds),
-            "oob" => Ok(TrapCode::OutOfBounds),
-            "icall_null" => Ok(TrapCode::IndirectCallToNull),
-            "bad_sig" => Ok(TrapCode::BadSignature),
-            "int_ovf" => Ok(TrapCode::IntegerOverflow),
-            "int_divz" => Ok(TrapCode::IntegerDivisionByZero),
-            "bad_toint" => Ok(TrapCode::BadConversionToInteger),
-            "unreachable" => Ok(TrapCode::UnreachableCodeReached),
-            "unalign_atom" => Ok(TrapCode::UnalignedAtomic),
+            "stk_ovf" => Ok(Self::StackOverflow),
+            "heap_get_oob" => Ok(Self::HeapAccessOutOfBounds),
+            "heap_misaligned" => Ok(Self::HeapMisaligned),
+            "table_get_oob" => Ok(Self::TableAccessOutOfBounds),
+            "oob" => Ok(Self::OutOfBounds),
+            "icall_null" => Ok(Self::IndirectCallToNull),
+            "bad_sig" => Ok(Self::BadSignature),
+            "int_ovf" => Ok(Self::IntegerOverflow),
+            "int_divz" => Ok(Self::IntegerDivisionByZero),
+            "bad_toint" => Ok(Self::BadConversionToInteger),
+            "unreachable" => Ok(Self::UnreachableCodeReached),
+            "unalign_atom" => Ok(Self::UnalignedAtomic),
             _ => Err(()),
         }
     }

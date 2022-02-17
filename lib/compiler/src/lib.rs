@@ -74,12 +74,14 @@ pub use crate::error::{
 };
 pub use crate::function::{
     Compilation, CompiledFunction, CompiledFunctionFrameInfo, CustomSections, Dwarf, FunctionBody,
-    Functions, TrampolinesSection,
+    FunctionBodyRef, Functions, TrampolinesSection,
 };
 pub use crate::jump_table::{JumpTable, JumpTableOffsets};
 pub use crate::module::CompileModuleInfo;
 pub use crate::relocation::{Relocation, RelocationKind, RelocationTarget, Relocations};
-pub use crate::section::{CustomSection, CustomSectionProtection, SectionBody, SectionIndex};
+pub use crate::section::{
+    CustomSection, CustomSectionProtection, CustomSectionRef, SectionBody, SectionIndex,
+};
 pub use crate::sourceloc::SourceLoc;
 pub use crate::target::{
     Architecture, BinaryFormat, CallingConvention, CpuFeature, Endianness, OperatingSystem,
@@ -92,7 +94,7 @@ pub use crate::translator::{
     ModuleMiddlewareChain, ModuleTranslationState,
 };
 pub use crate::trap::TrapInformation;
-pub use crate::unwind::CompiledFunctionUnwindInfo;
+pub use crate::unwind::{CompiledFunctionUnwindInfo, CompiledFunctionUnwindInfoRef};
 
 pub use wasmer_types::Features;
 

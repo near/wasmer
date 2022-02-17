@@ -5,11 +5,9 @@ use crate::sys::types::Val;
 use crate::sys::GlobalType;
 use crate::sys::Mutability;
 use crate::sys::RuntimeError;
-use loupe::MemoryUsage;
 use std::fmt;
 use std::sync::Arc;
-use wasmer_engine::Export;
-use wasmer_vm::{Global as RuntimeGlobal, VMGlobal};
+use wasmer_vm::{Export, Global as RuntimeGlobal, VMGlobal};
 
 /// A WebAssembly `global` instance.
 ///
@@ -17,7 +15,6 @@ use wasmer_vm::{Global as RuntimeGlobal, VMGlobal};
 /// It consists of an individual value and a flag indicating whether it is mutable.
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#global-instances>
-#[derive(MemoryUsage)]
 pub struct Global {
     store: Store,
     vm_global: VMGlobal,
@@ -249,7 +246,7 @@ impl<'a> Exportable<'a> for Global {
         self.vm_global.clone().into()
     }
 
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
         match _extern {
             Extern::Global(global) => Ok(global),
             _ => Err(ExportError::IncompatibleType),

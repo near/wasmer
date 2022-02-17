@@ -4,10 +4,8 @@ use crate::sys::store::Store;
 use crate::sys::types::{Val, ValFuncRef};
 use crate::sys::RuntimeError;
 use crate::sys::TableType;
-use loupe::MemoryUsage;
 use std::sync::Arc;
-use wasmer_engine::Export;
-use wasmer_vm::{Table as RuntimeTable, TableElement, VMTable};
+use wasmer_vm::{Export, Table as RuntimeTable, TableElement, VMTable};
 
 /// A WebAssembly `table` instance.
 ///
@@ -18,7 +16,6 @@ use wasmer_vm::{Table as RuntimeTable, TableElement, VMTable};
 /// mutable from both host and WebAssembly.
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#table-instances>
-#[derive(MemoryUsage)]
 pub struct Table {
     store: Store,
     vm_table: VMTable,
@@ -177,7 +174,7 @@ impl<'a> Exportable<'a> for Table {
         self.vm_table.clone().into()
     }
 
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
         match _extern {
             Extern::Table(table) => Ok(table),
             _ => Err(ExportError::IncompatibleType),

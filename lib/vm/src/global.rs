@@ -1,16 +1,15 @@
 use crate::vmcontext::VMGlobalDefinition;
-use loupe::MemoryUsage;
 use std::cell::UnsafeCell;
 use std::ptr::NonNull;
 use std::sync::Mutex;
 use thiserror::Error;
 use wasmer_types::{GlobalType, Mutability, Type, Value, WasmValueType};
 
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 /// A Global instance
 pub struct Global {
     ty: GlobalType,
-    // TODO: this box may be unnecessary
+    // TODO: this box is unnecessary
     vm_global_definition: Box<UnsafeCell<VMGlobalDefinition>>,
     // used to synchronize gets/sets
     lock: Mutex<()>,

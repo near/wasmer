@@ -33,7 +33,6 @@ wasmer-engine = { version = "2.0.3", path = "../engine", package = "wasmer-engin
 wasmer-engine-universal = { version = "2.0.3", path = "../engine-universal", package = "wasmer-engine-universal-near", optional = true }
 wasmer-vm = { version = "2.0.3", path = "../vm", package = "wasmer-vm-near" }
 wasmer-wast = { version = "2.0.0", path = "../../tests/lib/wast", optional = true }
-wasmer-cache = { version = "2.0.0", path = "../cache", optional = true }
 wasmer-types = { version = "2.0.3", path = "../types", package = "wasmer-types-near" }
 atty = "0.2"
 colored = "2.0"
@@ -56,15 +55,12 @@ default = [
     "wat",
     "wast",
     "universal",
-    "cache",
 ]
 engine = []
 universal = [
     "wasmer-engine-universal",
     "engine",
 ]
-cache = ["wasmer-cache"]
-cache-blake3-pure = ["wasmer-cache/blake3-pure"]
 wast = ["wasmer-wast"]
 wat = ["wasmer/wat"]
 compiler = [

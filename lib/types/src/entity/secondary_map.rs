@@ -11,8 +11,6 @@ use crate::lib::std::marker::PhantomData;
 use crate::lib::std::ops::{Index, IndexMut};
 use crate::lib::std::slice;
 use crate::lib::std::vec::Vec;
-use loupe::{MemoryUsage, MemoryUsageTracker};
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "enable-serde")]
 use serde::{
@@ -20,7 +18,6 @@ use serde::{
     ser::{SerializeSeq, Serializer},
     Deserialize, Serialize,
 };
-use std::mem;
 
 /// A mapping `K -> V` for densely indexed entity references.
 ///
@@ -30,11 +27,7 @@ use std::mem;
 ///
 /// The map does not track if an entry for a key has been inserted or not. Instead it behaves as if
 /// all keys have a default entry from the beginning.
-#[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(Debug, Clone, RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct SecondaryMap<K, V>
 where
     K: EntityRef,
@@ -168,6 +161,22 @@ where
     }
 }
 
+/// Immutable indexing into an `SecondaryMap`.
+///
+/// All keys are permitted. Untouched entries have the default value.
+impl<K, V> Index<&K::Archived> for ArchivedSecondaryMap<K, V>
+where
+    K: EntityRef + Archive,
+    K::Archived: EntityRef,
+    V: Archive + Clone,
+{
+    type Output = <V as rkyv::Archive>::Archived;
+
+    fn index(&self, k: &K::Archived) -> &Self::Output {
+        &self.elems.get(k.index()).unwrap_or(&self.default)
+    }
+}
+
 /// Mutable indexing into an `SecondaryMap`.
 ///
 /// The map grows as needed to accommodate new keys.
@@ -284,21 +293,6 @@ where
         deserializer.deserialize_seq(SecondaryMapVisitor {
             unused: PhantomData {},
         })
-    }
-}
-
-impl<K, V> MemoryUsage for SecondaryMap<K, V>
-where
-    K: EntityRef,
-    V: Clone + MemoryUsage,
-{
-    fn size_of_val(&self, tracker: &mut dyn MemoryUsageTracker) -> usize {
-        mem::size_of_val(self)
-            + self
-                .elems
-                .iter()
-                .map(|value| value.size_of_val(tracker) - mem::size_of_val(value))
-                .sum::<usize>()
     }
 }
 

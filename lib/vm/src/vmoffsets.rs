@@ -7,7 +7,6 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 use crate::VMBuiltinFunctionIndex;
-use loupe::MemoryUsage;
 use more_asserts::assert_lt;
 use std::convert::TryFrom;
 use wasmer_types::{
@@ -33,7 +32,7 @@ const fn align(offset: u32, width: u32) -> u32 {
 /// related structs that JIT code accesses directly.
 ///
 /// [`VMContext`]: crate::vmcontext::VMContext
-#[derive(Clone, Debug, MemoryUsage)]
+#[derive(Clone, Debug)]
 pub struct VMOffsets {
     /// The size in bytes of a pointer on the target.
     pub pointer_size: u8,
@@ -59,26 +58,10 @@ pub struct VMOffsets {
 
 impl VMOffsets {
     /// Return a new `VMOffsets` instance, for a given pointer size.
-    pub fn new(pointer_size: u8, module: &ModuleInfo) -> Self {
-        Self {
-            pointer_size,
-            num_signature_ids: cast_to_u32(module.signatures.len()),
-            num_imported_functions: cast_to_u32(module.num_imported_functions),
-            num_imported_tables: cast_to_u32(module.num_imported_tables),
-            num_imported_memories: cast_to_u32(module.num_imported_memories),
-            num_imported_globals: cast_to_u32(module.num_imported_globals),
-            num_local_tables: cast_to_u32(module.tables.len()),
-            num_local_memories: cast_to_u32(module.memories.len()),
-            num_local_globals: cast_to_u32(module.globals.len()),
-            has_trap_handlers: true,
-        }
-    }
-
-    /// Return a new `VMOffsets` instance, for a given pointer size
-    /// skipping the `ModuleInfo`.
     ///
-    /// Note: This should only when generating code for trampolines.
-    pub fn new_for_trampolines(pointer_size: u8) -> Self {
+    /// The returned `VMOffsets` has no entities. Add entities with other builder methods for this
+    /// type.
+    pub fn new(pointer_size: u8) -> Self {
         Self {
             pointer_size,
             num_signature_ids: 0,
@@ -91,6 +74,44 @@ impl VMOffsets {
             num_local_globals: 0,
             has_trap_handlers: false,
         }
+    }
+
+    /// Return a new `VMOffsets` instance, for a host's pointer size.
+    ///
+    /// The returned `VMOffsets` has no entities. Add entities with other builder methods for this
+    /// type.
+    pub fn for_host() -> Self {
+        Self::new(std::mem::size_of::<*const u8>() as u8)
+    }
+
+    /// Add imports and locals from the provided ModuleInfo.
+    pub fn with_module_info(mut self, module: &ModuleInfo) -> Self {
+        self.num_imported_functions = module.import_counts.functions;
+        self.num_imported_tables = module.import_counts.tables;
+        self.num_imported_memories = module.import_counts.memories;
+        self.num_imported_globals = module.import_counts.globals;
+        self.num_signature_ids = cast_to_u32(module.signatures.len());
+        // FIXME = these should most likely be subtracting the corresponding imports!!?
+        self.num_local_tables = cast_to_u32(module.tables.len());
+        self.num_local_memories = cast_to_u32(module.memories.len());
+        self.num_local_globals = cast_to_u32(module.globals.len());
+        self.has_trap_handlers = true;
+        self
+    }
+
+    /// Add imports and locals from the provided ModuleInfo.
+    pub fn with_archived_module_info(mut self, module: &rkyv::Archived<ModuleInfo>) -> Self {
+        self.num_imported_functions = module.import_counts.functions;
+        self.num_imported_tables = module.import_counts.tables;
+        self.num_imported_memories = module.import_counts.memories;
+        self.num_imported_globals = module.import_counts.globals;
+        self.num_signature_ids = cast_to_u32(module.signatures.len());
+        // FIXME = these should most likely be subtracting the corresponding imports!!?
+        self.num_local_tables = cast_to_u32(module.tables.len());
+        self.num_local_memories = cast_to_u32(module.memories.len());
+        self.num_local_globals = cast_to_u32(module.globals.len());
+        self.has_trap_handlers = true;
+        self
     }
 }
 
@@ -107,14 +128,14 @@ impl VMOffsets {
     /// The offset of the `vmctx` field.
     #[allow(clippy::identity_op)]
     pub const fn vmfunction_import_vmctx(&self) -> u8 {
-        1 * self.pointer_size
+        3 * self.pointer_size
     }
 
     /// Return the size of [`VMFunctionImport`].
     ///
     /// [`VMFunctionImport`]: crate::vmcontext::VMFunctionImport
     pub const fn size_of_vmfunction_import(&self) -> u8 {
-        2 * self.pointer_size
+        4 * self.pointer_size
     }
 }
 
@@ -352,7 +373,7 @@ impl VMOffsets {
     ///
     /// [`VMFuncRef`]: crate::func_data_registry::VMFuncRef
     pub const fn size_of_vm_funcref(&self) -> u8 {
-        1 * self.pointer_size
+        self.pointer_size
     }
 }
 

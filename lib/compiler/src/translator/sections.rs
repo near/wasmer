@@ -22,7 +22,7 @@ use wasmer_types::entity::packed_option::ReservedValue;
 use wasmer_types::entity::EntityRef;
 use wasmer_types::{
     DataIndex, ElemIndex, FunctionIndex, FunctionType, GlobalIndex, GlobalInit, GlobalType,
-    MemoryIndex, MemoryType, Pages, SignatureIndex, TableIndex, TableType, Type, V128,
+    MemoryIndex, MemoryType, Mutability, Pages, SignatureIndex, TableIndex, TableType, Type, V128,
 };
 use wasmparser::{
     self, Data, DataKind, DataSectionReader, Element, ElementItem, ElementItems, ElementKind,
@@ -131,7 +131,11 @@ pub fn parse_import_section<'data>(
                 environ.declare_global_import(
                     GlobalType {
                         ty: wptype_to_type(ty.content_type).unwrap(),
-                        mutability: ty.mutable.into(),
+                        mutability: if ty.mutable {
+                            Mutability::Var
+                        } else {
+                            Mutability::Const
+                        },
                     },
                     module_name,
                     field_name.unwrap_or_default(),
@@ -257,7 +261,11 @@ pub fn parse_global_section(
         };
         let global = GlobalType {
             ty: wptype_to_type(content_type).unwrap(),
-            mutability: mutable.into(),
+            mutability: if mutable {
+                Mutability::Var
+            } else {
+                Mutability::Const
+            },
         };
         environ.declare_global(global, initializer)?;
     }

@@ -14,7 +14,6 @@ fn issue_2329(mut config: crate::Config) -> Result<()> {
 
     #[derive(Clone, Default, WasmerEnv)]
     pub struct Env {
-        #[wasmer(export)]
         memory: LazyInit<Memory>,
     }
 
@@ -27,7 +26,7 @@ fn issue_2329(mut config: crate::Config) -> Result<()> {
     }
 
     pub fn read_memory(env: &Env, guest_ptr: u32) -> u32 {
-        dbg!(env.memory_ref());
+        dbg!(env.memory.get_ref());
         dbg!(guest_ptr);
         0
     }
@@ -73,7 +72,7 @@ fn issue_2329(mut config: crate::Config) -> Result<()> {
         }
     };
     let instance = Instance::new(&module, &imports)?;
-    instance.exports.get_function("read_memory")?.call(&[])?;
+    instance.lookup_function("read_memory").unwrap().call(&[])?;
     Ok(())
 }
 

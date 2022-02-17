@@ -54,7 +54,6 @@ pub mod lib {
     }
 }
 
-#[cfg(feature = "enable-rkyv")]
 mod archives;
 mod extern_ref;
 mod features;
@@ -77,21 +76,20 @@ pub use crate::indexes::{
     SignatureIndex, TableIndex,
 };
 pub use crate::initializers::{
-    DataInitializer, DataInitializerLocation, OwnedDataInitializer, TableInitializer,
+    DataInitializer, DataInitializerLocation, OwnedDataInitializer, OwnedTableInitializer,
 };
 pub use crate::memory_view::{Atomically, MemoryView};
-pub use crate::module::{ExportsIterator, ImportsIterator, ModuleInfo};
+pub use crate::module::{ImportCounts, ModuleInfo};
 pub use crate::native::{NativeWasmType, ValueType};
 pub use crate::units::{
     Bytes, PageCountOutOfRange, Pages, WASM_MAX_PAGES, WASM_MIN_PAGES, WASM_PAGE_SIZE,
 };
 pub use crate::values::{Value, WasmValueType};
 pub use types::{
-    ExportType, ExternType, FastGasCounter, FunctionType, GlobalInit, GlobalType, ImportType,
-    InstanceConfig, MemoryType, Mutability, NamedFunction, TableType, Type, V128,
+    ExportType, ExternType, FastGasCounter, FunctionType, FunctionTypeRef, GlobalInit, GlobalType,
+    Import, InstanceConfig, MemoryType, Mutability, TableType, Type, V128,
 };
 
-#[cfg(feature = "enable-rkyv")]
 pub use archives::ArchivableIndexMap;
 
 /// Version number of this crate.

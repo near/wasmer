@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Let's instantiate the Wasm module.
     let instance = Instance::new(&module, &import_object)?;
 
-    let sum = instance.exports.get_function("sum")?;
+    let sum = instance.lookup_function("sum").expect("function lookup");
 
     println!("Calling `sum` function...");
     // Let's call the `sum` exported function. The parameters are a

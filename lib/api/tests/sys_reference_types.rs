@@ -22,17 +22,20 @@ mod sys {
           (call_indirect $table (type $ret_i32_ty) (i32.const 0)))
 )"#;
         let module = Module::new(&store, wat)?;
+        let func_ref_identity = Function::new(
+            &store,
+            FunctionType::new(vec![Type::FuncRef], vec![Type::FuncRef]),
+            |values| -> Result<Vec<_>, _> { Ok(vec![values[0].clone()]) },
+        );
         let imports = imports! {
             "env" => {
-                "func_ref_identity" => Function::new(&store, FunctionType::new([Type::FuncRef], [Type::FuncRef]), |values| -> Result<Vec<_>, _> {
-                    Ok(vec![values[0].clone()])
-                })
+                "func_ref_identity" => func_ref_identity
             },
         };
 
         let instance = Instance::new(&module, &imports)?;
 
-        let f: &Function = instance.exports.get_function("run")?;
+        let f: Function = instance.lookup_function("run").unwrap();
         let results = f.call(&[]).unwrap();
         if let Value::FuncRef(fr) = &results[0] {
             assert!(fr.is_none());
@@ -48,7 +51,7 @@ mod sys {
             env.0.store(true, Ordering::SeqCst);
             343
         });
-        let call_set_value: &Function = instance.exports.get_function("call_set_value")?;
+        let call_set_value: Function = instance.lookup_function("call_set_value").unwrap();
         let results: Box<[Value]> = call_set_value.call(&[Value::FuncRef(Some(func_to_call))])?;
         assert!(env.0.load(Ordering::SeqCst));
         assert_eq!(&*results, &[Value::I32(343)]);
@@ -86,13 +89,14 @@ mod sys {
             Ok(vec![Value::I32(f.call(7, 9)?)])
         }
 
+        let func_ref_call = Function::new(
+            &store,
+            FunctionType::new(vec![Type::FuncRef], vec![Type::I32]),
+            func_ref_call,
+        );
         let imports = imports! {
             "env" => {
-                "func_ref_call" => Function::new(
-                    &store,
-                    FunctionType::new([Type::FuncRef], [Type::I32]),
-                    func_ref_call
-                ),
+                "func_ref_call" => func_ref_call,
                 // TODO(reftypes): this should work
                 /*
                 "func_ref_call_native" => Function::new_native(&store, |f: Function| -> Result<i32, RuntimeError> {
@@ -110,15 +114,15 @@ mod sys {
             }
             let sum_func = Function::new_native(&store, sum);
 
-            let call_func: &Function = instance.exports.get_function("call_func")?;
+            let call_func: Function = instance.lookup_function("call_func").unwrap();
             let result = call_func.call(&[Value::FuncRef(Some(sum_func))])?;
             assert_eq!(result[0].unwrap_i32(), 16);
         }
 
         {
             let f: NativeFunc<(), i32> = instance
-                .exports
-                .get_native_function("call_host_func_with_wasm_func")?;
+                .get_native_function("call_host_func_with_wasm_func")
+                .unwrap();
             let result = f.call()?;
             assert_eq!(result, 63);
         }
@@ -147,39 +151,50 @@ mod sys {
           (call $get_new_extern_ref_native))
 )"#;
         let module = Module::new(&store, wat)?;
+        let extern_ref_identity = Function::new(
+            &store,
+            FunctionType::new(vec![Type::ExternRef], vec![Type::ExternRef]),
+            |values| -> Result<Vec<_>, _> { Ok(vec![values[0].clone()]) },
+        );
+        let extern_ref_identity_native =
+            Function::new_native(&store, |er: ExternRef| -> ExternRef { er });
+        let get_new_extern_ref = Function::new(
+            &store,
+            FunctionType::new(vec![], vec![Type::ExternRef]),
+            |_| -> Result<Vec<_>, _> {
+                let inner = [
+                    ("hello".to_string(), "world".to_string()),
+                    ("color".to_string(), "orange".to_string()),
+                ]
+                .iter()
+                .cloned()
+                .collect::<HashMap<String, String>>();
+                let new_extern_ref = ExternRef::new(inner);
+                Ok(vec![Value::ExternRef(new_extern_ref)])
+            },
+        );
+        let get_new_extern_ref_native = Function::new_native(&store, || -> ExternRef {
+            let inner = [
+                ("hello".to_string(), "world".to_string()),
+                ("color".to_string(), "orange".to_string()),
+            ]
+            .iter()
+            .cloned()
+            .collect::<HashMap<String, String>>();
+            ExternRef::new(inner)
+        });
         let imports = imports! {
             "env" => {
-                "extern_ref_identity" => Function::new(&store, FunctionType::new([Type::ExternRef], [Type::ExternRef]), |values| -> Result<Vec<_>, _> {
-                    Ok(vec![values[0].clone()])
-                }),
-                "extern_ref_identity_native" => Function::new_native(&store, |er: ExternRef| -> ExternRef {
-                    er
-                }),
-                "get_new_extern_ref" => Function::new(&store, FunctionType::new([], [Type::ExternRef]), |_| -> Result<Vec<_>, _> {
-                    let inner =
-                        [("hello".to_string(), "world".to_string()),
-                         ("color".to_string(), "orange".to_string())]
-                        .iter()
-                        .cloned()
-                        .collect::<HashMap<String, String>>();
-                    let new_extern_ref = ExternRef::new(inner);
-                    Ok(vec![Value::ExternRef(new_extern_ref)])
-                }),
-                "get_new_extern_ref_native" => Function::new_native(&store, || -> ExternRef {
-                    let inner =
-                        [("hello".to_string(), "world".to_string()),
-                         ("color".to_string(), "orange".to_string())]
-                        .iter()
-                        .cloned()
-                        .collect::<HashMap<String, String>>();
-                    ExternRef::new(inner)
-                })
+                "extern_ref_identity" => extern_ref_identity,
+                "extern_ref_identity_native" => extern_ref_identity_native,
+                "get_new_extern_ref" => get_new_extern_ref,
+                "get_new_extern_ref_native" => get_new_extern_ref_native,
             },
         };
 
         let instance = Instance::new(&module, &imports)?;
         for run in &["run", "run_native"] {
-            let f: &Function = instance.exports.get_function(run)?;
+            let f: Function = instance.lookup_function(run).unwrap();
             let results = f.call(&[]).unwrap();
             if let Value::ExternRef(er) = &results[0] {
                 assert!(er.is_null());
@@ -187,13 +202,13 @@ mod sys {
                 panic!("result is not an extern ref!");
             }
 
-            let f: NativeFunc<(), ExternRef> = instance.exports.get_native_function(run)?;
+            let f: NativeFunc<(), ExternRef> = instance.get_native_function(run).unwrap();
             let result: ExternRef = f.call()?;
             assert!(result.is_null());
         }
 
         for get_hashmap in &["get_hashmap", "get_hashmap_native"] {
-            let f: &Function = instance.exports.get_function(get_hashmap)?;
+            let f: Function = instance.lookup_function(get_hashmap).unwrap();
             let results = f.call(&[]).unwrap();
             if let Value::ExternRef(er) = &results[0] {
                 let inner: &HashMap<String, String> = er.downcast().unwrap();
@@ -203,7 +218,7 @@ mod sys {
                 panic!("result is not an extern ref!");
             }
 
-            let f: NativeFunc<(), ExternRef> = instance.exports.get_native_function(get_hashmap)?;
+            let f: NativeFunc<(), ExternRef> = instance.get_native_function(get_hashmap).unwrap();
 
             let result: ExternRef = f.call()?;
             let inner: &HashMap<String, String> = result.downcast().unwrap();
@@ -226,7 +241,7 @@ mod sys {
 )"#;
         let module = Module::new(&store, wat)?;
         let instance = Instance::new(&module, &imports! {})?;
-        let f: NativeFunc<ExternRef, ()> = instance.exports.get_native_function("drop")?;
+        let f: NativeFunc<ExternRef, ()> = instance.get_native_function("drop").unwrap();
 
         let er = ExternRef::new(3u32);
         f.call(er.clone())?;
@@ -251,17 +266,23 @@ mod sys {
         let module = Module::new(&store, wat)?;
         let instance = Instance::new(&module, &imports! {})?;
         {
-            let er_global: &Global = instance.exports.get_global("er_global")?;
+            let er_global = if let Some(Export::Global(g)) = instance.lookup("er_global") {
+                g.from
+            } else {
+                panic!("no global");
+            };
 
-            if let Value::ExternRef(er) = er_global.get() {
+            if let Value::ExternRef(er) = er_global.get(&store) {
                 assert!(er.is_null());
             } else {
                 panic!("Did not find extern ref in the global");
             }
 
-            er_global.set(Val::ExternRef(ExternRef::new(3u32)))?;
+            unsafe {
+                er_global.set(Val::ExternRef(ExternRef::new(3u32)))?;
+            }
 
-            if let Value::ExternRef(er) = er_global.get() {
+            if let Value::ExternRef(er) = er_global.get(&store) {
                 assert_eq!(er.downcast::<u32>().unwrap(), &3);
                 assert_eq!(er.strong_count(), 1);
             } else {
@@ -270,9 +291,14 @@ mod sys {
         }
 
         {
-            let fr_global: &Global = instance.exports.get_global("fr_immutable_global")?;
+            let fr_global = if let Some(Export::Global(g)) = instance.lookup("fr_immutable_global")
+            {
+                g.from
+            } else {
+                panic!("no global");
+            };
 
-            if let Value::FuncRef(Some(f)) = fr_global.get() {
+            if let Value::FuncRef(Some(f)) = fr_global.get(&store) {
                 let native_func: NativeFunc<(), u32> = f.native()?;
                 assert_eq!(native_func.call()?, 73);
             } else {
@@ -281,18 +307,24 @@ mod sys {
         }
 
         {
-            let fr_global: &Global = instance.exports.get_global("fr_global")?;
+            let fr_global = if let Some(Export::Global(g)) = instance.lookup("fr_global") {
+                g.from
+            } else {
+                panic!("no global");
+            };
 
-            if let Value::FuncRef(None) = fr_global.get() {
+            if let Value::FuncRef(None) = fr_global.get(&store) {
             } else {
                 panic!("Did not find a null func ref in the global");
             }
 
             let f = Function::new_native(&store, |arg1: i32, arg2: i32| -> i32 { arg1 + arg2 });
 
-            fr_global.set(Val::FuncRef(Some(f)))?;
+            unsafe {
+                fr_global.set(Val::FuncRef(Some(f)))?;
+            }
 
-            if let Value::FuncRef(Some(f)) = fr_global.get() {
+            if let Value::FuncRef(Some(f)) = fr_global.get(&store) {
                 let native: NativeFunc<(i32, i32), i32> = f.native()?;
                 assert_eq!(native.call(5, 7)?, 12);
             } else {
@@ -307,6 +339,8 @@ mod sys {
     #[test]
     #[cfg_attr(feature = "singlepass", ignore)] // singlepass does not support funcref args.
     fn extern_ref_ref_counting_table_basic() -> Result<()> {
+        use wasmer_vm::TableElement;
+
         let store = Store::default();
         let wat = r#"(module
     (global $global (export "global") (mut externref) (ref.null extern))
@@ -323,22 +357,27 @@ mod sys {
         let instance = Instance::new(&module, &imports! {})?;
 
         let f: NativeFunc<(ExternRef, i32), ExternRef> =
-            instance.exports.get_native_function("insert_into_table")?;
+            instance.get_native_function("insert_into_table").unwrap();
 
         let er = ExternRef::new(3usize);
 
         let er = f.call(er, 1)?;
         assert_eq!(er.strong_count(), 2);
 
-        let table: &Table = instance.exports.get_table("table")?;
+        let table = if let Some(Export::Table(t)) = instance.lookup("table") {
+            t.from
+        } else {
+            panic!("no table");
+        };
 
-        {
-            let er2 = table.get(1).unwrap().externref().unwrap();
+        if let TableElement::ExternRef(er2) = table.get(1).unwrap() {
             assert_eq!(er2.strong_count(), 3);
         }
 
         assert_eq!(er.strong_count(), 2);
-        table.set(1, Val::ExternRef(ExternRef::null()))?;
+        table
+            .set(1, TableElement::ExternRef(ExternRef::null()))
+            .unwrap();
 
         assert_eq!(er.strong_count(), 1);
 
@@ -360,18 +399,26 @@ mod sys {
         let module = Module::new(&store, wat)?;
         let instance = Instance::new(&module, &imports! {})?;
 
-        let global: &Global = instance.exports.get_global("global")?;
+        let global = if let Some(Export::Global(g)) = instance.lookup("global") {
+            g.from
+        } else {
+            panic!("not a global");
+        };
         {
             let er = ExternRef::new(3usize);
-            global.set(Val::ExternRef(er.clone()))?;
+            unsafe {
+                global.set(Val::ExternRef(er.clone()))?;
+            }
             assert_eq!(er.strong_count(), 2);
         }
         let get_from_global: NativeFunc<(), ExternRef> =
-            instance.exports.get_native_function("get_from_global")?;
+            instance.get_native_function("get_from_global").unwrap();
 
         let er = get_from_global.call()?;
         assert_eq!(er.strong_count(), 2);
-        global.set(Val::ExternRef(ExternRef::null()))?;
+        unsafe {
+            global.set(Val::ExternRef(ExternRef::null()))?;
+        }
         assert_eq!(er.strong_count(), 1);
 
         Ok(())
@@ -392,7 +439,7 @@ mod sys {
         let instance = Instance::new(&module, &imports! {})?;
 
         let pass_extern_ref: NativeFunc<ExternRef, ()> =
-            instance.exports.get_native_function("pass_extern_ref")?;
+            instance.get_native_function("pass_extern_ref").unwrap();
 
         let er = ExternRef::new(3usize);
         assert_eq!(er.strong_count(), 1);
@@ -408,6 +455,8 @@ mod sys {
     #[test]
     #[cfg_attr(feature = "singlepass", ignore)] // singlepass does not support funcref args.
     fn extern_ref_ref_counting_table_instructions() -> Result<()> {
+        use wasmer_vm::TableElement;
+
         let store = Store::default();
         let wat = r#"(module
     (table $table1 (export "table1") 2 12 externref)
@@ -422,16 +471,19 @@ mod sys {
         let module = Module::new(&store, wat)?;
         let instance = Instance::new(&module, &imports! {})?;
 
-        let grow_table_with_ref: NativeFunc<(ExternRef, i32), i32> = instance
-            .exports
-            .get_native_function("grow_table_with_ref")?;
-        let fill_table_with_ref: NativeFunc<(ExternRef, i32, i32), ()> = instance
-            .exports
-            .get_native_function("fill_table_with_ref")?;
+        let grow_table_with_ref: NativeFunc<(ExternRef, i32), i32> =
+            instance.get_native_function("grow_table_with_ref").unwrap();
+        let fill_table_with_ref: NativeFunc<(ExternRef, i32, i32), ()> =
+            instance.get_native_function("fill_table_with_ref").unwrap();
         let copy_into_table2: NativeFunc<(), ()> =
-            instance.exports.get_native_function("copy_into_table2")?;
-        let table1: &Table = instance.exports.get_table("table1")?;
-        let table2: &Table = instance.exports.get_table("table2")?;
+            instance.get_native_function("copy_into_table2").unwrap();
+        let (table1, table2) = if let (Some(Export::Table(t1)), Some(Export::Table(t2))) =
+            (instance.lookup("table1"), instance.lookup("table2"))
+        {
+            (t1.from, t2.from)
+        } else {
+            panic!("can't get tables");
+        };
 
         let er1 = ExternRef::new(3usize);
         let er2 = ExternRef::new(5usize);
@@ -450,9 +502,10 @@ mod sys {
             assert_eq!(er1.strong_count(), 9);
 
             for i in 2..10 {
-                let e = table1.get(i).unwrap().unwrap_externref();
-                assert_eq!(*e.downcast::<usize>().unwrap(), 3);
-                assert_eq!(&e, &er1);
+                if let TableElement::ExternRef(e) = table1.get(i).unwrap() {
+                    assert_eq!(*e.downcast::<usize>().unwrap(), 3);
+                    assert_eq!(&e, &er1);
+                }
             }
             assert_eq!(er1.strong_count(), 9);
         }
@@ -463,11 +516,11 @@ mod sys {
         }
 
         {
-            table2.set(0, Val::ExternRef(er3.clone()))?;
-            table2.set(1, Val::ExternRef(er3.clone()))?;
-            table2.set(2, Val::ExternRef(er3.clone()))?;
-            table2.set(3, Val::ExternRef(er3.clone()))?;
-            table2.set(4, Val::ExternRef(er3.clone()))?;
+            table2.set(0, TableElement::ExternRef(er3.clone())).unwrap();
+            table2.set(1, TableElement::ExternRef(er3.clone())).unwrap();
+            table2.set(2, TableElement::ExternRef(er3.clone())).unwrap();
+            table2.set(3, TableElement::ExternRef(er3.clone())).unwrap();
+            table2.set(4, TableElement::ExternRef(er3.clone())).unwrap();
             assert_eq!(er3.strong_count(), 6);
         }
 
@@ -477,22 +530,29 @@ mod sys {
             assert_eq!(er2.strong_count(), 5);
             assert_eq!(er1.strong_count(), 11);
             for i in 1..5 {
-                let e = table2.get(i).unwrap().unwrap_externref();
-                let value = e.downcast::<usize>().unwrap();
-                match i {
-                    0 | 1 => assert_eq!(*value, 5),
-                    4 => assert_eq!(*value, 7),
-                    _ => assert_eq!(*value, 3),
+                if let TableElement::ExternRef(e) = table2.get(i).unwrap() {
+                    let value = e.downcast::<usize>().unwrap();
+                    match i {
+                        0 | 1 => assert_eq!(*value, 5),
+                        4 => assert_eq!(*value, 7),
+                        _ => assert_eq!(*value, 3),
+                    }
+                } else {
+                    panic!("not extern ref");
                 }
             }
         }
 
         {
             for i in 0..table1.size() {
-                table1.set(i, Val::ExternRef(ExternRef::null()))?;
+                table1
+                    .set(i, TableElement::ExternRef(ExternRef::null()))
+                    .unwrap();
             }
             for i in 0..table2.size() {
-                table2.set(i, Val::ExternRef(ExternRef::null()))?;
+                table2
+                    .set(i, TableElement::ExternRef(ExternRef::null()))
+                    .unwrap();
             }
         }
 

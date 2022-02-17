@@ -3,12 +3,11 @@ use crate::sys::import_object::LikeNamespace;
 use crate::sys::native::NativeFunc;
 use crate::sys::WasmTypeList;
 use indexmap::IndexMap;
-use loupe::MemoryUsage;
 use std::fmt;
 use std::iter::{ExactSizeIterator, FromIterator};
 use std::sync::Arc;
 use thiserror::Error;
-use wasmer_engine::Export;
+use wasmer_vm::Export;
 
 /// The `ExportError` can happen when trying to get a specific
 /// export [`Extern`] from the [`Instance`] exports.
@@ -30,8 +29,8 @@ use wasmer_engine::Export;
 /// # let import_object = imports! {};
 /// # let instance = Instance::new(&module, &import_object).unwrap();
 /// #
-/// // This results with an error: `ExportError::IncompatibleType`.
-/// let export = instance.exports.get_function("glob").unwrap();
+/// // This results in an error.
+/// let export = instance.lookup_function("glob").unwrap();
 /// ```
 ///
 /// ## Missing export
@@ -45,7 +44,7 @@ use wasmer_engine::Export;
 /// # let instance = Instance::new(&module, &import_object).unwrap();
 /// #
 /// // This results with an error: `ExportError::Missing`.
-/// let export = instance.exports.get_function("unknown").unwrap();
+/// let export = instance.lookup("unknown").unwrap();
 /// ```
 #[derive(Error, Debug)]
 pub enum ExportError {
@@ -62,7 +61,7 @@ pub enum ExportError {
 /// the types of instances.
 ///
 /// TODO: add examples of using exports
-#[derive(Clone, Default, MemoryUsage)]
+#[derive(Clone, Default)]
 pub struct Exports {
     map: Arc<IndexMap<String, Extern>>,
 }
@@ -112,30 +111,30 @@ impl Exports {
     ///
     /// If you want to get an export dynamically handling manually
     /// type checking manually, please use `get_extern`.
-    pub fn get<'a, T: Exportable<'a>>(&'a self, name: &str) -> Result<&'a T, ExportError> {
+    pub fn get<'a, T: Exportable<'a>>(&'a self, name: &str) -> Result<T, ExportError> {
         match self.map.get(name) {
             None => Err(ExportError::Missing(name.to_string())),
-            Some(extern_) => T::get_self_from_extern(extern_),
+            Some(extern_) => T::get_self_from_extern(extern_.clone()),
         }
     }
 
     /// Get an export as a `Global`.
-    pub fn get_global(&self, name: &str) -> Result<&Global, ExportError> {
+    pub fn get_global(&self, name: &str) -> Result<Global, ExportError> {
         self.get(name)
     }
 
     /// Get an export as a `Memory`.
-    pub fn get_memory(&self, name: &str) -> Result<&Memory, ExportError> {
+    pub fn get_memory(&self, name: &str) -> Result<Memory, ExportError> {
         self.get(name)
     }
 
     /// Get an export as a `Table`.
-    pub fn get_table(&self, name: &str) -> Result<&Table, ExportError> {
+    pub fn get_table(&self, name: &str) -> Result<Table, ExportError> {
         self.get(name)
     }
 
     /// Get an export as a `Func`.
-    pub fn get_function(&self, name: &str) -> Result<&Function, ExportError> {
+    pub fn get_function(&self, name: &str) -> Result<Function, ExportError> {
         self.get(name)
     }
 
@@ -162,7 +161,7 @@ impl Exports {
     {
         match self.map.get(name) {
             None => Err(ExportError::Missing(name.to_string())),
-            Some(extern_) => T::get_self_from_extern_with_generics(extern_),
+            Some(extern_) => T::get_self_from_extern_with_generics(extern_.clone()),
         }
     }
 
@@ -310,7 +309,7 @@ pub trait Exportable<'a>: Sized {
     /// from an [`Instance`] by name.
     ///
     /// [`Instance`]: crate::Instance
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError>;
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError>;
 
     /// Convert the extern internally to hold a weak reference to the `InstanceRef`.
     /// This is useful for preventing cycles, for example for data stored in a
@@ -323,7 +322,7 @@ pub trait Exportable<'a>: Sized {
 /// as well.
 pub trait ExportableWithGenerics<'a, Args: WasmTypeList, Rets: WasmTypeList>: Sized {
     /// Get an export with the given generics.
-    fn get_self_from_extern_with_generics(_extern: &'a Extern) -> Result<Self, ExportError>;
+    fn get_self_from_extern_with_generics(_extern: Extern) -> Result<Self, ExportError>;
     /// Convert the extern internally to hold a weak reference to the `InstanceRef`.
     /// This is useful for preventing cycles, for example for data stored in a
     /// type implementing `WasmerEnv`.
@@ -333,7 +332,7 @@ pub trait ExportableWithGenerics<'a, Args: WasmTypeList, Rets: WasmTypeList>: Si
 /// We implement it for all concrete [`Exportable`] types (that are `Clone`)
 /// with empty `Args` and `Rets`.
 impl<'a, T: Exportable<'a> + Clone + 'static> ExportableWithGenerics<'a, (), ()> for T {
-    fn get_self_from_extern_with_generics(_extern: &'a Extern) -> Result<Self, ExportError> {
+    fn get_self_from_extern_with_generics(_extern: Extern) -> Result<Self, ExportError> {
         T::get_self_from_extern(_extern).map(|i| i.clone())
     }
 

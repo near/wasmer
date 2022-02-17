@@ -7,7 +7,6 @@ use crate::codegen_x64::{
     CodegenError, FuncGen,
 };
 use crate::config::Singlepass;
-use loupe::MemoryUsage;
 #[cfg(feature = "rayon")]
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::sync::Arc;
@@ -25,7 +24,6 @@ use wasmer_vm::{TrapCode, VMOffsets};
 
 /// A compiler that compiles a WebAssembly module with Singlepass.
 /// It does the compilation in one pass
-#[derive(MemoryUsage)]
 pub struct SinglepassCompiler {
     config: Singlepass,
 }
@@ -43,11 +41,6 @@ impl SinglepassCompiler {
 }
 
 impl Compiler for SinglepassCompiler {
-    /// If signal handlers are required.
-    fn use_signals(&self) -> bool {
-        false
-    }
-
     /// Get the middlewares for this compiler
     fn get_middlewares(&self) -> &[Arc<dyn ModuleMiddleware>] {
         &self.config.middlewares
@@ -88,13 +81,20 @@ impl Compiler for SinglepassCompiler {
         };
 
         let table_styles = &compile_info.table_styles;
-        let vmoffsets = VMOffsets::new(8, &compile_info.module);
         let module = &compile_info.module;
-        let import_trampolines: PrimaryMap<SectionIndex, _> = (0..module.num_imported_functions)
-            .map(FunctionIndex::new)
-            .collect::<Vec<_>>()
+        let pointer_width = target
+            .triple()
+            .pointer_width()
+            .map_err(|()| {
+                CompileError::UnsupportedTarget("target with unknown pointer width".into())
+            })?
+            .bytes();
+        let vmoffsets = VMOffsets::new(pointer_width).with_module_info(&module);
+        let import_idxs = 0..module.import_counts.functions as usize;
+        let import_trampolines: PrimaryMap<SectionIndex, _> = import_idxs
             .into_par_iter_if_rayon()
             .map(|i| {
+                let i = FunctionIndex::new(i);
                 gen_import_call_trampoline(
                     &vmoffsets,
                     i,
@@ -203,17 +203,19 @@ trait IntoParIterIfRayon {
     fn into_par_iter_if_rayon(self) -> Self::Output;
 }
 
-impl<T: Send> IntoParIterIfRayon for Vec<T> {
-    #[cfg(not(feature = "rayon"))]
-    type Output = std::vec::IntoIter<T>;
-    #[cfg(feature = "rayon")]
-    type Output = rayon::vec::IntoIter<T>;
-
+#[cfg(feature = "rayon")]
+impl<T: IntoParallelIterator + IntoIterator> IntoParIterIfRayon for T {
+    type Output = <T as IntoParallelIterator>::Iter;
     fn into_par_iter_if_rayon(self) -> Self::Output {
-        #[cfg(not(feature = "rayon"))]
-        return self.into_iter();
-        #[cfg(feature = "rayon")]
         return self.into_par_iter();
+    }
+}
+
+#[cfg(not(feature = "rayon"))]
+impl<T: IntoIterator> IntoParIterIfRayon for T {
+    type Output = <T as IntoIterator>::IntoIter;
+    fn into_par_iter_if_rayon(self) -> Self::Output {
+        return self.into_iter();
     }
 }
 

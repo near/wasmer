@@ -12,12 +12,9 @@ use crate::lib::std::marker::PhantomData;
 use crate::lib::std::ops::{Index, IndexMut};
 use crate::lib::std::slice;
 use crate::lib::std::vec::Vec;
-use loupe::{MemoryUsage, MemoryUsageTracker};
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "enable-serde")]
 use serde::{Deserialize, Serialize};
-use std::mem;
 
 /// A primary mapping `K -> V` allocating dense entity references.
 ///
@@ -36,10 +33,7 @@ use std::mem;
 /// `into_boxed_slice`.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct PrimaryMap<K, V>
 where
     K: EntityRef,
@@ -244,18 +238,39 @@ where
     }
 }
 
-impl<K, V> MemoryUsage for PrimaryMap<K, V>
+impl<K, V> ArchivedPrimaryMap<K, V>
 where
-    K: EntityRef,
-    V: MemoryUsage,
+    K: Archive + EntityRef,
+    V: Archive,
 {
-    fn size_of_val(&self, tracker: &mut dyn MemoryUsageTracker) -> usize {
-        mem::size_of_val(self)
-            + self
-                .elems
-                .iter()
-                .map(|value| value.size_of_val(tracker) - mem::size_of_val(value))
-                .sum::<usize>()
+    /// Get the total number of entity references created.
+    pub fn len(&self) -> usize {
+        self.elems.len()
+    }
+
+    /// Iterate over all the values in this map.
+    pub fn values(&self) -> slice::Iter<rkyv::Archived<V>> {
+        self.elems.iter()
+    }
+
+    /// Iterate over all the keys and values in this map.
+    pub fn iter(&self) -> Iter<K, rkyv::Archived<V>> {
+        Iter::new(self.elems.iter())
+    }
+}
+
+/// Immutable indexing into an `PrimaryMap`.
+/// The indexed value must be in the map.
+impl<K, V> Index<&K::Archived> for ArchivedPrimaryMap<K, V>
+where
+    K: EntityRef + Archive,
+    K::Archived: EntityRef,
+    V: Archive,
+{
+    type Output = <V as rkyv::Archive>::Archived;
+
+    fn index(&self, k: &K::Archived) -> &Self::Output {
+        &self.elems[k.index()]
     }
 }
 

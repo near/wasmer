@@ -1,20 +1,14 @@
 use crate::indexes::{FunctionIndex, GlobalIndex, MemoryIndex, TableIndex};
 use crate::lib::std::boxed::Box;
-use loupe::MemoryUsage;
 
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "enable-serde")]
 use serde::{Deserialize, Serialize};
 
 /// A WebAssembly table initializer.
-#[derive(Clone, Debug, Hash, MemoryUsage, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, RkyvSerialize, RkyvDeserialize, Archive)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-pub struct TableInitializer {
+pub struct OwnedTableInitializer {
     /// The index of a table to initialize.
     pub table_index: TableIndex,
     /// Optionally, a global variable giving a base index.
@@ -27,12 +21,9 @@ pub struct TableInitializer {
 
 /// A memory index and offset within that memory where a data initialization
 /// should be performed.
-#[derive(Clone, Debug, MemoryUsage, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct DataInitializerLocation {
     /// The index of the memory to initialize.
     pub memory_index: MemoryIndex,
@@ -57,18 +48,15 @@ pub struct DataInitializer<'data> {
 
 /// As `DataInitializer` but owning the data rather than
 /// holding a reference to it
-#[derive(Debug, Clone, MemoryUsage, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct OwnedDataInitializer {
     /// The location where the initialization is to be performed.
     pub location: DataInitializerLocation,
 
     /// The initialization owned data.
-    pub data: Box<[u8]>,
+    pub data: Vec<u8>,
 }
 
 impl OwnedDataInitializer {
@@ -76,7 +64,35 @@ impl OwnedDataInitializer {
     pub fn new(borrowed: &DataInitializer<'_>) -> Self {
         Self {
             location: borrowed.location.clone(),
-            data: borrowed.data.to_vec().into_boxed_slice(),
+            data: borrowed.data.to_vec(),
+        }
+    }
+}
+
+impl<'a> From<&'a OwnedDataInitializer> for DataInitializer<'a> {
+    fn from(init: &'a OwnedDataInitializer) -> Self {
+        DataInitializer {
+            location: init.location.clone(),
+            data: &*init.data,
+        }
+    }
+}
+
+impl<'a> From<&'a ArchivedOwnedDataInitializer> for DataInitializer<'a> {
+    fn from(init: &'a ArchivedOwnedDataInitializer) -> Self {
+        DataInitializer {
+            location: rkyv::Deserialize::deserialize(&init.location, &mut rkyv::Infallible)
+                .expect("deserialization cannot fail"),
+            data: &*init.data,
+        }
+    }
+}
+
+impl<'a> From<DataInitializer<'a>> for OwnedDataInitializer {
+    fn from(init: DataInitializer<'a>) -> Self {
+        OwnedDataInitializer {
+            location: init.location.clone(),
+            data: init.data.to_vec(),
         }
     }
 }

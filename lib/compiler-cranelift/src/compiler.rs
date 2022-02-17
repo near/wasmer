@@ -18,7 +18,6 @@ use cranelift_codegen::print_errors::pretty_error;
 use cranelift_codegen::{binemit, Context};
 #[cfg(feature = "unwind")]
 use gimli::write::{Address, EhFrame, FrameTable};
-use loupe::MemoryUsage;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use std::sync::Arc;
 use target_lexicon::{Architecture, OperatingSystem};
@@ -40,7 +39,6 @@ use wasmer_vm::libcalls::LibCall;
 
 /// A compiler that compiles a WebAssembly module with Cranelift, translating the Wasm to Cranelift IR,
 /// optimizing it and then translating to assembly.
-#[derive(MemoryUsage)]
 pub struct CraneliftCompiler {
     config: Cranelift,
 }
@@ -58,10 +56,6 @@ impl CraneliftCompiler {
 }
 
 impl Compiler for CraneliftCompiler {
-    fn use_signals(&self) -> bool {
-        true
-    }
-
     /// Get the middlewares for this compiler
     fn get_middlewares(&self) -> &[Arc<dyn ModuleMiddleware>] {
         &self.config.middlewares
@@ -280,7 +274,7 @@ impl Compiler for CraneliftCompiler {
             .collect::<PrimaryMap<SignatureIndex, FunctionBody>>();
 
         use wasmer_vm::VMOffsets;
-        let offsets = VMOffsets::new_for_trampolines(frontend_config.pointer_bytes());
+        let offsets = VMOffsets::new(frontend_config.pointer_bytes());
         // dynamic function trampolines (only for imported functions)
         let dynamic_function_trampolines = module
             .imported_function_types()

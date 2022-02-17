@@ -3,8 +3,35 @@
 
 use crate::instance::ImportFunctionEnv;
 use crate::vmcontext::{VMFunctionImport, VMGlobalImport, VMMemoryImport, VMTableImport};
+use crate::VMSharedSignatureIndex;
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{FunctionIndex, GlobalIndex, MemoryIndex, TableIndex};
+
+/// Type of the import.
+pub enum VMImportType {
+    /// A function signature.
+    Function(VMSharedSignatureIndex),
+    /// A global.
+    Global(wasmer_types::GlobalType),
+    /// A table.
+    Table(wasmer_types::TableType),
+    /// Some memory.
+    Memory(wasmer_types::MemoryType, crate::MemoryStyle),
+}
+
+/// A module import.
+pub struct VMImport {
+    /// This is passed to the `resolve` method.
+    ///
+    /// This index is shared between different import types.
+    pub import_no: u32,
+    /// The module name.
+    pub module: String,
+    /// The field name.
+    pub field: String,
+    /// Type of the import.
+    pub ty: VMImportType,
+}
 
 /// Resolved import pointers.
 #[derive(Clone)]

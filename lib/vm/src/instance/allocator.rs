@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::mem;
 use std::ptr::{self, NonNull};
 use wasmer_types::entity::EntityRef;
-use wasmer_types::{LocalMemoryIndex, LocalTableIndex, ModuleInfo};
+use wasmer_types::{LocalMemoryIndex, LocalTableIndex};
 
 /// This is an intermediate type that manages the raw allocation and
 /// metadata when creating an [`Instance`].
@@ -68,13 +68,12 @@ impl InstanceAllocator {
     ///
     /// [`InstanceHandle::new`]: super::InstanceHandle::new
     pub fn new(
-        module: &ModuleInfo,
+        offsets: VMOffsets,
     ) -> (
         Self,
         Vec<NonNull<VMMemoryDefinition>>,
         Vec<NonNull<VMTableDefinition>>,
     ) {
-        let offsets = VMOffsets::new(mem::size_of::<usize>() as u8, module);
         let instance_layout = Self::instance_layout(&offsets);
 
         #[allow(clippy::cast_ptr_alignment)]
@@ -205,10 +204,5 @@ impl InstanceAllocator {
         // This is correct because of the invariants of `Self` and
         // because we write `Instance` to the pointer in this function.
         unsafe { InstanceRef::new(instance, instance_layout) }
-    }
-
-    /// Get the [`VMOffsets`] for the allocated buffer.
-    pub(crate) fn offsets(&self) -> &VMOffsets {
-        &self.offsets
     }
 }

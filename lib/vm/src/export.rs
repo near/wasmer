@@ -6,9 +6,9 @@ use crate::instance::WeakOrStrongInstanceRef;
 use crate::memory::{Memory, MemoryStyle};
 use crate::table::{Table, TableStyle};
 use crate::vmcontext::{VMFunctionBody, VMFunctionEnvironment, VMFunctionKind, VMTrampoline};
-use loupe::MemoryUsage;
+use crate::VMSharedSignatureIndex;
 use std::sync::Arc;
-use wasmer_types::{FunctionType, MemoryType, TableType};
+use wasmer_types::{MemoryType, TableType};
 
 /// The value of an export passed from one instance to another.
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub enum VMExtern {
 }
 
 /// A function export value.
-#[derive(Clone, Debug, PartialEq, MemoryUsage)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VMFunction {
     /// The address of the native-code function.
     pub address: *const VMFunctionBody,
@@ -36,7 +36,7 @@ pub struct VMFunction {
     pub vmctx: VMFunctionEnvironment,
 
     /// The function type, used for compatibility checking.
-    pub signature: FunctionType,
+    pub signature: VMSharedSignatureIndex,
 
     /// The function kind (specifies the calling convention for the
     /// function).
@@ -47,7 +47,6 @@ pub struct VMFunction {
     ///
     /// May be `None` when the function is a host function (`FunctionType`
     /// == `Dynamic` or `vmctx` == `nullptr`).
-    #[loupe(skip)]
     pub call_trampoline: Option<VMTrampoline>,
 
     /// A “reference” to the instance through the
@@ -81,7 +80,7 @@ impl From<VMFunction> for VMExtern {
 }
 
 /// A table export value.
-#[derive(Clone, Debug, MemoryUsage)]
+#[derive(Clone, Debug)]
 pub struct VMTable {
     /// Pointer to the containing `Table`.
     pub from: Arc<dyn Table>,
@@ -136,7 +135,7 @@ impl From<VMTable> for VMExtern {
 }
 
 /// A memory export value.
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 pub struct VMMemory {
     /// Pointer to the containing `Memory`.
     pub from: Arc<dyn Memory>,
@@ -191,7 +190,7 @@ impl From<VMMemory> for VMExtern {
 }
 
 /// A global export value.
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 pub struct VMGlobal {
     /// The global declaration, used for compatibility checking.
     pub from: Arc<Global>,

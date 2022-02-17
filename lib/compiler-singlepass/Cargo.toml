@@ -16,7 +16,7 @@ name = "wasmer_compiler_singlepass"
 
 [dependencies]
 wasmer-compiler = { path = "../compiler", package = "wasmer-compiler-near", version = "=2.2.2", features = ["translator"], default-features = false }
-wasmer-vm = { path = "../vm", package = "wasmer-vm-near", version = "=2.2.2", features = ["avoid-tls-signals"] }
+wasmer-vm = { path = "../vm", package = "wasmer-vm-near", version = "=2.2.2" }
 wasmer-types = { path = "../types", package = "wasmer-types-near", version = "=2.2.2", default-features = false, features = ["std"] }
 rayon = { version = "1.5", optional = true }
 hashbrown = { version = "0.11", optional = true }
@@ -26,7 +26,6 @@ dynasmrt = "1.0"
 lazy_static = "1.4"
 byteorder = "1.3"
 smallvec = "1.6"
-loupe = "0.1"
 memoffset = "0.6"
 
 [dev-dependencies]

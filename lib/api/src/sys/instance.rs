@@ -1,15 +1,14 @@
-use crate::sys::exports::Exports;
-use crate::sys::externals::Extern;
 use crate::sys::module::Module;
 use crate::sys::store::Store;
 use crate::sys::{HostEnvInitError, LinkError, RuntimeError};
-use loupe::MemoryUsage;
+use crate::{ExportError, NativeFunc, WasmTypeList};
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use wasmer_engine::Resolver;
-use wasmer_types::{InstanceConfig, NamedFunction};
-use wasmer_vm::{InstanceHandle, VMContext};
+use wasmer_types::InstanceConfig;
+use wasmer_vm::{InstanceHandle, Resolver, VMContext};
+
+use super::exports::ExportableWithGenerics;
 
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
@@ -19,12 +18,10 @@ use wasmer_vm::{InstanceHandle, VMContext};
 /// interacting with WebAssembly.
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#module-instances>
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct Instance {
     handle: Arc<Mutex<InstanceHandle>>,
     module: Module,
-    /// The exports for an instance.
-    pub exports: Exports,
 }
 
 #[cfg(test)]
@@ -55,8 +52,12 @@ pub enum InstantiationError {
     #[error(transparent)]
     Link(LinkError),
 
+    /// Could not instantiate the artifact.
+    #[error("could not instantiate the artifact: {0}")]
+    Instantiation(Box<dyn std::error::Error + Send + Sync>),
+
     /// A runtime error occured while invoking the start function
-    #[error(transparent)]
+    #[error("could not invoke the start function: {0}")]
     Start(RuntimeError),
 
     /// The module was compiled with a CPU feature that is not available on
@@ -75,6 +76,9 @@ impl From<wasmer_engine::InstantiationError> for InstantiationError {
             wasmer_engine::InstantiationError::Link(e) => Self::Link(e),
             wasmer_engine::InstantiationError::Start(e) => Self::Start(e),
             wasmer_engine::InstantiationError::CpuFeature(e) => Self::CpuFeature(e),
+            wasmer_engine::InstantiationError::CreateInstance(e) => {
+                Self::Instantiation(Box::new(e).into())
+            }
         }
     }
 }
@@ -119,10 +123,7 @@ impl Instance {
     /// Those are, as defined by the spec:
     ///  * Link errors that happen when plugging the imports into the instance
     ///  * Runtime errors that happen when running the module `start` function.
-    pub fn new(
-        module: &Module,
-        resolver: &(dyn Resolver + Send + Sync),
-    ) -> Result<Self, InstantiationError> {
+    pub fn new(module: &Module, resolver: &dyn Resolver) -> Result<Self, InstantiationError> {
         Instance::new_with_config(module, InstanceConfig::default(), resolver)
     }
 
@@ -140,22 +141,10 @@ impl Instance {
                 ));
             }
         }
-        let store = module.store();
         let handle = module.instantiate(resolver, config)?;
-        let exports = module
-            .exports()
-            .map(|export| {
-                let name = export.name().to_string();
-                let export = handle.lookup(&name).expect("export");
-                let extern_ = Extern::from_vm_export(store, export.into());
-                (name, extern_)
-            })
-            .collect::<Exports>();
-
         let instance = Self {
             handle: Arc::new(Mutex::new(handle)),
             module: module.clone(),
-            exports,
         };
 
         // # Safety
@@ -167,11 +156,10 @@ impl Instance {
         // correct error type returned by `WasmerEnv::init_with_instance` as a generic
         // parameter.
         unsafe {
-            instance
-                .handle
-                .lock()
-                .unwrap()
-                .initialize_host_envs::<HostEnvInitError>(&instance as *const _ as *const _)?;
+            wasmer_vm::initialize_host_envs::<HostEnvInitError>(
+                &*instance.handle,
+                &instance as *const _ as *const _,
+            )?;
         }
 
         Ok(instance)
@@ -187,9 +175,64 @@ impl Instance {
         self.module.store()
     }
 
-    /// Returns list of named functions in instance.
-    pub fn named_functions(&self) -> Vec<NamedFunction> {
-        self.handle.lock().unwrap().named_functions()
+    /// Lookup an exported entity by its name.
+    pub fn lookup(&self, field: &str) -> Option<crate::Export> {
+        let vmextern = self.handle.lock().unwrap().lookup(field)?;
+        Some(vmextern.into())
+    }
+
+    /// Lookup an exported function by its name.
+    pub fn lookup_function(&self, field: &str) -> Option<crate::Function> {
+        if let crate::Export::Function(f) = self.lookup(field)? {
+            Some(crate::Function::from_vm_export(self.store(), f))
+        } else {
+            None
+        }
+    }
+
+    /// Get an export as a `NativeFunc`.
+    pub fn get_native_function<Args, Rets>(
+        &self,
+        name: &str,
+    ) -> Result<NativeFunc<Args, Rets>, ExportError>
+    where
+        Args: WasmTypeList,
+        Rets: WasmTypeList,
+    {
+        match self.lookup(name) {
+            Some(crate::Export::Function(f)) => crate::Function::from_vm_export(self.store(), f)
+                .native()
+                .map_err(|_| ExportError::IncompatibleType),
+            Some(_) => Err(ExportError::IncompatibleType),
+            None => Err(ExportError::Missing("not found".into())),
+        }
+    }
+
+    /// Hack to get this working with nativefunc too
+    pub fn get_with_generics<'a, T, Args, Rets>(&'a self, name: &str) -> Result<T, ExportError>
+    where
+        Args: WasmTypeList,
+        Rets: WasmTypeList,
+        T: ExportableWithGenerics<'a, Args, Rets>,
+    {
+        let export = self
+            .lookup(name)
+            .ok_or_else(|| ExportError::Missing(name.to_string()))?;
+        let ext = crate::Extern::from_vm_export(self.store(), export);
+        T::get_self_from_extern_with_generics(ext)
+    }
+
+    /// Like `get_with_generics` but with a WeakReference to the `InstanceRef` internally.
+    /// This is useful for passing data into `WasmerEnv`, for example.
+    pub fn get_with_generics_weak<'a, T, Args, Rets>(&'a self, name: &str) -> Result<T, ExportError>
+    where
+        Args: WasmTypeList,
+        Rets: WasmTypeList,
+        T: ExportableWithGenerics<'a, Args, Rets>,
+    {
+        let mut out: T = self.get_with_generics(name)?;
+        out.into_weak_instance_ref();
+        Ok(out)
     }
 
     #[doc(hidden)]
@@ -200,8 +243,6 @@ impl Instance {
 
 impl fmt::Debug for Instance {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Instance")
-            .field("exports", &self.exports)
-            .finish()
+        f.debug_struct("Instance").finish()
     }
 }

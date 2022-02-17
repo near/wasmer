@@ -166,16 +166,13 @@ fn test_gas_intrinsic_regular() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let foo_func = instance
-        .exports
-        .get_function("foo")
+        .lookup_function("foo")
         .expect("expected function foo");
     let bar_func = instance
-        .exports
-        .get_function("bar")
+        .lookup_function("bar")
         .expect("expected function bar");
     let zoo_func = instance
-        .exports
-        .get_function("zoo")
+        .lookup_function("zoo")
         .expect("expected function zoo");
     // Ensure "func" was not called.
     assert_eq!(HITS.load(SeqCst), 0);
@@ -223,12 +220,10 @@ fn test_gas_intrinsic_default() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let foo_func = instance
-        .exports
-        .get_function("foo")
+        .lookup_function("foo")
         .expect("expected function foo");
     let bar_func = instance
-        .exports
-        .get_function("bar")
+        .lookup_function("bar")
         .expect("expected function bar");
     // Ensure "func" was called.
     assert_eq!(HITS.load(SeqCst), 0);
@@ -274,8 +269,7 @@ fn test_gas_intrinsic_tricky() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let foo_func = instance
-        .exports
-        .get_function("foo")
+        .lookup_function("foo")
         .expect("expected function foo");
 
     let _e = foo_func.call(&[]);
@@ -285,8 +279,7 @@ fn test_gas_intrinsic_tricky() {
     assert_eq!(HITS.load(SeqCst), 1);
 
     let zoo_func = instance
-        .exports
-        .get_function("zoo")
+        .lookup_function("zoo")
         .expect("expected function zoo");
 
     let _e = zoo_func.call(&[]);

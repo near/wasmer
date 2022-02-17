@@ -9,8 +9,6 @@ use crate::func_data_registry::VMFuncRef;
 use crate::trap::{Trap, TrapCode};
 use crate::vmcontext::VMTableDefinition;
 use crate::VMExternRef;
-use loupe::{MemoryUsage, MemoryUsageTracker};
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
@@ -22,10 +20,17 @@ use std::sync::Mutex;
 use wasmer_types::{ExternRef, TableType, Type as ValType};
 
 /// Implementation styles for WebAssembly tables.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, MemoryUsage)]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
+#[derive(
+    Debug,
+    Clone,
+    Hash,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    RkyvSerialize,
+    RkyvDeserialize,
+    Archive,
 )]
 pub enum TableStyle {
     /// Signatures are stored in the table and checked in the caller.
@@ -33,7 +38,7 @@ pub enum TableStyle {
 }
 
 /// Trait for implementing the interface of a Wasm table.
-pub trait Table: fmt::Debug + Send + Sync + MemoryUsage {
+pub trait Table: fmt::Debug + Send + Sync {
     /// Returns the style for this Table.
     fn style(&self) -> &TableStyle;
 
@@ -148,12 +153,6 @@ fn table_element_size_test() {
     assert_eq!(size_of::<RawTableElement>(), size_of::<VMFuncRef>());
 }
 
-impl MemoryUsage for RawTableElement {
-    fn size_of_val(&self, _: &mut dyn MemoryUsageTracker) -> usize {
-        std::mem::size_of_val(self)
-    }
-}
-
 impl fmt::Debug for RawTableElement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("RawTableElement").finish()
@@ -175,7 +174,7 @@ impl Default for TableElement {
 }
 
 /// A table instance.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 pub struct LinearTable {
     // TODO: we can remove the mutex by using atomic swaps and preallocating the max table size
     vec: Mutex<Vec<RawTableElement>>,
@@ -189,7 +188,7 @@ pub struct LinearTable {
 
 /// A type to help manage who is responsible for the backing table of the
 /// `VMTableDefinition`.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 enum VMTableDefinitionOwnership {
     /// The `VMTableDefinition` is owned by the `Instance` and we should use
     /// its table. This is how a local table that's exported should be stored.
@@ -341,9 +340,9 @@ impl Table for LinearTable {
                 let extern_ref: VMExternRef = extern_ref.into();
                 // We reduce the amount we increment by because `into` prevents
                 // dropping `init_value` (which is a caller-inc'd ref).
-                (new_len as usize)
-                    .checked_sub(size as usize + 1)
-                    .map(|val| extern_ref.ref_inc_by(val));
+                if let Some(val) = (new_len as usize).checked_sub(size as usize + 1) {
+                    extern_ref.ref_inc_by(val);
+                }
                 RawTableElement { extern_ref }
             }
             TableElement::FuncRef(func_ref) => RawTableElement { func_ref },

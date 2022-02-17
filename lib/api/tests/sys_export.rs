@@ -2,7 +2,7 @@
 mod sys {
     use anyhow::Result;
     use wasmer::*;
-    use wasmer_vm::WeakOrStrongInstanceRef;
+    use wasmer_vm::{VMGlobal, VMMemory, VMTable, WeakOrStrongInstanceRef};
 
     const MEM_WAT: &str = "
     (module
@@ -45,37 +45,28 @@ mod sys {
       )
 ";
 
-    fn is_memory_instance_ref_strong(memory: &Memory) -> Option<bool> {
+    fn is_memory_instance_ref_strong(memory: &VMMemory) -> Option<bool> {
         // This is safe because we're calling it from a test to test the internals
-        unsafe {
-            memory
-                .get_vm_memory()
-                .instance_ref
-                .as_ref()
-                .map(|v| matches!(v, WeakOrStrongInstanceRef::Strong(_)))
-        }
+        memory
+            .instance_ref
+            .as_ref()
+            .map(|v| matches!(v, WeakOrStrongInstanceRef::Strong(_)))
     }
 
-    fn is_table_instance_ref_strong(table: &Table) -> Option<bool> {
+    fn is_table_instance_ref_strong(table: &VMTable) -> Option<bool> {
         // This is safe because we're calling it from a test to test the internals
-        unsafe {
-            table
-                .get_vm_table()
-                .instance_ref
-                .as_ref()
-                .map(|v| matches!(v, WeakOrStrongInstanceRef::Strong(_)))
-        }
+        table
+            .instance_ref
+            .as_ref()
+            .map(|v| matches!(v, WeakOrStrongInstanceRef::Strong(_)))
     }
 
-    fn is_global_instance_ref_strong(global: &Global) -> Option<bool> {
+    fn is_global_instance_ref_strong(global: &VMGlobal) -> Option<bool> {
         // This is safe because we're calling it from a test to test the internals
-        unsafe {
-            global
-                .get_vm_global()
-                .instance_ref
-                .as_ref()
-                .map(|v| matches!(v, WeakOrStrongInstanceRef::Strong(_)))
-        }
+        global
+            .instance_ref
+            .as_ref()
+            .map(|v| matches!(v, WeakOrStrongInstanceRef::Strong(_)))
     }
 
     fn is_function_instance_ref_strong(f: &Function) -> Option<bool> {
@@ -112,12 +103,21 @@ mod sys {
             memory: LazyInit<Memory>,
         }
 
-        let host_fn = |env: &MemEnv| {
+        let host_fn = |env: &MemEnv| unsafe {
             let mem = env.memory_ref().unwrap();
-            assert_eq!(is_memory_instance_ref_strong(&mem), Some(false));
+            assert_eq!(
+                is_memory_instance_ref_strong(&mem.get_vm_memory()),
+                Some(false)
+            );
             let mem_clone = mem.clone();
-            assert_eq!(is_memory_instance_ref_strong(&mem_clone), Some(true));
-            assert_eq!(is_memory_instance_ref_strong(&mem), Some(false));
+            assert_eq!(
+                is_memory_instance_ref_strong(&mem_clone.get_vm_memory()),
+                Some(true)
+            );
+            assert_eq!(
+                is_memory_instance_ref_strong(&mem.get_vm_memory()),
+                Some(false)
+            );
         };
 
         let f: NativeFunc<(), ()> = {
@@ -135,11 +135,14 @@ mod sys {
             )?;
 
             {
-                let mem = instance.exports.get_memory("memory")?;
-                assert_eq!(is_memory_instance_ref_strong(&mem), Some(true));
+                if let Some(Export::Memory(mem)) = instance.lookup("memory") {
+                    assert_eq!(is_memory_instance_ref_strong(&mem), Some(true));
+                } else {
+                    panic!("not a memory");
+                }
             }
 
-            let f: NativeFunc<(), ()> = instance.exports.get_native_function("call_host_fn")?;
+            let f: NativeFunc<(), ()> = instance.get_native_function("call_host_fn").unwrap();
             f.call()?;
             f
         };
@@ -156,12 +159,21 @@ mod sys {
             global: LazyInit<Global>,
         }
 
-        let host_fn = |env: &GlobalEnv| {
+        let host_fn = |env: &GlobalEnv| unsafe {
             let global = env.global_ref().unwrap();
-            assert_eq!(is_global_instance_ref_strong(&global), Some(false));
+            assert_eq!(
+                is_global_instance_ref_strong(&global.get_vm_global()),
+                Some(false)
+            );
             let global_clone = global.clone();
-            assert_eq!(is_global_instance_ref_strong(&global_clone), Some(true));
-            assert_eq!(is_global_instance_ref_strong(&global), Some(false));
+            assert_eq!(
+                is_global_instance_ref_strong(&global_clone.get_vm_global()),
+                Some(true)
+            );
+            assert_eq!(
+                is_global_instance_ref_strong(&global.get_vm_global()),
+                Some(false)
+            );
         };
 
         let f: NativeFunc<(), ()> = {
@@ -179,11 +191,14 @@ mod sys {
             )?;
 
             {
-                let global = instance.exports.get_global("global")?;
-                assert_eq!(is_global_instance_ref_strong(&global), Some(true));
+                if let Some(Export::Global(global)) = instance.lookup("global") {
+                    assert_eq!(is_global_instance_ref_strong(&global), Some(true));
+                } else {
+                    panic!("not a global");
+                }
             }
 
-            let f: NativeFunc<(), ()> = instance.exports.get_native_function("call_host_fn")?;
+            let f: NativeFunc<(), ()> = instance.get_native_function("call_host_fn").unwrap();
             f.call()?;
             f
         };
@@ -200,12 +215,21 @@ mod sys {
             table: LazyInit<Table>,
         }
 
-        let host_fn = |env: &TableEnv| {
+        let host_fn = |env: &TableEnv| unsafe {
             let table = env.table_ref().unwrap();
-            assert_eq!(is_table_instance_ref_strong(&table), Some(false));
+            assert_eq!(
+                is_table_instance_ref_strong(&table.get_vm_table()),
+                Some(false)
+            );
             let table_clone = table.clone();
-            assert_eq!(is_table_instance_ref_strong(&table_clone), Some(true));
-            assert_eq!(is_table_instance_ref_strong(&table), Some(false));
+            assert_eq!(
+                is_table_instance_ref_strong(&table_clone.get_vm_table()),
+                Some(true)
+            );
+            assert_eq!(
+                is_table_instance_ref_strong(&table.get_vm_table()),
+                Some(false)
+            );
         };
 
         let f: NativeFunc<(), ()> = {
@@ -223,11 +247,14 @@ mod sys {
             )?;
 
             {
-                let table = instance.exports.get_table("table")?;
-                assert_eq!(is_table_instance_ref_strong(&table), Some(true));
+                if let Some(Export::Table(table)) = instance.lookup("table") {
+                    assert_eq!(is_table_instance_ref_strong(&table), Some(true));
+                } else {
+                    panic!("not a table");
+                }
             }
 
-            let f: NativeFunc<(), ()> = instance.exports.get_native_function("call_host_fn")?;
+            let f: NativeFunc<(), ()> = instance.get_native_function("call_host_fn").unwrap();
             f.call()?;
             f
         };
@@ -267,11 +294,11 @@ mod sys {
             )?;
 
             {
-                let function = instance.exports.get_function("call_host_fn")?;
+                let function = instance.lookup_function("call_host_fn").unwrap();
                 assert_eq!(is_function_instance_ref_strong(&function), Some(true));
             }
 
-            let f: NativeFunc<(), ()> = instance.exports.get_native_function("call_host_fn")?;
+            let f: NativeFunc<(), ()> = instance.get_native_function("call_host_fn").unwrap();
             f.call()?;
             f
         };
@@ -321,14 +348,14 @@ mod sys {
 
             {
                 let function: NativeFunc<(), ()> =
-                    instance.exports.get_native_function("call_host_fn")?;
+                    instance.get_native_function("call_host_fn").unwrap();
                 assert_eq!(
                     is_native_function_instance_ref_strong(&function),
                     Some(true)
                 );
             }
 
-            let f: NativeFunc<(), ()> = instance.exports.get_native_function("call_host_fn")?;
+            let f: NativeFunc<(), ()> = instance.get_native_function("call_host_fn").unwrap();
             f.call()?;
             f
         };

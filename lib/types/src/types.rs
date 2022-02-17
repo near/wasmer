@@ -1,31 +1,25 @@
 use crate::indexes::{FunctionIndex, GlobalIndex};
-use crate::lib::std::borrow::ToOwned;
 use crate::lib::std::fmt;
 use crate::lib::std::format;
 use crate::lib::std::string::{String, ToString};
 use crate::lib::std::vec::Vec;
 use crate::units::Pages;
 use crate::values::{Value, WasmValueType};
-use loupe::{MemoryUsage, MemoryUsageTracker};
-use std::cell::UnsafeCell;
-use std::rc::Rc;
-
-#[cfg(feature = "enable-rkyv")]
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "enable-serde")]
 use serde::{Deserialize, Serialize};
+use std::cell::UnsafeCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 // Type Representations
 
 // Value Types
 
 /// A list of all possible value types in WebAssembly.
-#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash, MemoryUsage)]
+#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
+#[archive(as = "Self")]
 pub enum Type {
     /// Signed 32 bit integer.
     I32,
@@ -67,10 +61,8 @@ impl fmt::Display for Type {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
+#[archive(as = "Self")]
 /// The WebAssembly V128 type
 pub struct V128(pub(crate) [u8; 16]);
 
@@ -110,12 +102,6 @@ impl From<&[u8]> for V128 {
     }
 }
 
-impl MemoryUsage for V128 {
-    fn size_of_val(&self, tracker: &mut dyn MemoryUsageTracker) -> usize {
-        self.as_slice().size_of_val(tracker)
-    }
-}
-
 // External Types
 
 /// A list of all possible types which can be externally referenced from a
@@ -134,64 +120,6 @@ pub enum ExternType {
     Table(TableType),
     /// This external type is the type of a WebAssembly memory.
     Memory(MemoryType),
-}
-
-fn is_global_compatible(exported: GlobalType, imported: GlobalType) -> bool {
-    let GlobalType {
-        ty: exported_ty,
-        mutability: exported_mutability,
-    } = exported;
-    let GlobalType {
-        ty: imported_ty,
-        mutability: imported_mutability,
-    } = imported;
-
-    exported_ty == imported_ty && imported_mutability == exported_mutability
-}
-
-fn is_table_element_type_compatible(exported_type: Type, imported_type: Type) -> bool {
-    match exported_type {
-        Type::FuncRef => true,
-        _ => imported_type == exported_type,
-    }
-}
-
-fn is_table_compatible(exported: &TableType, imported: &TableType) -> bool {
-    let TableType {
-        ty: exported_ty,
-        minimum: exported_minimum,
-        maximum: exported_maximum,
-    } = exported;
-    let TableType {
-        ty: imported_ty,
-        minimum: imported_minimum,
-        maximum: imported_maximum,
-    } = imported;
-
-    is_table_element_type_compatible(*exported_ty, *imported_ty)
-        && imported_minimum <= exported_minimum
-        && (imported_maximum.is_none()
-            || (!exported_maximum.is_none()
-                && imported_maximum.unwrap() >= exported_maximum.unwrap()))
-}
-
-fn is_memory_compatible(exported: &MemoryType, imported: &MemoryType) -> bool {
-    let MemoryType {
-        minimum: exported_minimum,
-        maximum: exported_maximum,
-        shared: exported_shared,
-    } = exported;
-    let MemoryType {
-        minimum: imported_minimum,
-        maximum: imported_maximum,
-        shared: imported_shared,
-    } = imported;
-
-    imported_minimum <= exported_minimum
-        && (imported_maximum.is_none()
-            || (!exported_maximum.is_none()
-                && imported_maximum.unwrap() >= exported_maximum.unwrap()))
-        && exported_shared == imported_shared
 }
 
 macro_rules! accessors {
@@ -225,17 +153,6 @@ impl ExternType {
         (Table(TableType) table unwrap_table)
         (Memory(MemoryType) memory unwrap_memory)
     }
-    /// Check if two externs are compatible
-    pub fn is_compatible_with(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Function(a), Self::Function(b)) => a == b,
-            (Self::Global(a), Self::Global(b)) => is_global_compatible(*a, *b),
-            (Self::Table(a), Self::Table(b)) => is_table_compatible(a, b),
-            (Self::Memory(a), Self::Memory(b)) => is_memory_compatible(a, b),
-            // The rest of possibilities, are not compatible
-            _ => false,
-        }
-    }
 }
 
 // TODO: `shrink_to_fit` these or change it to `Box<[Type]>` if not using
@@ -244,25 +161,22 @@ impl ExternType {
 /// in a Wasm module or exposed to Wasm by the host.
 ///
 /// WebAssembly functions can have 0 or more parameters and results.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct FunctionType {
     /// The parameters of the function
-    params: Box<[Type]>,
+    params: Arc<[Type]>,
     /// The return values of the function
-    results: Box<[Type]>,
+    results: Arc<[Type]>,
 }
 
 impl FunctionType {
     /// Creates a new Function Type with the given parameter and return types.
     pub fn new<Params, Returns>(params: Params, returns: Returns) -> Self
     where
-        Params: Into<Box<[Type]>>,
-        Returns: Into<Box<[Type]>>,
+        Params: Into<Arc<[Type]>>,
+        Returns: Into<Arc<[Type]>>,
     {
         Self {
             params: params.into(),
@@ -306,7 +220,7 @@ macro_rules! implement_from_pair_to_functiontype {
         $(
             impl From<([Type; $N], [Type; $M])> for FunctionType {
                 fn from(pair: ([Type; $N], [Type; $M])) -> Self {
-                    Self::new(pair.0, pair.1)
+                    Self::new(&pair.0[..], &pair.1[..])
                 }
             }
         )+
@@ -332,13 +246,51 @@ impl From<&FunctionType> for FunctionType {
     }
 }
 
+/// Borrowed version of [`FunctionType`].
+pub struct FunctionTypeRef<'a> {
+    /// The parameters of the function
+    params: &'a [Type],
+    /// The return values of the function
+    results: &'a [Type],
+}
+
+impl<'a> FunctionTypeRef<'a> {
+    /// Create a new temporary function type.
+    pub fn new(params: &'a [Type], results: &'a [Type]) -> Self {
+        Self { params, results }
+    }
+
+    /// Parameter types.
+    pub fn params(&self) -> &[Type] {
+        self.params
+    }
+
+    /// Return types.
+    pub fn results(&self) -> &[Type] {
+        self.results
+    }
+}
+
+impl<'a> From<&'a FunctionType> for FunctionTypeRef<'a> {
+    fn from(FunctionType { params, results }: &'a FunctionType) -> Self {
+        Self { params, results }
+    }
+}
+
+impl<'a> From<&'a ArchivedFunctionType> for FunctionTypeRef<'a> {
+    fn from(ArchivedFunctionType { params, results }: &'a ArchivedFunctionType) -> Self {
+        Self {
+            params: &**params,
+            results: &**results,
+        }
+    }
+}
+
 /// Indicator of whether a global is mutable or not
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
+#[archive(as = "Self")]
 pub enum Mutability {
     /// The global is constant and its value does not change
     Const,
@@ -349,36 +301,18 @@ pub enum Mutability {
 impl Mutability {
     /// Returns a boolean indicating if the enum is set to mutable.
     pub fn is_mutable(self) -> bool {
-        self.into()
-    }
-}
-
-impl From<bool> for Mutability {
-    fn from(value: bool) -> Self {
-        if value {
-            Self::Var
-        } else {
-            Self::Const
-        }
-    }
-}
-
-impl From<Mutability> for bool {
-    fn from(value: Mutability) -> Self {
-        match value {
-            Mutability::Var => true,
-            Mutability::Const => false,
+        match self {
+            Self::Const => false,
+            Self::Var => true,
         }
     }
 }
 
 /// WebAssembly global.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
+#[archive(as = "Self")]
 pub struct GlobalType {
     /// The type of the value stored in the global.
     pub ty: Type,
@@ -420,12 +354,10 @@ impl fmt::Display for GlobalType {
 }
 
 /// Globals are initialized via the `const` operators or by referring to another import.
-#[derive(Debug, Clone, Copy, MemoryUsage, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
+#[archive(as = "Self")]
 pub enum GlobalInit {
     /// An `i32.const`.
     I32Const(i32),
@@ -480,12 +412,9 @@ impl GlobalInit {
 /// Tables are contiguous chunks of a specific element, typically a `funcref` or
 /// an `externref`. The most common use for tables is a function table through
 /// which `call_indirect` can invoke other functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct TableType {
     /// The type of data stored in elements of the table.
     pub ty: Type,
@@ -523,12 +452,9 @@ impl fmt::Display for TableType {
 ///
 /// Memories are described in units of pages (64KB) and represent contiguous
 /// chunks of addressable memory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct MemoryType {
     /// The minimum number of pages in the memory.
     pub minimum: Pages,
@@ -573,33 +499,39 @@ impl fmt::Display for MemoryType {
 /// with the module/name that it's imported from as well as the type
 /// of item that's being imported.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-pub struct ImportType<T = ExternType> {
-    module: String,
-    name: String,
+pub struct Import<S = String, T = ExternType> {
+    module: S,
+    name: S,
+    index: u32,
     ty: T,
 }
 
-impl<T> ImportType<T> {
+impl<S: AsRef<str>, T> Import<S, T> {
     /// Creates a new import descriptor which comes from `module` and `name` and
     /// is of type `ty`.
-    pub fn new(module: &str, name: &str, ty: T) -> Self {
+    pub fn new(module: S, name: S, index: u32, ty: T) -> Self {
         Self {
-            module: module.to_owned(),
-            name: name.to_owned(),
+            module,
+            name,
+            index,
             ty,
         }
     }
 
     /// Returns the module name that this import is expected to come from.
     pub fn module(&self) -> &str {
-        &self.module
+        self.module.as_ref()
     }
 
     /// Returns the field name of the module that this import is expected to
     /// come from.
     pub fn name(&self) -> &str {
-        &self.name
+        self.name.as_ref()
+    }
+
+    /// The index of the import in the module.
+    pub fn index(&self) -> u32 {
+        self.index
     }
 
     /// Returns the expected type of this import.
@@ -693,11 +625,10 @@ impl fmt::Display for FastGasCounter {
 }
 
 /// External configuration of execution environment for Instance.
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct InstanceConfig {
     /// External gas counter pointer.
     pub gas_counter: *mut FastGasCounter,
-    #[loupe(skip)]
     default_gas_counter: Option<Rc<UnsafeCell<FastGasCounter>>>,
     /// Stack limit, in 8-byte slots.
     pub stack_limit: i32,
@@ -735,17 +666,6 @@ impl InstanceConfig {
         self.stack_limit = stack_limit;
         self
     }
-}
-
-/// Named function information.
-#[derive(Clone, Debug)]
-pub struct NamedFunction {
-    /// Name of the function.
-    pub name: String,
-    /// Address of executable code.
-    pub address: u64,
-    /// Size of executable code.
-    pub size: usize,
 }
 
 #[cfg(test)]

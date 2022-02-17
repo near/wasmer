@@ -41,8 +41,7 @@ fn stack_limit_hit() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
-        .exports
-        .get_function("main")
+        .lookup_function("main")
         .expect("expected function main");
     match main_func.call(&[]) {
         Err(err) => {
@@ -88,8 +87,7 @@ fn stack_limit_operand_stack() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
-        .exports
-        .get_function("main")
+        .lookup_function("main")
         .expect("expected function main");
     match main_func.call(&[]) {
         Err(err) => {
@@ -140,8 +138,7 @@ fn stack_limit_ok() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
-        .exports
-        .get_function("main")
+        .lookup_function("main")
         .expect("expected function main");
     let e = main_func.call(&[]);
     assert!(e.is_ok());
@@ -160,8 +157,7 @@ fn stack_limit_huge_limit() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
-        .exports
-        .get_function("main")
+        .lookup_function("main")
         .expect("expected function main");
     main_func.call(&[]).unwrap();
 }
@@ -187,8 +183,7 @@ fn stack_limit_no_args() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
-        .exports
-        .get_function("main")
+        .lookup_function("main")
         .expect("expected function main");
     match main_func.call(&[]) {
         Err(err) => {
@@ -231,8 +226,7 @@ fn deep_but_sane() {
     assert!(instance.is_ok());
     let instance = instance.unwrap();
     let main_func = instance
-        .exports
-        .get_function("main")
+        .lookup_function("main")
         .expect("expected function main");
 
     let e = main_func.call(&[]);

@@ -14,8 +14,8 @@ use wasmer_types::FunctionType;
 use wasmer_types::{
     CustomSectionIndex, DataIndex, DataInitializer, DataInitializerLocation, ElemIndex,
     ExportIndex, FunctionIndex, GlobalIndex, GlobalInit, GlobalType, ImportIndex,
-    LocalFunctionIndex, MemoryIndex, MemoryType, ModuleInfo, SignatureIndex, TableIndex,
-    TableInitializer, TableType,
+    LocalFunctionIndex, MemoryIndex, MemoryType, ModuleInfo, OwnedTableInitializer, SignatureIndex,
+    TableIndex, TableType,
 };
 
 /// Contains function data: bytecode and its offset in the module.
@@ -136,18 +136,16 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.functions.len(),
-            self.module.num_imported_functions,
+            self.module.import_counts.functions as usize,
             "Imported functions must be declared first"
         );
         self.declare_import(
-            ImportIndex::Function(FunctionIndex::from_u32(
-                self.module.num_imported_functions as _,
-            )),
+            ImportIndex::Function(FunctionIndex::from_u32(self.module.import_counts.functions)),
             module,
             field,
         )?;
         self.module.functions.push(sig_index);
-        self.module.num_imported_functions += 1;
+        self.module.import_counts.functions += 1;
         Ok(())
     }
 
@@ -159,16 +157,16 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.tables.len(),
-            self.module.num_imported_tables,
+            self.module.import_counts.tables as usize,
             "Imported tables must be declared first"
         );
         self.declare_import(
-            ImportIndex::Table(TableIndex::from_u32(self.module.num_imported_tables as _)),
+            ImportIndex::Table(TableIndex::from_u32(self.module.import_counts.tables)),
             module,
             field,
         )?;
         self.module.tables.push(table);
-        self.module.num_imported_tables += 1;
+        self.module.import_counts.tables += 1;
         Ok(())
     }
 
@@ -180,18 +178,16 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.memories.len(),
-            self.module.num_imported_memories,
+            self.module.import_counts.memories as usize,
             "Imported memories must be declared first"
         );
         self.declare_import(
-            ImportIndex::Memory(MemoryIndex::from_u32(
-                self.module.num_imported_memories as _,
-            )),
+            ImportIndex::Memory(MemoryIndex::from_u32(self.module.import_counts.memories)),
             module,
             field,
         )?;
         self.module.memories.push(memory);
-        self.module.num_imported_memories += 1;
+        self.module.import_counts.memories += 1;
         Ok(())
     }
 
@@ -203,16 +199,16 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.globals.len(),
-            self.module.num_imported_globals,
+            self.module.import_counts.globals as usize,
             "Imported globals must be declared first"
         );
         self.declare_import(
-            ImportIndex::Global(GlobalIndex::from_u32(self.module.num_imported_globals as _)),
+            ImportIndex::Global(GlobalIndex::from_u32(self.module.import_counts.globals)),
             module,
             field,
         )?;
         self.module.globals.push(global);
-        self.module.num_imported_globals += 1;
+        self.module.import_counts.globals += 1;
         Ok(())
     }
 
@@ -337,7 +333,7 @@ impl<'data> ModuleEnvironment<'data> {
         offset: usize,
         elements: Box<[FunctionIndex]>,
     ) -> WasmResult<()> {
-        self.module.table_initializers.push(TableInitializer {
+        self.module.table_initializers.push(OwnedTableInitializer {
             table_index,
             base,
             offset,
@@ -397,9 +393,8 @@ impl<'data> ModuleEnvironment<'data> {
         Ok(())
     }
 
-    pub(crate) fn reserve_passive_data(&mut self, count: u32) -> WasmResult<()> {
-        let count = usize::try_from(count).unwrap();
-        self.module.passive_data.reserve(count);
+    pub(crate) fn reserve_passive_data(&mut self, _count: u32) -> WasmResult<()> {
+        // TODO(0-copy): consider finding a more appropriate data structure for this?
         Ok(())
     }
 

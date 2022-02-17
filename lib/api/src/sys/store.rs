@@ -1,12 +1,10 @@
 use crate::sys::tunables::BaseTunables;
-use loupe::MemoryUsage;
-use std::any::Any;
 use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 #[cfg(all(feature = "compiler", feature = "engine"))]
 use wasmer_compiler::CompilerConfig;
-use wasmer_engine::{is_wasm_pc, Engine, Tunables};
-use wasmer_vm::{init_traps, TrapHandler, TrapHandlerFn};
+use wasmer_engine::Engine;
+use wasmer_vm::Tunables;
 
 /// The store represents all global state that can be manipulated by
 /// WebAssembly programs. It consists of the runtime representation
@@ -18,12 +16,10 @@ use wasmer_vm::{init_traps, TrapHandler, TrapHandlerFn};
 /// [`Tunables`] (that are used to create the memories, tables and globals).
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#store>
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct Store {
     engine: Arc<dyn Engine + Send + Sync>,
     tunables: Arc<dyn Tunables + Send + Sync>,
-    #[loupe(skip)]
-    trap_handler: Arc<RwLock<Option<Box<TrapHandlerFn>>>>,
 }
 
 impl Store {
@@ -35,26 +31,14 @@ impl Store {
         Self::new_with_tunables(engine, BaseTunables::for_target(engine.target()))
     }
 
-    /// Set the trap handler in this store.
-    pub fn set_trap_handler(&self, handler: Option<Box<TrapHandlerFn>>) {
-        let mut m = self.trap_handler.write().unwrap();
-        *m = handler;
-    }
-
     /// Creates a new `Store` with a specific [`Engine`] and [`Tunables`].
     pub fn new_with_tunables<E>(engine: &E, tunables: impl Tunables + Send + Sync + 'static) -> Self
     where
         E: Engine + ?Sized,
     {
-        // Make sure the signal handlers are installed.
-        // This is required for handling traps.
-        if engine.use_signals() {
-            init_traps(is_wasm_pc);
-        }
         Self {
             engine: engine.cloned(),
             tunables: Arc::new(tunables),
-            trap_handler: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -82,23 +66,6 @@ impl PartialEq for Store {
     }
 }
 
-unsafe impl TrapHandler for Store {
-    #[inline]
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn custom_trap_handler(&self, call: &dyn Fn(&TrapHandlerFn) -> bool) -> bool {
-        if let Some(handler) = *&self.trap_handler.read().unwrap().as_ref() {
-            call(handler)
-        } else {
-            false
-        }
-    }
-}
-
-// This is required to be able to set the trap_handler in the
-// Store.
 unsafe impl Send for Store {}
 unsafe impl Sync for Store {}
 

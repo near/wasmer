@@ -40,6 +40,13 @@ pub enum CompileError {
     /// Insufficient resources available for execution.
     #[cfg_attr(feature = "std", error("Insufficient resources: {0}"))]
     Resource(String),
+
+    /// Cannot downcast the engine to a specific type.
+    #[cfg_attr(
+        feature = "std",
+        error("cannot downcast the engine to a specific type")
+    )]
+    EngineDowncast,
 }
 
 impl From<WasmError> for CompileError {

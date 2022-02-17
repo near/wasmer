@@ -1,15 +1,14 @@
 //! Engine trait and associated types.
 
-use crate::tunables::Tunables;
-use crate::{Artifact, DeserializeError};
-use loupe::MemoryUsage;
-use memmap2::Mmap;
-use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
-use wasmer_types::FunctionType;
-use wasmer_vm::{VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+use wasmer_types::{FunctionType, FunctionTypeRef};
+use wasmer_vm::{Artifact, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+
+mod private {
+    pub struct Internal(pub(super) ());
+}
 
 /// A unimplemented Wasmer `Engine`.
 ///
@@ -17,12 +16,12 @@ use wasmer_vm::{VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
 /// such as: Universal or Native.
 ///
 /// The product that an `Engine` produces and consumes is the [`Artifact`].
-pub trait Engine: MemoryUsage {
+pub trait Engine {
     /// Gets the target
     fn target(&self) -> &Target;
 
     /// Register a signature
-    fn register_signature(&self, func_type: &FunctionType) -> VMSharedSignatureIndex;
+    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex;
 
     /// Register a function's data.
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef;
@@ -38,31 +37,11 @@ pub trait Engine: MemoryUsage {
         &self,
         binary: &[u8],
         tunables: &dyn Tunables,
-    ) -> Result<Arc<dyn Artifact>, CompileError>;
+    ) -> Result<Box<dyn crate::Executable>, CompileError>;
 
-    /// If this engine needs to install POSIX signal handlers.
-    fn use_signals(&self) -> bool;
-
-    /// Deserializes a WebAssembly module
-    ///
-    /// # Safety
-    ///
-    /// The serialized content must represent a serialized WebAssembly module.
-    unsafe fn deserialize(&self, bytes: &[u8]) -> Result<Arc<dyn Artifact>, DeserializeError>;
-
-    /// Deserializes a WebAssembly module from a path
-    ///
-    /// # Safety
-    ///
-    /// The file's content must represent a serialized WebAssembly module.
-    unsafe fn deserialize_from_file(
-        &self,
-        file_ref: &Path,
-    ) -> Result<Arc<dyn Artifact>, DeserializeError> {
-        let file = std::fs::File::open(file_ref)?;
-        let mmap = Mmap::map(&file)?;
-        self.deserialize(&mmap)
-    }
+    /// Load a compiled executable with this engine.
+    fn load(&self, executable: &(dyn crate::Executable))
+        -> Result<Arc<dyn Artifact>, CompileError>;
 
     /// A unique identifier for this object.
     ///
@@ -73,9 +52,18 @@ pub trait Engine: MemoryUsage {
 
     /// Clone the engine
     fn cloned(&self) -> Arc<dyn Engine + Send + Sync>;
+
+    /// Internal: support for downcasting `Engine`s.
+    #[doc(hidden)]
+    fn type_id(&self, _: private::Internal) -> std::any::TypeId
+    where
+        Self: 'static,
+    {
+        std::any::TypeId::of::<Self>()
+    }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, MemoryUsage)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 /// A unique identifier for an Engine.
 pub struct EngineId {
@@ -100,6 +88,17 @@ impl Default for EngineId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
         Self {
             id: NEXT_ID.fetch_add(1, SeqCst),
+        }
+    }
+}
+
+impl dyn Engine {
+    /// Downcast a dynamic Executable object to a concrete implementation of the trait.
+    pub fn downcast_ref<T: Engine + 'static>(&self) -> Option<&T> {
+        if std::any::TypeId::of::<T>() == self.type_id(private::Internal(())) {
+            unsafe { Some(&*(self as *const dyn Engine as *const T)) }
+        } else {
+            None
         }
     }
 }

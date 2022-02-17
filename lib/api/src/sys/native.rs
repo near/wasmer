@@ -12,9 +12,10 @@ use std::marker::PhantomData;
 use crate::sys::externals::function::{DynamicFunction, VMDynamicFunction};
 use crate::sys::{FromToNativeWasmType, Function, RuntimeError, Store, WasmTypeList};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use wasmer_engine::ExportFunction;
 use wasmer_types::NativeWasmType;
-use wasmer_vm::{VMDynamicFunctionContext, VMFunctionBody, VMFunctionEnvironment, VMFunctionKind};
+use wasmer_vm::{
+    ExportFunction, VMDynamicFunctionContext, VMFunctionBody, VMFunctionEnvironment, VMFunctionKind,
+};
 
 /// A WebAssembly function that can be called natively
 /// (using the Native ABI).
@@ -155,7 +156,6 @@ macro_rules! impl_native_traits {
                     };
                     unsafe {
                         wasmer_vm::wasmer_call_trampoline(
-                            &self.store,
                             self.vmctx(),
                             trampoline,
                             self.address(),
@@ -228,7 +228,7 @@ macro_rules! impl_native_traits {
             $( $x: FromToNativeWasmType, )*
             Rets: WasmTypeList,
         {
-            fn get_self_from_extern_with_generics(_extern: &crate::sys::externals::Extern) -> Result<Self, crate::sys::exports::ExportError> {
+            fn get_self_from_extern_with_generics(_extern: crate::sys::externals::Extern) -> Result<Self, crate::sys::exports::ExportError> {
                 use crate::sys::exports::Exportable;
                 crate::Function::get_self_from_extern(_extern)?.native().map_err(|_| crate::sys::exports::ExportError::IncompatibleType)
             }

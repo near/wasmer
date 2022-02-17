@@ -1126,7 +1126,7 @@ impl<'ctx, 'a> CtxType<'ctx, 'a> {
             cached_memory_size: HashMap::new(),
 
             // TODO: pointer width
-            offsets: VMOffsets::new(8, &wasm_module),
+            offsets: VMOffsets::new(8).with_module_info(&wasm_module),
         }
     }
 

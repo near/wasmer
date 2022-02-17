@@ -8,14 +8,13 @@ use crate::func_data_registry::VMFuncRef;
 use crate::global::Global;
 use crate::instance::Instance;
 use crate::memory::Memory;
+use crate::sig_registry::VMSharedSignatureIndex;
 use crate::table::Table;
 use crate::trap::{Trap, TrapCode};
 use crate::VMExternRef;
-use loupe::{MemoryUsage, MemoryUsageTracker, POINTER_BYTE_SIZE};
 use std::any::Any;
 use std::convert::TryFrom;
 use std::fmt;
-use std::mem;
 use std::ptr::{self, NonNull};
 use std::sync::Arc;
 use std::u32;
@@ -61,18 +60,30 @@ impl std::hash::Hash for VMFunctionEnvironment {
     }
 }
 
-impl MemoryUsage for VMFunctionEnvironment {
-    fn size_of_val(&self, _: &mut dyn MemoryUsageTracker) -> usize {
-        mem::size_of_val(self)
-    }
+/// Represents a continuous region of executable memory starting with a function
+/// entry point.
+#[derive(Debug)]
+#[repr(C)]
+pub struct FunctionExtent {
+    /// Entry point for normal entry of the function. All addresses in the
+    /// function lie after this address.
+    pub address: FunctionBodyPtr,
+    /// Length in bytes.
+    pub length: usize,
 }
 
 /// An imported function.
-#[derive(Debug, Copy, Clone, MemoryUsage)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct VMFunctionImport {
     /// A pointer to the imported function body.
-    pub body: *const VMFunctionBody,
+    pub body: FunctionBodyPtr,
+
+    /// Function signature index within the source module.
+    pub signature: VMSharedSignatureIndex,
+
+    /// Function call trampoline
+    pub trampoline: Option<VMTrampoline>,
 
     /// A pointer to the `VMContext` that owns the function or host env data.
     pub environment: VMFunctionEnvironment,
@@ -89,7 +100,7 @@ mod test_vmfunction_import {
     #[test]
     fn check_vmfunction_import_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMFunctionImport>(),
             usize::from(offsets.size_of_vmfunction_import())
@@ -103,6 +114,23 @@ mod test_vmfunction_import {
             usize::from(offsets.vmfunction_import_vmctx())
         );
     }
+}
+
+/// A locally defined function.
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+pub struct VMLocalFunction {
+    /// A pointer to the imported function body.
+    pub body: FunctionBodyPtr,
+
+    /// Length of the function code
+    pub length: u32,
+
+    /// Function signature
+    pub signature: VMSharedSignatureIndex,
+
+    /// Trampoline for host->VM function calls.
+    pub trampoline: VMTrampoline,
 }
 
 /// The `VMDynamicFunctionContext` is the context that dynamic
@@ -152,7 +180,7 @@ mod test_vmdynamicfunction_import_context {
     #[test]
     fn check_vmdynamicfunction_import_context_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMDynamicFunctionContext<usize>>(),
             usize::from(offsets.size_of_vmdynamicfunction_import_context())
@@ -186,8 +214,29 @@ mod test_vmfunction_body {
     }
 }
 
+/// A pointer to the beginning of the function body.
+#[derive(Clone, Copy, Debug)]
+#[repr(transparent)]
+pub struct FunctionBodyPtr(pub *const VMFunctionBody);
+
+impl std::ops::Deref for FunctionBodyPtr {
+    type Target = *const VMFunctionBody;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// SAFETY: The VMFunctionBody that this points to is opaque, so there's no data to read or write
+// through this pointer. This is essentially a usize.
+unsafe impl Send for FunctionBodyPtr {}
+
+/// SAFETY: The VMFunctionBody that this points to is opaque, so there's no data to read or write
+/// through this pointer. This is essentially a usize.
+unsafe impl Sync for FunctionBodyPtr {}
+
 /// A function kind is a calling convention into and out of wasm code.
-#[derive(Debug, Copy, Clone, PartialEq, MemoryUsage)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(C)]
 pub enum VMFunctionKind {
     /// A static function has the native signature:
@@ -208,7 +257,7 @@ pub enum VMFunctionKind {
 
 /// The fields compiled code needs to access to utilize a WebAssembly table
 /// imported from another instance.
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VMTableImport {
     /// A pointer to the imported table description.
@@ -229,7 +278,7 @@ mod test_vmtable_import {
     #[test]
     fn check_vmtable_import_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMTableImport>(),
             usize::from(offsets.size_of_vmtable_import())
@@ -247,7 +296,7 @@ mod test_vmtable_import {
 
 /// The fields compiled code needs to access to utilize a WebAssembly linear
 /// memory imported from another instance.
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VMMemoryImport {
     /// A pointer to the imported memory description.
@@ -268,7 +317,7 @@ mod test_vmmemory_import {
     #[test]
     fn check_vmmemory_import_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMMemoryImport>(),
             usize::from(offsets.size_of_vmmemory_import())
@@ -286,7 +335,7 @@ mod test_vmmemory_import {
 
 /// The fields compiled code needs to access to utilize a WebAssembly global
 /// variable imported from another instance.
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VMGlobalImport {
     /// A pointer to the imported global variable description.
@@ -319,7 +368,7 @@ mod test_vmglobal_import {
     #[test]
     fn check_vmglobal_import_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMGlobalImport>(),
             usize::from(offsets.size_of_vmglobal_import())
@@ -359,16 +408,6 @@ unsafe impl Send for VMMemoryDefinition {}
 /// correctness in a multi-threaded context is concerned.
 unsafe impl Sync for VMMemoryDefinition {}
 
-impl MemoryUsage for VMMemoryDefinition {
-    fn size_of_val(&self, tracker: &mut dyn MemoryUsageTracker) -> usize {
-        if tracker.track(self.base as *const _ as *const ()) {
-            POINTER_BYTE_SIZE * self.current_length
-        } else {
-            0
-        }
-    }
-}
-
 impl VMMemoryDefinition {
     /// Do an unsynchronized, non-atomic `memory.copy` for the memory.
     ///
@@ -378,6 +417,7 @@ impl VMMemoryDefinition {
     /// bounds.
     ///
     /// # Safety
+    ///
     /// The memory is not copied atomically and is not synchronized: it's the
     /// caller's responsibility to synchronize.
     pub(crate) unsafe fn memory_copy(&self, dst: u32, src: u32, len: u32) -> Result<(), Trap> {
@@ -445,7 +485,7 @@ mod test_vmmemory_definition {
     #[test]
     fn check_vmmemory_definition_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMMemoryDefinition>(),
             usize::from(offsets.size_of_vmmemory_definition())
@@ -473,16 +513,6 @@ pub struct VMTableDefinition {
     pub current_elements: u32,
 }
 
-impl MemoryUsage for VMTableDefinition {
-    fn size_of_val(&self, tracker: &mut dyn MemoryUsageTracker) -> usize {
-        if tracker.track(self.base as *const _ as *const ()) {
-            POINTER_BYTE_SIZE * (self.current_elements as usize)
-        } else {
-            0
-        }
-    }
-}
-
 #[cfg(test)]
 mod test_vmtable_definition {
     use super::VMTableDefinition;
@@ -494,7 +524,7 @@ mod test_vmtable_definition {
     #[test]
     fn check_vmtable_definition_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMTableDefinition>(),
             usize::from(offsets.size_of_vmtable_definition())
@@ -540,17 +570,11 @@ impl fmt::Debug for VMGlobalDefinitionStorage {
     }
 }
 
-impl MemoryUsage for VMGlobalDefinitionStorage {
-    fn size_of_val(&self, _: &mut dyn MemoryUsageTracker) -> usize {
-        mem::size_of_val(self)
-    }
-}
-
 /// The storage for a WebAssembly global defined within the instance.
 ///
 /// TODO: Pack the globals more densely, rather than using the same size
 /// for every type.
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 #[repr(C, align(16))]
 pub struct VMGlobalDefinition {
     storage: VMGlobalDefinitionStorage,
@@ -578,7 +602,7 @@ mod test_vmglobal_definition {
     #[test]
     fn check_vmglobal_definition_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<*const VMGlobalDefinition>(),
             usize::from(offsets.size_of_vmglobal_local())
@@ -588,7 +612,7 @@ mod test_vmglobal_definition {
     #[test]
     fn check_vmglobal_begins_aligned() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(offsets.vmctx_globals_begin() % 16, 0);
     }
 }
@@ -789,12 +813,6 @@ impl VMGlobalDefinition {
     }
 }
 
-/// An index into the shared signature registry, usable for checking signatures
-/// at indirect calls.
-#[repr(C)]
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, MemoryUsage)]
-pub struct VMSharedSignatureIndex(u32);
-
 #[cfg(test)]
 mod test_vmshared_signature_index {
     use super::VMSharedSignatureIndex;
@@ -805,7 +823,7 @@ mod test_vmshared_signature_index {
     #[test]
     fn check_vmshared_signature_index() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMSharedSignatureIndex>(),
             usize::from(offsets.size_of_vmshared_signature_index())
@@ -821,23 +839,10 @@ mod test_vmshared_signature_index {
     }
 }
 
-impl VMSharedSignatureIndex {
-    /// Create a new `VMSharedSignatureIndex`.
-    pub fn new(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl Default for VMSharedSignatureIndex {
-    fn default() -> Self {
-        Self::new(u32::MAX)
-    }
-}
-
 /// The VM caller-checked "anyfunc" record, for caller-side signature checking.
 /// It consists of the actual function pointer and a signature id to be checked
 /// by the caller.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, MemoryUsage)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct VMCallerCheckedAnyfunc {
     /// Function body.
@@ -860,7 +865,7 @@ mod test_vmcaller_checked_anyfunc {
     #[test]
     fn check_vmcaller_checked_anyfunc_offsets() {
         let module = ModuleInfo::new();
-        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8, &module);
+        let offsets = VMOffsets::new(size_of::<*mut u8>() as u8).with_module_info(&module);
         assert_eq!(
             size_of::<VMCallerCheckedAnyfunc>(),
             usize::from(offsets.size_of_vmcaller_checked_anyfunc())
@@ -877,18 +882,6 @@ mod test_vmcaller_checked_anyfunc {
             offset_of!(VMCallerCheckedAnyfunc, vmctx),
             usize::from(offsets.vmcaller_checked_anyfunc_vmctx())
         );
-    }
-}
-
-impl Default for VMCallerCheckedAnyfunc {
-    fn default() -> Self {
-        Self {
-            func_ptr: ptr::null_mut(),
-            type_index: Default::default(),
-            vmctx: VMFunctionEnvironment {
-                vmctx: ptr::null_mut(),
-            },
-        }
     }
 }
 
@@ -1135,3 +1128,16 @@ pub type VMTrampoline = unsafe extern "C" fn(
     *const VMFunctionBody, // function we're actually calling
     *mut u128,             // space for arguments and return values
 );
+
+/// Pointers to section data.
+#[derive(Clone, Copy, Debug)]
+#[repr(transparent)]
+pub struct SectionBodyPtr(pub *const u8);
+
+impl std::ops::Deref for SectionBodyPtr {
+    type Target = *const u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}

@@ -8,19 +8,12 @@ use anyhow::{anyhow, Context, Result};
 use std::path::PathBuf;
 use std::str::FromStr;
 use wasmer::*;
-#[cfg(feature = "cache")]
-use wasmer_cache::{Cache, FileSystemCache, Hash};
 
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt, Clone, Default)]
 /// The options for the `wasmer run` subcommand
 pub struct Run {
-    /// Disable the cache
-    #[cfg(feature = "cache")]
-    #[structopt(long = "disable-cache")]
-    disable_cache: bool,
-
     /// File to run
     #[structopt(name = "FILE", parse(from_os_str))]
     path: PathBuf,
@@ -35,20 +28,8 @@ pub struct Run {
     #[structopt(long = "command-name", hidden = true)]
     command_name: Option<String>,
 
-    /// A prehashed string, used to speed up start times by avoiding hashing the
-    /// wasm module. If the specified hash is not found, Wasmer will hash the module
-    /// as if no `cache-key` argument was passed.
-    #[cfg(feature = "cache")]
-    #[structopt(long = "cache-key", hidden = true)]
-    cache_key: Option<String>,
-
     #[structopt(flatten)]
     store: StoreOptions,
-
-    /// Enable non-standard experimental IO devices
-    #[cfg(feature = "io-devices")]
-    #[structopt(long = "enable-io-devices")]
-    enable_experimental_io_devices: bool,
 
     /// Enable debug output
     #[cfg(feature = "debug")]
@@ -86,46 +67,6 @@ impl Run {
 
     fn inner_execute(&self) -> Result<()> {
         let module = self.get_module()?;
-        #[cfg(feature = "emscripten")]
-        {
-            use wasmer_emscripten::{
-                generate_emscripten_env, is_emscripten_module, run_emscripten_instance, EmEnv,
-                EmscriptenGlobals,
-            };
-            // TODO: refactor this
-            if is_emscripten_module(&module) {
-                if self.invoke.is_some() {
-                    bail!("--invoke is not supported with emscripten modules");
-                }
-                let mut emscripten_globals = EmscriptenGlobals::new(module.store(), &module)
-                    .map_err(|e| anyhow!("{}", e))?;
-                let mut em_env = EmEnv::new(&emscripten_globals.data, Default::default());
-                let import_object =
-                    generate_emscripten_env(module.store(), &mut emscripten_globals, &mut em_env);
-                let mut instance = match Instance::new(&module, &import_object) {
-                    Ok(instance) => instance,
-                    Err(e) => {
-                        let err: Result<(), _> = Err(e);
-                        return err.with_context(|| "Can't instantiate emscripten module");
-                    }
-                };
-
-                run_emscripten_instance(
-                    &mut instance,
-                    &mut em_env,
-                    &mut emscripten_globals,
-                    if let Some(cn) = &self.command_name {
-                        cn
-                    } else {
-                        self.path.to_str().unwrap()
-                    },
-                    self.args.iter().map(|arg| arg.as_str()).collect(),
-                    None, //run.em_entrypoint.clone(),
-                )?;
-                return Ok(());
-            }
-        }
-
         let instance = Instance::new(&module, &imports! {})?;
 
         // If this module exports an _initialize function, run that first.
@@ -159,32 +100,22 @@ impl Run {
 
     fn get_module(&self) -> Result<Module> {
         let contents = std::fs::read(self.path.clone())?;
-        #[cfg(feature = "dylib")]
-        {
-            if wasmer_engine_dylib::DylibArtifact::is_deserializable(&contents) {
-                let engine = wasmer_engine_dylib::Dylib::headless().engine();
-                let store = Store::new(&engine);
-                let module = unsafe { Module::deserialize_from_file(&store, &self.path)? };
-                return Ok(module);
-            }
-        }
         #[cfg(feature = "universal")]
         {
-            if wasmer_engine_universal::UniversalArtifact::is_deserializable(&contents) {
-                let engine = wasmer_engine_universal::Universal::headless().engine();
-                let store = Store::new(&engine);
-                let module = unsafe { Module::deserialize_from_file(&store, &self.path)? };
+            use wasmer_engine_universal::{Universal, UniversalArtifact, UniversalExecutable};
+
+            if UniversalExecutable::verify_serialized(&contents) {
+                unsafe {
+                    let executable = UniversalExecutable::archive_from_slice(&contents)?;
+                    let engine = wasmer_engine_universal::Universal::headless().engine();
+                    let artifact = engine.load(&executable);
+                    let store = Store::new(&engine);
+                    let module = unsafe { Module::deserialize_from_file(&store, &self.path)? };
+                }
                 return Ok(module);
             }
         }
         let (store, engine_type, compiler_type) = self.store.get_store()?;
-        #[cfg(feature = "cache")]
-        let module_result: Result<Module> = if !self.disable_cache && contents.len() > 0x1000 {
-            self.get_module_from_cache(&store, &contents, &engine_type, &compiler_type)
-        } else {
-            Module::new(&store, &contents).map_err(|e| e.into())
-        };
-        #[cfg(not(feature = "cache"))]
         let module_result = Module::new(&store, &contents);
 
         let mut module = module_result.with_context(|| {
@@ -418,7 +349,7 @@ impl Run {
             args,
             path: executable.into(),
             command_name: Some(original_executable),
-            store: store,
+            store,
             ..Self::default()
         })
     }

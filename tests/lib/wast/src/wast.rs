@@ -100,7 +100,16 @@ impl Wast {
                 let result = self.instantiate(&binary);
                 result.map(|_| Vec::new())
             }
-            wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
+            wast::WastExecute::Get { module, global } => {
+                let instance_name = module.map(|i| i.name());
+                let instance = self.get_instance(instance_name.as_deref())?;
+                let global = if let Some(Export::Global(global)) = instance.lookup(global) {
+                    global
+                } else {
+                    bail!("could not find the global: {}", global)
+                };
+                Ok(vec![global.from.get(&self.store)])
+            }
         }
     }
 
@@ -209,7 +218,7 @@ impl Wast {
                     Err(e) => e,
                 };
                 let error_message = format!("{:?}", err);
-                if !Self::matches_message_assert_invalid(&message, &error_message) {
+                if !Self::matches_message_assert_invalid(message, &error_message) {
                     bail!(
                         "assert_invalid: expected \"{}\", got \"{}\"",
                         message,
@@ -250,7 +259,7 @@ impl Wast {
                     Err(e) => e,
                 };
                 let error_message = format!("{:?}", err);
-                if !Self::matches_message_assert_unlinkable(&message, &error_message) {
+                if !Self::matches_message_assert_unlinkable(message, &error_message) {
                     bail!(
                         "assert_unlinkable: expected {}, got {}",
                         message,
@@ -278,7 +287,7 @@ impl Wast {
         let mut errors = Vec::with_capacity(ast.directives.len());
         for directive in ast.directives {
             let sp = directive.span();
-            if let Err(e) = self.run_directive(&test, directive) {
+            if let Err(e) = self.run_directive(test, directive) {
                 let message = format!("{}", e);
                 // If depends on an instance that doesn't exist
                 if message.contains("no previous instance found") {
@@ -317,7 +326,7 @@ impl Wast {
                 Ok(s) => ret.push_str(s),
                 Err(_) => bail!("malformed UTF-8 encoding"),
             }
-            ret.push_str(" ");
+            ret.push(' ');
         }
         let buf = wast::parser::ParseBuffer::new(&ret)?;
         let mut wat = wast::parser::parse::<wast::Wat>(&buf)?;
@@ -371,21 +380,7 @@ impl Wast {
 
     fn instantiate(&self, module: &[u8]) -> Result<Instance> {
         let module = Module::new(&self.store, module)?;
-        let mut imports = self.import_object.clone();
-
-        for import in module.imports() {
-            let module_name = import.module();
-            if imports.contains_namespace(module_name) {
-                continue;
-            }
-            let instance = self
-                .instances
-                .get(module_name)
-                .ok_or_else(|| anyhow!("constant expression required"))?;
-            imports.register(module_name, instance.exports.clone());
-        }
-
-        let instance = Instance::new(&module, &imports)?;
+        let instance = Instance::new(&module, &self)?;
         Ok(instance)
     }
 
@@ -404,18 +399,13 @@ impl Wast {
         args: &[Val],
     ) -> Result<Vec<Val>> {
         let instance = self.get_instance(instance_name.as_deref())?;
-        let func: &Function = instance.exports.get(field)?;
+        let func: Function = instance
+            .lookup_function(field)
+            .expect("should find the function");
         match func.call(args) {
             Ok(result) => Ok(result.into()),
             Err(e) => Err(e.into()),
         }
-    }
-
-    /// Get the value of an exported global from an instance.
-    fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<Val>> {
-        let instance = self.get_instance(instance_name.as_deref())?;
-        let global: &Global = instance.exports.get(field)?;
-        Ok(vec![global.get()])
     }
 
     /// Translate from a `script::Value` to a `Val`.
@@ -473,8 +463,7 @@ impl Wast {
             || self
                 .match_trap_messages
                 .get(expected)
-                .map(|alternative| actual.contains(alternative))
-                .unwrap_or(false)
+                .map_or(false, |alternative| actual.contains(alternative))
     }
 
     fn val_matches(&self, actual: &Val, expected: &wast::AssertExpression) -> Result<bool> {
@@ -516,6 +505,19 @@ impl Wast {
                 expected
             ),
         })
+    }
+}
+
+impl NamedResolver for Wast {
+    fn resolve_by_name(&self, module: &str, field: &str) -> Option<Export> {
+        let imports = self.import_object.clone();
+
+        if imports.contains_namespace(module) {
+            imports.resolve_by_name(module, field)
+        } else {
+            let instance = self.instances.get(module)?;
+            instance.lookup(field)
+        }
     }
 }
 

@@ -8,16 +8,15 @@ use crate::sys::RuntimeError;
 use crate::sys::WasmerEnv;
 pub use inner::{FromToNativeWasmType, HostFunction, WasmTypeList, WithEnv, WithoutEnv};
 
-use loupe::MemoryUsage;
 use std::cmp::max;
 use std::ffi::c_void;
 use std::fmt;
 use std::sync::Arc;
-use wasmer_engine::{Export, ExportFunction, ExportFunctionMetadata};
 use wasmer_vm::{
-    raise_user_trap, resume_panic, wasmer_call_trampoline, ImportInitializerFuncPtr,
-    VMCallerCheckedAnyfunc, VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody,
-    VMFunctionEnvironment, VMFunctionKind, VMTrampoline,
+    raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
+    ExportFunctionMetadata, ImportInitializerFuncPtr, VMCallerCheckedAnyfunc,
+    VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody, VMFunctionEnvironment,
+    VMFunctionKind, VMTrampoline,
 };
 
 /// A WebAssembly `function` instance.
@@ -37,7 +36,7 @@ use wasmer_vm::{
 ///   with native functions. Attempting to create a native `Function` with one will
 ///   result in a panic.
 ///   [Closures as host functions tracking issue](https://github.com/wasmerio/wasmer/issues/1840)
-#[derive(PartialEq, MemoryUsage)]
+#[derive(PartialEq)]
 pub struct Function {
     pub(crate) store: Store,
     pub(crate) exported: ExportFunction,
@@ -229,6 +228,10 @@ impl Function {
         // generated dynamic trampoline.
         let address = std::ptr::null() as *const VMFunctionBody;
         let vmctx = VMFunctionEnvironment { host_env };
+        let signature = store
+            .engine()
+            // TODO(0-copy):
+            .register_signature((&ty).into());
 
         Self {
             store: store.clone(),
@@ -238,7 +241,7 @@ impl Function {
                     address,
                     kind: VMFunctionKind::Dynamic,
                     vmctx,
-                    signature: ty,
+                    signature,
                     call_trampoline: None,
                     instance_ref: None,
                 },
@@ -278,7 +281,10 @@ impl Function {
         let vmctx = VMFunctionEnvironment {
             host_env: std::ptr::null_mut() as *mut _,
         };
-        let signature = function.ty();
+        let signature = store
+            .engine()
+            // TODO(0-copy):
+            .register_signature((&function.ty()).into());
 
         Self {
             store: store.clone(),
@@ -338,8 +344,7 @@ impl Function {
             build_export_function_metadata::<Env>(env, Env::init_with_instance);
 
         let vmctx = VMFunctionEnvironment { host_env };
-        let signature = function.ty();
-
+        let signature = store.engine().register_signature((&function.ty()).into());
         Self {
             store: store.clone(),
             exported: ExportFunction {
@@ -373,8 +378,11 @@ impl Function {
     /// assert_eq!(f.ty().params(), vec![Type::I32, Type::I32]);
     /// assert_eq!(f.ty().results(), vec![Type::I32]);
     /// ```
-    pub fn ty(&self) -> &FunctionType {
-        &self.exported.vm_function.signature
+    pub fn ty(&self) -> FunctionType {
+        self.store
+            .engine()
+            .lookup_signature(self.exported.vm_function.signature)
+            .expect("Could not resolve VMSharedFunctionIndex! Mixing engines?")
     }
 
     /// Returns the [`Store`] where the `Function` belongs.
@@ -431,7 +439,6 @@ impl Function {
         // Call the trampoline.
         if let Err(error) = unsafe {
             wasmer_call_trampoline(
-                &self.store,
                 self.exported.vm_function.vmctx,
                 trampoline,
                 self.exported.vm_function.address,
@@ -517,7 +524,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     ///
     /// assert_eq!(sum.call(&[Value::I32(1), Value::I32(2)]).unwrap().to_vec(), vec![Value::I32(3)]);
     /// ```
@@ -553,10 +560,9 @@ impl Function {
 
     pub(crate) fn vm_funcref(&self) -> VMFuncRef {
         let engine = self.store.engine();
-        let vmsignature = engine.register_signature(&self.exported.vm_function.signature);
         engine.register_function_metadata(VMCallerCheckedAnyfunc {
             func_ptr: self.exported.vm_function.address,
-            type_index: vmsignature,
+            type_index: self.exported.vm_function.signature,
             vmctx: self.exported.vm_function.vmctx,
         })
     }
@@ -581,7 +587,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     /// let sum_native = sum.native::<(i32, i32), i32>().unwrap();
     ///
     /// assert_eq!(sum_native.call(1, 2).unwrap(), 3);
@@ -607,7 +613,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     ///
     /// // This results in an error: `RuntimeError`
     /// let sum_native = sum.native::<(i64, i64), i32>().unwrap();
@@ -631,7 +637,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     ///
     /// // This results in an error: `RuntimeError`
     /// let sum_native = sum.native::<(i32, i32), i64>().unwrap();
@@ -641,32 +647,27 @@ impl Function {
         Args: WasmTypeList,
         Rets: WasmTypeList,
     {
+        let engine = self.store().engine();
+        let signature = engine
+            .lookup_signature(self.exported.vm_function.signature)
+            .expect("Could not resolve VMSharedSignatureIndex! Wrong engine?");
         // type check
-        {
-            let expected = self.exported.vm_function.signature.params();
-            let given = Args::wasm_types();
-
-            if expected != given {
-                return Err(RuntimeError::new(format!(
-                    "given types (`{:?}`) for the function arguments don't match the actual types (`{:?}`)",
-                    given,
-                    expected,
-                )));
-            }
+        let expected = signature.params();
+        let given = Args::wasm_types();
+        if expected != given {
+            return Err(RuntimeError::new(format!(
+                "types (`{:?}`) for the function arguments don't match the actual types (`{:?}`)",
+                given, expected,
+            )));
         }
-
-        {
-            let expected = self.exported.vm_function.signature.results();
-            let given = Rets::wasm_types();
-
-            if expected != given {
-                // todo: error result types don't match
-                return Err(RuntimeError::new(format!(
-                    "given types (`{:?}`) for the function results don't match the actual types (`{:?}`)",
-                    given,
-                    expected,
-                )));
-            }
+        let expected = signature.results();
+        let given = Rets::wasm_types();
+        if expected != given {
+            // todo: error result types don't match
+            return Err(RuntimeError::new(format!(
+                "types (`{:?}`) for the function results don't match the actual types (`{:?}`)",
+                given, expected,
+            )));
         }
 
         Ok(NativeFunc::new(self.store.clone(), self.exported.clone()))
@@ -695,7 +696,7 @@ impl<'a> Exportable<'a> for Function {
         self.exported.clone().into()
     }
 
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
         match _extern {
             Extern::Function(func) => Ok(func),
             _ => Err(ExportError::IncompatibleType),

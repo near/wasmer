@@ -20,26 +20,17 @@
     )
 )]
 
-mod artifact;
 mod engine;
 mod error;
-mod export;
+mod executable;
 mod resolver;
 mod trap;
-mod tunables;
 
-pub use crate::artifact::Artifact;
 pub use crate::engine::{Engine, EngineId};
-pub use crate::error::{
-    DeserializeError, ImportError, InstantiationError, LinkError, SerializeError,
-};
-pub use crate::export::{Export, ExportFunction, ExportFunctionMetadata};
-pub use crate::resolver::{
-    resolve_imports, ChainableNamedResolver, NamedResolver, NamedResolverChain, NullResolver,
-    Resolver,
-};
+pub use crate::error::{DeserializeError, ImportError, InstantiationError, LinkError};
+pub use crate::executable::Executable;
+pub use crate::resolver::resolve_imports;
 pub use crate::trap::*;
-pub use crate::tunables::Tunables;
 
 /// Version number of this crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt;
 use std::sync::{Arc, Mutex};
-use wasmer_engine::{Export, NamedResolver};
+use wasmer_vm::{Export, NamedResolver};
 
 /// The `LikeNamespace` trait represents objects that act as a namespace for imports.
 /// For example, an `Instance` or `Namespace` could be
@@ -264,8 +264,8 @@ macro_rules! import_namespace {
 mod test {
     use super::*;
     use crate::sys::{Global, Store, Val};
-    use wasmer_engine::ChainableNamedResolver;
     use wasmer_types::Type;
+    use wasmer_vm::ChainableNamedResolver;
 
     #[test]
     fn chaining_works() {

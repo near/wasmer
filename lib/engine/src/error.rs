@@ -5,18 +5,6 @@ use thiserror::Error;
 use wasmer_compiler::CompileError;
 use wasmer_types::ExternType;
 
-/// The Serialize error can occur when serializing a
-/// compiled Module into a binary.
-#[derive(Error, Debug)]
-pub enum SerializeError {
-    /// An IO error
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    /// A generic serialization error
-    #[error("{0}")]
-    Generic(String),
-}
-
 /// The Deserialize error can occur when loading a
 /// compiled Module from a binary.
 #[derive(Error, Debug)]
@@ -95,6 +83,10 @@ pub enum InstantiationError {
     /// the current host.
     #[error("module compiled with CPU feature that is missing from host")]
     CpuFeature(String),
+
+    /// Could not create an instance.
+    #[error("could not create instance")]
+    CreateInstance(RuntimeError),
 
     /// A runtime error occured while invoking the start function
     #[error(transparent)]

@@ -14,15 +14,14 @@ pub use self::table::Table;
 use crate::sys::exports::{ExportError, Exportable};
 use crate::sys::store::{Store, StoreObject};
 use crate::sys::ExternType;
-use loupe::MemoryUsage;
 use std::fmt;
-use wasmer_engine::Export;
+use wasmer_vm::Export;
 
 /// An `Extern` is the runtime representation of an entity that
 /// can be imported or exported.
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#external-values>
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub enum Extern {
     /// A external [`Function`].
     Function(Function),
@@ -66,7 +65,7 @@ impl<'a> Exportable<'a> for Extern {
         }
     }
 
-    fn get_self_from_extern(_extern: &'a Self) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Self) -> Result<Self, ExportError> {
         // Since this is already an extern, we can just return it.
         Ok(_extern)
     }

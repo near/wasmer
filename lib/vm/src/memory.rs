@@ -7,9 +7,7 @@
 
 use crate::mmap::Mmap;
 use crate::vmcontext::VMMemoryDefinition;
-use loupe::MemoryUsage;
 use more_asserts::assert_ge;
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use std::borrow::BorrowMut;
@@ -64,10 +62,17 @@ pub enum MemoryError {
 }
 
 /// Implementation styles for WebAssembly linear memory.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, MemoryUsage)]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    RkyvSerialize,
+    RkyvDeserialize,
+    Archive,
 )]
 pub enum MemoryStyle {
     /// The actual memory can be resized and moved.
@@ -103,7 +108,7 @@ impl MemoryStyle {
 }
 
 /// Trait for implementing Wasm Memory used by Wasmer.
-pub trait Memory: fmt::Debug + Send + Sync + MemoryUsage {
+pub trait Memory: fmt::Debug + Send + Sync {
     /// Returns the memory type for this memory.
     fn ty(&self) -> MemoryType;
 
@@ -123,7 +128,7 @@ pub trait Memory: fmt::Debug + Send + Sync + MemoryUsage {
 }
 
 /// A linear memory instance.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 pub struct LinearMemory {
     // The underlying allocation.
     mmap: Mutex<WasmMmap>,
@@ -143,15 +148,11 @@ pub struct LinearMemory {
 
     /// The owned memory definition used by the generated code
     vm_memory_definition: VMMemoryDefinitionOwnership,
-
-    // Records whether we're using a bounds-checking strategy which requires
-    // handlers to catch trapping accesses.
-    pub(crate) needs_signal_handlers: bool,
 }
 
 /// A type to help manage who is responsible for the backing memory of them
 /// `VMMemoryDefinition`.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 enum VMMemoryDefinitionOwnership {
     /// The `VMMemoryDefinition` is owned by the `Instance` and we should use
     /// its memory. This is how a local memory that's exported should be stored.
@@ -174,7 +175,7 @@ unsafe impl Send for LinearMemory {}
 /// This is correct because all internal mutability is protected by a mutex.
 unsafe impl Sync for LinearMemory {}
 
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 struct WasmMmap {
     // Our OS allocation of mmap'd memory.
     alloc: Mmap,
@@ -238,15 +239,6 @@ impl LinearMemory {
 
         let offset_guard_bytes = style.offset_guard_size() as usize;
 
-        // If we have an offset guard, or if we're doing the static memory
-        // allocation strategy, we need signal handlers to catch out of bounds
-        // acceses.
-        let needs_signal_handlers = offset_guard_bytes > 0
-            || match style {
-                MemoryStyle::Dynamic { .. } => false,
-                MemoryStyle::Static { .. } => true,
-            };
-
         let minimum_pages = match style {
             MemoryStyle::Dynamic { .. } => memory.minimum,
             MemoryStyle::Static { bound, .. } => {
@@ -266,12 +258,11 @@ impl LinearMemory {
         };
 
         let base_ptr = mmap.alloc.as_mut_ptr();
-        let mem_length = memory.minimum.bytes().0.try_into().unwrap();
+        let mem_length = memory.minimum.bytes().0;
         Ok(Self {
             mmap: Mutex::new(mmap),
             maximum: memory.maximum,
             offset_guard_size: offset_guard_bytes,
-            needs_signal_handlers,
             vm_memory_definition: if let Some(mem_loc) = vm_memory_location {
                 {
                     let mut ptr = mem_loc;
@@ -312,7 +303,7 @@ impl Memory for LinearMemory {
     /// Returns the type for this memory.
     fn ty(&self) -> MemoryType {
         let minimum = self.size();
-        let mut out = self.memory.clone();
+        let mut out = self.memory;
         out.minimum = minimum;
 
         out
@@ -410,7 +401,7 @@ impl Memory for LinearMemory {
         unsafe {
             let mut md_ptr = self.get_vm_memory_definition();
             let md = md_ptr.as_mut();
-            md.current_length = new_pages.bytes().0.try_into().unwrap();
+            md.current_length = new_pages.bytes().0;
             md.base = mmap.alloc.as_mut_ptr() as _;
         }
 

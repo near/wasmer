@@ -18,7 +18,6 @@ wasmer-compiler-llvm = { version = "2.0.0", path = "lib/compiler-llvm", optional
 wasmer-engine = { version = "=2.2.2", path = "lib/engine", package = "wasmer-engine-near"  }
 wasmer-engine-universal = { version = "=2.2.2", path = "lib/engine-universal", optional = true, package = "wasmer-engine-universal-near" }
 wasmer-wast = { version = "2.0.0", path = "tests/lib/wast", optional = true }
-wasmer-cache = { version = "2.0.0", path = "lib/cache", optional = true }
 wasmer-types = { version = "=2.2.2", path = "lib/types", package = "wasmer-types-near" }
 wasmer-vm = { version = "=2.2.2", path = "lib/vm", package = "wasmer-vm-near" }
 
@@ -27,8 +26,6 @@ cfg-if = "1.0"
 [workspace]
 members = [
     "lib/api",
-    "lib/cache",
-    "lib/cli",
     "lib/compiler",
     "lib/compiler-cranelift",
     "lib/compiler-singlepass",
@@ -40,7 +37,6 @@ members = [
     "lib/types",
     "tests/lib/wast",
     "tests/lib/compiler-test-derive",
-    "tests/integration/cli",
     "tests/integration/ios",
     "fuzz",
 ]
@@ -58,33 +54,30 @@ anyhow = "1.0"
 criterion = "0.3"
 lazy_static = "1.4"
 serial_test = "0.5"
-wasmer-engine-dummy = { path = "tests/lib/engine-dummy" }
 compiler-test-derive = { path = "tests/lib/compiler-test-derive" }
 tempfile = "3.1"
-loupe = "0.1"
 # For logging tests using the `RUST_LOG=debug` when testing
-test-env-log = { version = "0.2", default-features = false, features = ["trace"] }
+test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tracing = { version = "0.1", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+wat = "1.0"
+
 
 [features]
 # Don't add the compiler features in default, please add them on the Makefile
 # since we might want to autoconfigure them depending on the availability on the host.
 default = [
-    "wat",
+    "wasmer/wat",
     "wast",
     "universal",
     "singlepass",
-    "cache",
 ]
 engine = []
 universal = [
     "wasmer-engine-universal",
     "engine",
 ]
-cache = ["wasmer-cache"]
 wast = ["wasmer-wast"]
-wat = ["wasmer/wat"]
 compiler = [
     "wasmer/compiler",
     "wasmer-compiler/translator",

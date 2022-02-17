@@ -2,13 +2,11 @@ use crate::sys::exports::{ExportError, Exportable};
 use crate::sys::externals::Extern;
 use crate::sys::store::Store;
 use crate::sys::{MemoryType, MemoryView};
-use loupe::MemoryUsage;
 use std::convert::TryInto;
 use std::slice;
 use std::sync::Arc;
-use wasmer_engine::Export;
 use wasmer_types::{Pages, ValueType};
-use wasmer_vm::{MemoryError, VMMemory};
+use wasmer_vm::{Export, MemoryError, VMMemory};
 
 /// A WebAssembly `memory` instance.
 ///
@@ -24,7 +22,7 @@ use wasmer_vm::{MemoryError, VMMemory};
 /// mutable from both host and WebAssembly.
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#memory-instances>
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 pub struct Memory {
     store: Store,
     vm_memory: VMMemory,
@@ -287,7 +285,7 @@ impl<'a> Exportable<'a> for Memory {
         self.vm_memory.clone().into()
     }
 
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
         match _extern {
             Extern::Memory(memory) => Ok(memory),
             _ => Err(ExportError::IncompatibleType),

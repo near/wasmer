@@ -343,12 +343,11 @@ impl<'a> FuncGen<'a> {
         } else {
             let reloc_at = self.assembler.get_offset().0 + self.assembler.arch_mov64_imm_offset();
             // Imported functions are called through trampolines placed as custom sections.
-            let reloc_target = if function_index < self.module.num_imported_functions {
+            let imports = self.module.import_counts.functions as usize;
+            let reloc_target = if function_index < imports {
                 RelocationTarget::CustomSection(SectionIndex::new(function_index))
             } else {
-                RelocationTarget::LocalFunc(LocalFunctionIndex::new(
-                    function_index - self.module.num_imported_functions,
-                ))
+                RelocationTarget::LocalFunc(LocalFunctionIndex::new(function_index - imports))
             };
             self.relocations.push(Relocation {
                 kind: RelocationKind::Abs8,
@@ -1386,7 +1385,7 @@ impl<'a> FuncGen<'a> {
         let tmp_addr = self.machine.acquire_temp_gpr().unwrap();
 
         // Reusing `tmp_addr` for temporary indirection here, since it's not used before the last reference to `{base,bound}_loc`.
-        let (base_loc, bound_loc) = if self.module.num_imported_memories != 0 {
+        let (base_loc, bound_loc) = if self.module.import_counts.memories != 0 {
             // Imported memories require one level of indirection.
             let offset = self
                 .vmoffsets
@@ -8848,30 +8847,31 @@ pub(crate) fn gen_import_call_trampoline(
     // Emits a tail call trampoline that loads the address of the target import function
     // from Ctx and jumps to it.
 
-    let offset = vmoffsets.vmctx_vmfunction_import(index);
+    let body_offset = vmoffsets.vmctx_vmfunction_import_body(index);
+    let vmctx_offset = vmoffsets.vmctx_vmfunction_import_vmctx(index);
 
     match calling_convention {
         CallingConvention::WindowsFastcall => {
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RCX, offset as i32), // function pointer
+                Location::Memory(GPR::RCX, body_offset as i32), // function pointer
                 Location::GPR(GPR::RAX),
             );
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RCX, offset as i32 + 8), // target vmctx
+                Location::Memory(GPR::RCX, vmctx_offset as i32), // target vmctx
                 Location::GPR(GPR::RCX),
             );
         }
         _ => {
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RDI, offset as i32), // function pointer
+                Location::Memory(GPR::RDI, body_offset as i32), // function pointer
                 Location::GPR(GPR::RAX),
             );
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RDI, offset as i32 + 8), // target vmctx
+                Location::Memory(GPR::RDI, vmctx_offset as i32), // target vmctx
                 Location::GPR(GPR::RDI),
             );
         }
