@@ -47,6 +47,7 @@ use loupe::MemoryUsage;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use wasmer_types::entity::EntityRef;
 use wasmer_types::{
     DataIndex, ElemIndex, FunctionIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex,
     TableIndex, Type,
@@ -378,26 +379,20 @@ pub unsafe extern "C" fn wasmer_vm_table_set(
     elem_index: u32,
     value: RawTableElement,
 ) {
-    todo!()
-    // let instance = (&*vmctx).instance();
-    // let table_index = TableIndex::from_u32(table_index);
-    // let table_index = instance
-    //     .module_ref()
-    //     .local_table_index(table_index)
-    //     .unwrap();
+    let instance = (&*vmctx).instance();
+    let imports = instance.artifact.import_counts().tables;
+    let table_index = LocalTableIndex::new((table_index - imports) as usize);
 
-    // let elem = match instance.get_local_table(table_index).ty().ty {
-    //     Type::ExternRef => TableElement::ExternRef(value.extern_ref.into()),
-    //     Type::FuncRef => TableElement::FuncRef(value.func_ref),
-    //     _ => panic!("Unrecognized table type: does not contain references"),
-    // };
-
-    // // TODO: type checking, maybe have specialized accessors
-    // let result = instance.table_set(table_index, elem_index, elem);
-
-    // if let Err(trap) = result {
-    //     raise_lib_trap(trap);
-    // }
+    let elem = match instance.get_local_table(table_index).ty().ty {
+        Type::ExternRef => TableElement::ExternRef(value.extern_ref.into()),
+        Type::FuncRef => TableElement::FuncRef(value.func_ref),
+        _ => panic!("Unrecognized table type: does not contain references"),
+    };
+    // TODO: type checking, maybe have specialized accessors
+    let result = instance.table_set(table_index, elem_index, elem);
+    if let Err(trap) = result {
+        raise_lib_trap(trap);
+    }
 }
 
 /// Implementation of `table.set` for imported tables.

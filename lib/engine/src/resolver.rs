@@ -4,12 +4,15 @@
 use crate::{Engine, ImportError, LinkError};
 use more_asserts::assert_ge;
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
-use wasmer_types::{EntityCounts, ExternType, FunctionIndex, MemoryType, TableType, SignatureIndex};
+use wasmer_types::{
+    EntityCounts, ExternType, FunctionIndex, MemoryType, SignatureIndex, TableType,
+};
 
 use wasmer_vm::{
     Export, ExportFunctionMetadata, FunctionBodyPtr, ImportFunctionEnv, Imports, MemoryStyle,
     NamedResolver, Resolver, VMFunctionBody, VMFunctionEnvironment, VMFunctionImport,
-    VMFunctionKind, VMGlobalImport, VMImport, VMImportType, VMMemoryImport, VMTableImport, VMSharedSignatureIndex, VMTrampoline,
+    VMFunctionKind, VMGlobalImport, VMImport, VMImportType, VMMemoryImport, VMSharedSignatureIndex,
+    VMTableImport, VMTrampoline,
 };
 
 fn is_compatible_table(ex: &TableType, im: &TableType) -> bool {
@@ -51,14 +54,23 @@ pub fn resolve_imports(
     } in imports
     {
         let resolved = resolver.resolve(*import_no, module, field);
+        let import_extern = || match ty {
+            &VMImportType::Table(t) => ExternType::Table(t),
+            &VMImportType::Memory(t, _) => ExternType::Memory(t),
+            &VMImportType::Global(t) => ExternType::Global(t),
+            &VMImportType::Function(sig_idx) => ExternType::Function(
+                engine
+                    .lookup_signature(sig_idx)
+                    .expect("VMSharedSignatureIndex is not valid?"),
+            ),
+        };
         let resolved = match resolved {
             Some(r) => r,
             None => {
                 return Err(LinkError::Import(
                     module.to_string(),
                     field.to_string(),
-                    // TODO(0-copy): convert `VMImportType` to a nice type for presentation here.
-                    ImportError::UnknownImport(None.unwrap()),
+                    ImportError::UnknownImport(import_extern()),
                 ));
             }
         };
@@ -147,8 +159,7 @@ pub fn resolve_imports(
                     return Err(LinkError::Import(
                         module.to_string(),
                         field.to_string(),
-                        // TODO(0-copy): nice presentation of the error here.
-                        ImportError::IncompatibleType(None.unwrap(), export_extern()),
+                        ImportError::IncompatibleType(import_extern(), export_extern()),
                     ));
                 }
                 table_imports.push(VMTableImport {
@@ -192,8 +203,7 @@ pub fn resolve_imports(
                 return Err(LinkError::Import(
                     module.to_string(),
                     field.to_string(),
-                    // TODO(0-copy): convert types to a nice presentation here.
-                    ImportError::IncompatibleType(None.unwrap(), export_extern()),
+                    ImportError::IncompatibleType(import_extern(), export_extern()),
                 ));
             }
         }

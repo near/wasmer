@@ -67,7 +67,7 @@ pub type ImportInitializerFuncPtr<ResultErr = *mut ffi::c_void> =
 #[derive(MemoryUsage)]
 #[repr(C)]
 pub(crate) struct Instance {
-    artifact: Arc<dyn Artifact>,
+    pub(crate) artifact: Arc<dyn Artifact>,
 
     /// External configuration for instance.
     config: InstanceConfig,
