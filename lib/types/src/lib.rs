@@ -88,7 +88,7 @@ pub use crate::units::{
 pub use crate::values::{Value, WasmValueType};
 pub use types::{
     ExportType, ExternType, FastGasCounter, FunctionType, FunctionTypeRef, GlobalInit, GlobalType,
-    Import, InstanceConfig, MemoryType, Mutability, NamedFunction, TableType, Type, V128,
+    Import, InstanceConfig, MemoryType, Mutability, TableType, Type, V128,
 };
 
 #[cfg(feature = "enable-rkyv")]

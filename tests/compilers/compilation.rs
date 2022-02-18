@@ -1,8 +1,9 @@
 use wasmer::*;
-use wasmer_engine::Engine;
+use wasmer_engine::{Engine, Executable};
 use wasmer_engine_universal::Universal;
 
 use wasmer_types::InstanceConfig;
+use wasmer_vm::Artifact;
 
 fn slow_to_compile_contract(n_fns: usize, n_locals: usize) -> Vec<u8> {
     let fns = format!("(func (local {}))\n", "i32 ".repeat(n_locals)).repeat(n_fns);
@@ -70,6 +71,8 @@ fn write_perf_profiler_map(functions: &Vec<NamedFunction>) -> Result<(), Box<dyn
 #[test]
 fn profiling() {
     let wat = r#"
+       (import "env" "impf" (func))
+       (func $f0)
        (func (export "f1"))
        (func (export "f2"))
        (func (export "f3"))
@@ -82,18 +85,19 @@ fn profiling() {
         Ok(art) => unsafe {
             let serialized = art.serialize().unwrap();
             let executable =
-                wasmer_engine_universal::UniversalExecutable::deserialize(&serialized).unwrap();
-            let artifact = engine.load(&executable).unwrap();
-            let module = wasmer::Module::from_artifact(&store, artifact);
-            let instance =
-                Instance::new_with_config(&module, InstanceConfig::default(), &imports! {});
-            assert!(instance.is_ok());
-            let instance = instance.unwrap();
-            let named = instance.named_functions();
-            assert_eq!(3, named.len());
-            assert_eq!("f1", named[0].name);
-            assert_eq!("f2", named[1].name);
-            assert_eq!("f3", named[2].name);
+                wasmer_engine_universal::UniversalExecutableRef::deserialize(&serialized).unwrap();
+            let artifact = engine.load_universal_executable_ref(&executable).unwrap();
+            let info = artifact.functions().iter().filter_map(|(idx, _)| {
+                let extent = artifact.function_extent(idx)?;
+                let idx = executable.make_function_index(idx);
+                let name = executable.function_name(idx)?;
+                Some((name, extent))
+            }).collect::<Vec<_>>();
+            assert_eq!(4, info.len());
+            assert_eq!("f0", info[0].0);
+            assert_eq!("f1", info[1].0);
+            assert_eq!("f2", info[2].0);
+            assert_eq!("f3", info[3].0);
         },
         Err(_) => {
             assert!(false)

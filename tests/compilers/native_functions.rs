@@ -55,19 +55,23 @@ fn native_function_works_for_wasm(config: crate::Config) -> anyhow::Result<()> {
     let instance = Instance::new(&module, &import_object)?;
 
     {
-        let f: NativeFunc<(i32, i32), i32> = instance.exports.get_native_function("add")?;
+        let f: NativeFunc<(i32, i32), i32> = instance.get_native_function("add")?;
         let result = f.call(4, 6)?;
         assert_eq!(result, 10);
     }
 
     {
-        let f: &Function = instance.exports.get("double_then_add")?;
+        let f: Function = instance
+            .lookup_function("double_then_add")
+            .expect("lookup function");
         let result = f.call(&[Val::I32(4), Val::I32(6)])?;
         assert_eq!(result[0], Val::I32(20));
     }
 
     {
-        let dyn_f: &Function = instance.exports.get("double_then_add")?;
+        let dyn_f: Function = instance
+            .lookup_function("double_then_add")
+            .expect("lookup function");
         let f: NativeFunc<(i32, i32), i32> = dyn_f.native().unwrap();
         let result = f.call(4, 6)?;
         assert_eq!(result, 20);
@@ -152,7 +156,7 @@ fn non_native_functions_and_closures_with_no_env_work(config: crate::Config) -> 
     let instance = Instance::new(&module, &import_object)?;
 
     let test: NativeFunc<(i32, i32, i32, i32, i32), i32> =
-        instance.exports.get_native_function("test")?;
+        instance.get_native_function("test")?;
 
     let result = test.call(2, 3, 4, 5, 6)?;
     let manually_computed_result = 6 * (5 * (4 * (3 * 2 * 20) * 10 * 20)) * 10;
@@ -181,14 +185,14 @@ fn native_function_works_for_wasm_function_manyparams(config: crate::Config) -> 
     let instance = Instance::new(&module, &import_object)?;
 
     {
-        let dyn_f: &Function = instance.exports.get("longf")?;
+        let dyn_f: Function = instance.lookup_function("longf").unwrap();
         let f: NativeFunc<(), i64> = dyn_f.native().unwrap();
         let result = f.call()?;
         assert_eq!(result, 1234567890);
     }
 
     {
-        let dyn_f: &Function = instance.exports.get("longf_pure")?;
+        let dyn_f: Function = instance.lookup_function("longf_pure").unwrap();
         let f: NativeFunc<(u32, u32, u32, u32, u32, u16, u64, u64, u16, u32), i64> =
             dyn_f.native().unwrap();
         let result = f.call(1, 2, 3, 4, 5, 6, 7, 8, 9, 0)?;
@@ -221,14 +225,14 @@ fn native_function_works_for_wasm_function_manyparams_dynamic(
     let instance = Instance::new(&module, &import_object)?;
 
     {
-        let dyn_f: &Function = instance.exports.get("longf")?;
+        let dyn_f: Function = instance.lookup_function("longf").unwrap();
         let f: NativeFunc<(), i64> = dyn_f.native().unwrap();
         let result = f.call()?;
         assert_eq!(result, 1234567890);
     }
 
     {
-        let dyn_f: &Function = instance.exports.get("longf_pure")?;
+        let dyn_f: Function = instance.lookup_function("longf_pure").unwrap();
         let f: NativeFunc<(u32, u32, u32, u32, u32, u16, u64, u64, u16, u32), i64> =
             dyn_f.native().unwrap();
         let result = f.call(1, 2, 3, 4, 5, 6, 7, 8, 9, 0)?;

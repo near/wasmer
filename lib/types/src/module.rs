@@ -69,18 +69,19 @@ impl Default for ModuleId {
     rkyv::Archive,
 )]
 #[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
+#[archive(as = "Self")]
 pub struct EntityCounts {
     /// Number of imported functions in the module.
-    pub functions: usize,
+    pub functions: u32,
 
     /// Number of imported tables in the module.
-    pub tables: usize,
+    pub tables: u32,
 
     /// Number of imported memories in the module.
-    pub memories: usize,
+    pub memories: u32,
 
     /// Number of imported globals in the module.
-    pub globals: usize,
+    pub globals: u32,
 }
 
 /// A translated WebAssembly module, excluding the function bodies and
@@ -344,35 +345,6 @@ impl ModuleInfo {
         ExportsIterator::new(iter, self.exports.len())
     }
 
-    // /// Get the import types of the module
-    // pub fn imports<'a>(&'a self) -> ImportsIterator<'a> {
-    //     let iter = self.imports.iter().map(move |(&(ref m, ref f, i), index)| {
-    //         let extern_type = match index {
-    //             ImportIndex::Function(i) => {
-    //                 let signature = self.functions.get(*i).unwrap();
-    //                 let func_type = self.signatures.get(*signature).unwrap();
-    //                 ExternType::Function(func_type.clone())
-    //             }
-    //             ImportIndex::Table(i) => {
-    //                 let table_type = self.tables.get(*i).unwrap();
-    //                 ExternType::Table(*table_type)
-    //             }
-    //             ImportIndex::Memory(i) => {
-    //                 let memory_type = self.memories.get(*i).unwrap();
-    //                 ExternType::Memory(*memory_type)
-    //             }
-    //             ImportIndex::Global(i) => {
-    //                 let global_type = self.globals.get(*i).unwrap();
-    //                 ExternType::Global(*global_type)
-    //             }
-    //         };
-    //         (index.clone(), Import::new(m.as_str(), f.as_str(), i, extern_type))
-    //     });
-    //     ImportsIterator {
-    //         iter: Box::new(iter),
-    //     }
-    // }
-
     /// Get the custom sections of the module given a `name`.
     pub fn custom_sections<'a>(&'a self, name: &'a str) -> impl Iterator<Item = Arc<[u8]>> + 'a {
         self.custom_sections
@@ -387,25 +359,25 @@ impl ModuleInfo {
 
     /// Convert a `LocalFunctionIndex` into a `FunctionIndex`.
     pub fn func_index(&self, local_func: LocalFunctionIndex) -> FunctionIndex {
-        FunctionIndex::new(self.import_counts.functions + local_func.index())
+        FunctionIndex::new(self.import_counts.functions as usize + local_func.index())
     }
 
     /// Convert a `FunctionIndex` into a `LocalFunctionIndex`. Returns None if the
     /// index is an imported function.
     pub fn local_func_index(&self, func: FunctionIndex) -> Option<LocalFunctionIndex> {
         func.index()
-            .checked_sub(self.import_counts.functions)
+            .checked_sub(self.import_counts.functions as usize)
             .map(LocalFunctionIndex::new)
     }
 
     /// Test whether the given function index is for an imported function.
     pub fn is_imported_function(&self, index: FunctionIndex) -> bool {
-        index.index() < self.import_counts.functions
+        index.index() < self.import_counts.functions as usize
     }
 
     /// Convert a `LocalTableIndex` into a `TableIndex`.
     pub fn table_index(&self, local_table: LocalTableIndex) -> TableIndex {
-        TableIndex::new(self.import_counts.tables + local_table.index())
+        TableIndex::new(self.import_counts.tables as usize + local_table.index())
     }
 
     /// Convert a `TableIndex` into a `LocalTableIndex`. Returns None if the
@@ -413,18 +385,18 @@ impl ModuleInfo {
     pub fn local_table_index(&self, table: TableIndex) -> Option<LocalTableIndex> {
         table
             .index()
-            .checked_sub(self.import_counts.tables)
+            .checked_sub(self.import_counts.tables as usize)
             .map(LocalTableIndex::new)
     }
 
     /// Test whether the given table index is for an imported table.
     pub fn is_imported_table(&self, index: TableIndex) -> bool {
-        index.index() < self.import_counts.tables
+        index.index() < self.import_counts.tables as usize
     }
 
     /// Convert a `LocalMemoryIndex` into a `MemoryIndex`.
     pub fn memory_index(&self, local_memory: LocalMemoryIndex) -> MemoryIndex {
-        MemoryIndex::new(self.import_counts.memories + local_memory.index())
+        MemoryIndex::new(self.import_counts.memories as usize + local_memory.index())
     }
 
     /// Convert a `MemoryIndex` into a `LocalMemoryIndex`. Returns None if the
@@ -432,18 +404,18 @@ impl ModuleInfo {
     pub fn local_memory_index(&self, memory: MemoryIndex) -> Option<LocalMemoryIndex> {
         memory
             .index()
-            .checked_sub(self.import_counts.memories)
+            .checked_sub(self.import_counts.memories as usize)
             .map(LocalMemoryIndex::new)
     }
 
     /// Test whether the given memory index is for an imported memory.
     pub fn is_imported_memory(&self, index: MemoryIndex) -> bool {
-        index.index() < self.import_counts.memories
+        index.index() < self.import_counts.memories as usize
     }
 
     /// Convert a `LocalGlobalIndex` into a `GlobalIndex`.
     pub fn global_index(&self, local_global: LocalGlobalIndex) -> GlobalIndex {
-        GlobalIndex::new(self.import_counts.globals + local_global.index())
+        GlobalIndex::new(self.import_counts.globals as usize + local_global.index())
     }
 
     /// Convert a `GlobalIndex` into a `LocalGlobalIndex`. Returns None if the
@@ -451,13 +423,13 @@ impl ModuleInfo {
     pub fn local_global_index(&self, global: GlobalIndex) -> Option<LocalGlobalIndex> {
         global
             .index()
-            .checked_sub(self.import_counts.globals)
+            .checked_sub(self.import_counts.globals as usize)
             .map(LocalGlobalIndex::new)
     }
 
     /// Test whether the given global index is for an imported global.
     pub fn is_imported_global(&self, index: GlobalIndex) -> bool {
-        index.index() < self.import_counts.globals
+        index.index() < self.import_counts.globals as usize
     }
 
     /// Get the Module name
@@ -472,41 +444,10 @@ impl ModuleInfo {
     pub fn imported_function_types<'a>(&'a self) -> impl Iterator<Item = FunctionType> + 'a {
         self.functions
             .values()
-            .take(self.import_counts.functions)
+            .take(self.import_counts.functions as usize)
             .map(move |sig_index| self.signatures[*sig_index].clone())
     }
 }
-
-// impl ArchivedArchivableModuleInfo {
-//     /// Get the import types of the module
-//     pub fn imports<'a>(&'a self) -> ImportsIterator<'a> {
-//         let iter = self.imports.iter().map(move |((m, f, i), index)| {
-//             let extern_type = match index {
-//                 rkyv::Archived::<ImportIndex>::Function(i) => {
-//                     let signature = &self.functions[i];
-//                     let func_type: FunctionTypeRef<'_> = self.signatures[signature].into();
-//                     ExternType::Function(func_type)
-//                 }
-//                 rkyv::Archived::<ImportIndex>::Table(i) => {
-//                     let table_type = unrkyv(&self.tables[i]);
-//                     ExternType::Table(table_type)
-//                 }
-//                 rkyv::Archived::<ImportIndex>::Memory(i) => {
-//                     let memory_type = unrkyv(&self.memories[i]);
-//                     ExternType::Memory(memory_type)
-//                 }
-//                 rkyv::Archived::<ImportIndex>::Global(i) => {
-//                     let global_type = unrkyv(&self.globals[i]);
-//                     ExternType::Global(global_type)
-//                 }
-//             };
-//             (unrkyv(index), Import::new(m.as_str(), f.as_str(), *i, extern_type))
-//         });
-//         ImportsIterator {
-//             iter: Box::new(iter),
-//         }
-//     }
-// }
 
 impl fmt::Display for ModuleInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

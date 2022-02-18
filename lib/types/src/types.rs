@@ -695,17 +695,6 @@ impl InstanceConfig {
     }
 }
 
-/// Named function information.
-#[derive(Clone, Debug)]
-pub struct NamedFunction {
-    /// Name of the function.
-    pub name: String,
-    /// Address of executable code.
-    pub address: u64,
-    /// Size of executable code.
-    pub size: usize,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

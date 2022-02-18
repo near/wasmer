@@ -25,8 +25,7 @@ fn test_trap_return(config: crate::Config) -> Result<()> {
         },
     )?;
     let run_func = instance
-        .exports
-        .get_function("run")
+        .lookup_function("run")
         .expect("expected function export");
 
     let e = run_func.call(&[]).err().expect("error calling function");
@@ -50,8 +49,7 @@ fn test_trap_trace(config: crate::Config) -> Result<()> {
     let module = Module::new(&store, wat)?;
     let instance = Instance::new(&module, &imports! {})?;
     let run_func = instance
-        .exports
-        .get_function("run")
+        .lookup_function("run")
         .expect("expected function export");
 
     let e = run_func.call(&[]).err().expect("error calling function");
@@ -97,8 +95,7 @@ fn test_trap_trace_cb(config: crate::Config) -> Result<()> {
         },
     )?;
     let run_func = instance
-        .exports
-        .get_function("run")
+        .lookup_function("run")
         .expect("expected function export");
 
     let e = run_func.call(&[]).err().expect("error calling function");
@@ -129,8 +126,7 @@ fn test_trap_stack_overflow(config: crate::Config) -> Result<()> {
     let module = Module::new(&store, wat)?;
     let instance = Instance::new(&module, &imports! {})?;
     let run_func = instance
-        .exports
-        .get_function("run")
+        .lookup_function("run")
         .expect("expected function export");
 
     let e = run_func.call(&[]).err().expect("error calling function");
@@ -163,8 +159,7 @@ fn trap_display_pretty(config: crate::Config) -> Result<()> {
     let module = Module::new(&store, wat)?;
     let instance = Instance::new(&module, &imports! {})?;
     let run_func = instance
-        .exports
-        .get_function("bar")
+        .lookup_function("bar")
         .expect("expected function export");
 
     let e = run_func.call(&[]).err().expect("error calling function");
@@ -195,7 +190,7 @@ fn trap_display_multi_module(config: crate::Config) -> Result<()> {
 
     let module = Module::new(&store, wat)?;
     let instance = Instance::new(&module, &imports! {})?;
-    let bar = instance.exports.get_function("bar")?.clone();
+    let bar = instance.lookup_function("bar").unwrap();
 
     let wat = r#"
         (module $b
@@ -214,8 +209,7 @@ fn trap_display_multi_module(config: crate::Config) -> Result<()> {
         },
     )?;
     let bar2 = instance
-        .exports
-        .get_function("bar2")
+        .lookup_function("bar2")
         .expect("expected function export");
 
     let e = bar2.call(&[]).err().expect("error calling function");
@@ -257,13 +251,11 @@ fn trap_start_function_import(config: crate::Config) -> Result<()> {
     .err()
     .unwrap();
     match err {
-        InstantiationError::Link(_)
-        | InstantiationError::HostEnvInitialization(_)
-        | InstantiationError::CpuFeature(_) => {
-            panic!("It should be a start error")
-        }
         InstantiationError::Start(err) => {
             assert_eq!(err.message(), "user trap");
+        }
+        _ => {
+            panic!("It should be a start error")
         }
     }
 
@@ -294,7 +286,7 @@ fn rust_panic_import(config: crate::Config) -> Result<()> {
             }
         },
     )?;
-    let func = instance.exports.get_function("foo")?.clone();
+    let func = instance.lookup_function("foo").unwrap();
     let err = panic::catch_unwind(AssertUnwindSafe(|| {
         drop(func.call(&[]));
     }))
@@ -303,7 +295,7 @@ fn rust_panic_import(config: crate::Config) -> Result<()> {
 
     // TODO: Reenable this (disabled as it was not working with llvm/singlepass)
     // It doesn't work either with cranelift and `--test-threads=1`.
-    // let func = instance.exports.get_function("bar")?.clone();
+    // let func = instance.lookup_function("bar")?.clone();
     // let err = panic::catch_unwind(AssertUnwindSafe(|| {
     //     drop(func.call(&[]));
     // }))
@@ -371,7 +363,7 @@ fn mismatched_arguments(config: crate::Config) -> Result<()> {
 
     let module = Module::new(&store, &binary)?;
     let instance = Instance::new(&module, &imports! {})?;
-    let func: &Function = instance.exports.get("foo")?;
+    let func: Function = instance.lookup_function("foo").unwrap();
     assert_eq!(
         func.call(&[]).unwrap_err().message(),
         "Parameters of type [] did not match signature [I32] -> []"
@@ -457,7 +449,7 @@ fn present_after_module_drop(config: crate::Config) -> Result<()> {
     let store = config.store();
     let module = Module::new(&store, r#"(func (export "foo") unreachable)"#)?;
     let instance = Instance::new(&module, &imports! {})?;
-    let func: Function = instance.exports.get_function("foo")?.clone();
+    let func: Function = instance.lookup_function("foo").unwrap();
 
     println!("asserting before we drop modules");
     assert_trap(func.call(&[]).unwrap_err());

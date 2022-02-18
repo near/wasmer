@@ -1,17 +1,21 @@
+use std::sync::Arc;
+
 use enumset::EnumSet;
 use loupe::MemoryUsage;
 use rkyv::de::deserializers::SharedDeserializeMap;
 use rkyv::ser::serializers::{
-    AllocScratch, AllocScratchError, AllocSerializer, CompositeSerializer,
-    CompositeSerializerError, SharedSerializeMap, SharedSerializeMapError, WriteSerializer,
+    AllocScratchError, AllocSerializer, CompositeSerializerError, SharedSerializeMapError,
 };
 use wasmer_compiler::{
     CompileError, CompileModuleInfo, CompiledFunctionFrameInfo, CpuFeature, CustomSection, Dwarf,
     Features, FunctionBody, JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
 };
 use wasmer_engine::{DeserializeError, Engine};
-use wasmer_types::entity::PrimaryMap;
-use wasmer_types::{FunctionIndex, LocalFunctionIndex, OwnedDataInitializer, SignatureIndex};
+use wasmer_types::entity::{EntityRef, PrimaryMap};
+use wasmer_types::{
+    EntityCounts, ExportIndex, FunctionIndex, ImportIndex, LocalFunctionIndex,
+    OwnedDataInitializer, SignatureIndex,
+};
 use wasmer_vm::Artifact;
 
 static MAGIC_HEADER: [u8; 32] =
@@ -134,7 +138,8 @@ impl wasmer_engine::Executable for UniversalExecutable {
         engine
             .downcast_ref::<crate::UniversalEngine>()
             .ok_or_else(|| CompileError::Codegen("can't downcast TODO FIXME".into()))?
-            .load_owned(self)
+            .load_universal_executable(self)
+            .map(|a| Arc::new(a) as _)
     }
 
     fn features(&self) -> Features {
@@ -162,6 +167,39 @@ impl wasmer_engine::Executable for UniversalExecutable {
         out.extend(&pos.to_le_bytes());
         Ok(out)
     }
+
+    fn function_name(&self, index: FunctionIndex) -> Option<&str> {
+        let module = &self.compile_info.module;
+        // First, lets see if there's a name by which this function is exported.
+        for (name, idx) in module.exports.iter() {
+            match idx {
+                &ExportIndex::Function(fi) if fi == index => return Some(&*name),
+                _ => continue,
+            }
+        }
+        if let Some(r) = module.function_names.get(&index) {
+            return Some(&**r);
+        }
+        for ((_, field, _), idx) in module.imports.iter() {
+            match idx {
+                &ImportIndex::Function(fi) if fi == index => return Some(&*field),
+                _ => continue,
+            }
+        }
+        None
+    }
+
+    fn make_local_function_index(
+        &self,
+        index: FunctionIndex,
+    ) -> Result<LocalFunctionIndex, FunctionIndex> {
+        local_function_index(index, &self.compile_info.module.import_counts)
+    }
+
+    fn make_function_index(&self, index: LocalFunctionIndex) -> FunctionIndex {
+        let imports = self.compile_info.module.import_counts.functions as usize;
+        FunctionIndex::new(index.index() + imports)
+    }
 }
 
 impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
@@ -172,7 +210,8 @@ impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
         engine
             .downcast_ref::<crate::UniversalEngine>()
             .ok_or_else(|| CompileError::Codegen("can't downcast TODO FIXME".into()))?
-            .load_archived(self)
+            .load_universal_executable_ref(self)
+            .map(|a| Arc::new(a) as _)
     }
 
     fn features(&self) -> Features {
@@ -185,6 +224,53 @@ impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
 
     fn serialize(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         Ok(self.buffer.to_vec())
+    }
+
+    fn function_name(&self, index: FunctionIndex) -> Option<&str> {
+        let module = &self.compile_info.module;
+        // First, lets see if there's a name by which this function is exported.
+        for (name, idx) in module.exports.iter() {
+            match idx {
+                &ExportIndex::Function(fi) if fi == index => return Some(&*name),
+                _ => continue,
+            }
+        }
+        if let Some(r) = module.function_names.get(&index) {
+            return Some(&**r);
+        }
+        for ((_, field, _), idx) in module.imports.iter() {
+            match idx {
+                &ImportIndex::Function(fi) if fi == index => return Some(&*field),
+                _ => continue,
+            }
+        }
+        None
+    }
+
+    fn make_local_function_index(
+        &self,
+        index: FunctionIndex,
+    ) -> Result<LocalFunctionIndex, FunctionIndex> {
+        local_function_index(index, &self.compile_info.module.import_counts)
+    }
+
+    fn make_function_index(&self, index: LocalFunctionIndex) -> FunctionIndex {
+        let imports = self.compile_info.module.import_counts.functions as usize;
+        FunctionIndex::new(index.index() + imports)
+    }
+}
+
+/// Convert a function index to a LocalFunctionIndex. Returns `Err` if `index` is not a local
+/// function index.
+fn local_function_index(
+    index: FunctionIndex,
+    imports: &EntityCounts,
+) -> Result<LocalFunctionIndex, FunctionIndex> {
+    let imports = imports.functions as usize;
+    if index.index() < imports {
+        Err(index)
+    } else {
+        Ok(LocalFunctionIndex::new(index.index() - imports))
     }
 }
 

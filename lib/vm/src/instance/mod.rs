@@ -49,7 +49,7 @@ use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, 
 use wasmer_types::{
     DataIndex, DataInitializer, ElemIndex, ExportIndex, FastGasCounter, FunctionIndex, GlobalIndex,
     GlobalInit, InstanceConfig, LocalFunctionIndex, LocalGlobalIndex, LocalMemoryIndex,
-    LocalTableIndex, MemoryIndex, ModuleInfo, NamedFunction, OwnedTableInitializer, Pages,
+    LocalTableIndex, MemoryIndex, ModuleInfo, OwnedTableInitializer, Pages,
     SignatureIndex, TableIndex,
 };
 
@@ -307,7 +307,7 @@ impl Instance {
 
     /// Return the indexed `VMMemoryDefinition`.
     fn memory(&self, index: MemoryIndex) -> &VMMemoryDefinition {
-        let imports = self.artifact.import_counts().memories;
+        let imports = self.artifact.import_counts().memories as usize;
         if index.index() < imports {
             unsafe { self.imported_memory(index).definition.as_ref() }
         } else {
@@ -337,7 +337,7 @@ impl Instance {
 
     /// Return the indexed `VMGlobalDefinition`.
     fn global(&self, index: GlobalIndex) -> &VMGlobalDefinition {
-        let imports = self.artifact.import_counts().globals;
+        let imports = self.artifact.import_counts().globals as usize;
         if index.index() < imports {
             unsafe { self.imported_global(index).definition.as_ref() }
         } else {
@@ -405,43 +405,6 @@ impl Instance {
     /// Return a pointer to current stack limit.
     pub fn stack_limit_ptr(&self) -> *mut i32 {
         unsafe { self.vmctx_plus_offset(self.offsets().vmctx_stack_limit_begin()) }
-    }
-
-    pub fn named_functions(&self) -> Vec<NamedFunction> {
-        todo!() // TODO(0-copy):
-                // let mut result = vec![];
-                // for (index, name) in &self.module.function_names {
-                //     match self.module.local_func_index(*index) {
-                //         Some(local_index) => {
-                //             let address = self.functions[local_index].0 as u64;
-                //             let size = self.function_lengths[local_index];
-                //             result.push(NamedFunction {
-                //                 name: name.clone(),
-                //                 address,
-                //                 size,
-                //             })
-                //         }
-                //         None => {}
-                //     }
-                // }
-                // for (name, index) in &self.module.exports {
-                //     match index {
-                //         ExportIndex::Function(index) => match self.module.local_func_index(*index) {
-                //             Some(local_index) => {
-                //                 let address = self.functions[local_index].0 as u64;
-                //                 let size = self.function_lengths[local_index];
-                //                 result.push(NamedFunction {
-                //                     name: name.clone(),
-                //                     address,
-                //                     size,
-                //                 })
-                //             }
-                //             None => {}
-                //         },
-                //         _ => {}
-                //     }
-                // }
-                // result
     }
 
     /// Invoke the WebAssembly start function of the instance, if one is present.
@@ -883,7 +846,7 @@ impl Instance {
     /// Get a table by index regardless of whether it is locally-defined or an
     /// imported, foreign table.
     pub(crate) fn get_table(&self, table_index: TableIndex) -> &dyn Table {
-        let imports = self.artifact.import_counts().tables;
+        let imports = self.artifact.import_counts().tables as usize;
         if table_index.index() < imports {
             self.get_foreign_table(table_index)
         } else {
@@ -989,7 +952,7 @@ impl InstanceHandle {
                     vmctx_ptr,
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
-                *(instance.gas_counter_ptr()) = instance_config.gas_counter;
+                *(instance.gas_counter_ptr()) = dbg!(instance_config.gas_counter);
                 *(instance.stack_limit_ptr()) = instance_config.stack_limit;
                 *(instance.stack_limit_initial_ptr()) = instance_config.stack_limit;
             }
@@ -1096,7 +1059,7 @@ impl InstanceHandle {
     pub fn lookup_function(&self, field: &str) -> Option<VMFunction> {
         let instance = self.instance.as_ref();
         let idx = instance.artifact.function_by_export_field(field)?;
-        let imports = instance.artifact.import_counts().functions;
+        let imports = instance.artifact.import_counts().functions as usize;
         let (address, signature, vmctx, trampoline) = if idx.index() < imports {
             let import = instance.imported_function(idx);
             let trampoline = instance.artifact.function_trampoline(import.signature)?;
@@ -1290,11 +1253,6 @@ impl InstanceHandle {
     /// Get a table defined locally within this module.
     pub fn get_local_table(&self, index: LocalTableIndex) -> &dyn Table {
         self.instance().as_ref().get_local_table(index)
-    }
-
-    /// Returns list of named functions along with their addresses in this instance.
-    pub fn named_functions(&self) -> Vec<NamedFunction> {
-        self.instance().as_ref().named_functions()
     }
 
     /// Initializes the host environments.

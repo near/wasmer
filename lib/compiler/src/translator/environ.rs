@@ -136,12 +136,12 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.functions.len(),
-            self.module.import_counts.functions,
+            self.module.import_counts.functions as usize,
             "Imported functions must be declared first"
         );
         self.declare_import(
             ImportIndex::Function(FunctionIndex::from_u32(
-                self.module.import_counts.functions as _,
+                self.module.import_counts.functions,
             )),
             module,
             field,
@@ -159,11 +159,11 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.tables.len(),
-            self.module.import_counts.tables,
+            self.module.import_counts.tables as usize,
             "Imported tables must be declared first"
         );
         self.declare_import(
-            ImportIndex::Table(TableIndex::from_u32(self.module.import_counts.tables as _)),
+            ImportIndex::Table(TableIndex::from_u32(self.module.import_counts.tables)),
             module,
             field,
         )?;
@@ -180,12 +180,12 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.memories.len(),
-            self.module.import_counts.memories,
+            self.module.import_counts.memories as usize,
             "Imported memories must be declared first"
         );
         self.declare_import(
             ImportIndex::Memory(MemoryIndex::from_u32(
-                self.module.import_counts.memories as _,
+                self.module.import_counts.memories,
             )),
             module,
             field,
@@ -203,12 +203,12 @@ impl<'data> ModuleEnvironment<'data> {
     ) -> WasmResult<()> {
         debug_assert_eq!(
             self.module.globals.len(),
-            self.module.import_counts.globals,
+            self.module.import_counts.globals as usize,
             "Imported globals must be declared first"
         );
         self.declare_import(
             ImportIndex::Global(GlobalIndex::from_u32(
-                self.module.import_counts.globals as _,
+                self.module.import_counts.globals,
             )),
             module,
             field,

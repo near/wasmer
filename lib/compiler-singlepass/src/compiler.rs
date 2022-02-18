@@ -92,11 +92,11 @@ impl Compiler for SinglepassCompiler {
             })?
             .bytes();
         let vmoffsets = VMOffsets::new(pointer_width).with_module_info(&module);
-        let import_trampolines: PrimaryMap<SectionIndex, _> = (0..module.import_counts.functions)
-            .map(FunctionIndex::new)
-            .collect::<Vec<_>>()
+        let import_idxs = 0..module.import_counts.functions as usize;
+        let import_trampolines: PrimaryMap<SectionIndex, _> = import_idxs
             .into_par_iter_if_rayon()
             .map(|i| {
+                let i = FunctionIndex::new(i);
                 gen_import_call_trampoline(
                     &vmoffsets,
                     i,
@@ -205,11 +205,11 @@ trait IntoParIterIfRayon {
     fn into_par_iter_if_rayon(self) -> Self::Output;
 }
 
-impl<T: Send> IntoParIterIfRayon for Vec<T> {
+impl<T: IntoParallelIterator + IntoIterator> IntoParIterIfRayon for T {
     #[cfg(not(feature = "rayon"))]
-    type Output = std::vec::IntoIter<T>;
+    type Output = <T as IntoIterator>::IntoIter;
     #[cfg(feature = "rayon")]
-    type Output = rayon::vec::IntoIter<T>;
+    type Output = <T as IntoParallelIterator>::Iter;
 
     fn into_par_iter_if_rayon(self) -> Self::Output {
         #[cfg(not(feature = "rayon"))]

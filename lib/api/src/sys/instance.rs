@@ -3,12 +3,13 @@ use crate::sys::externals::Extern;
 use crate::sys::module::Module;
 use crate::sys::store::Store;
 use crate::sys::{HostEnvInitError, LinkError, RuntimeError};
+use crate::{ExportError, NativeFunc, WasmTypeList};
 use loupe::MemoryUsage;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use wasmer_types::{InstanceConfig, NamedFunction};
-use wasmer_vm::{InstanceHandle, Resolver, VMContext, ExportFunction};
+use wasmer_types::InstanceConfig;
+use wasmer_vm::{ExportFunction, InstanceHandle, Resolver, VMContext};
 
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
@@ -178,18 +179,31 @@ impl Instance {
         self.module.store()
     }
 
-    /// Returns list of named functions in instance.
-    pub fn named_functions(&self) -> Vec<NamedFunction> {
-        self.handle.lock().unwrap().named_functions()
-    }
-
     /// Lookup an exported function by its name..
     pub fn lookup_function(&self, field: &str) -> Option<crate::Function> {
         let vm_function = self.handle.lock().unwrap().lookup_function(field)?;
-        Some(crate::Function::from_vm_export(self.store(), ExportFunction {
-            vm_function,
-            metadata: None,
-        }))
+        Some(crate::Function::from_vm_export(
+            self.store(),
+            ExportFunction {
+                vm_function,
+                metadata: None,
+            },
+        ))
+    }
+
+    /// Get an export as a `NativeFunc`.
+    pub fn get_native_function<Args, Rets>(
+        &self,
+        name: &str,
+    ) -> Result<NativeFunc<Args, Rets>, ExportError>
+    where
+        Args: WasmTypeList,
+        Rets: WasmTypeList,
+    {
+        self.lookup_function(name)
+            .ok_or_else(|| ExportError::Missing("not found".into()))?
+            .native()
+            .map_err(|_| ExportError::IncompatibleType)
     }
 
     #[doc(hidden)]

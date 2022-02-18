@@ -88,19 +88,20 @@ impl UniversalEngine {
         self.inner.lock().unwrap()
     }
 
-    pub(crate) fn load_owned(
+    /// Load a [`UniversalExecutable`](crate::UniversalExecutable) with this engine.
+    pub fn load_universal_executable(
         &self,
         executable: &UniversalExecutable,
-    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
+    ) -> Result<UniversalArtifact, CompileError> {
         let info = &executable.compile_info;
         let module = &info.module;
-        let local_memories = (module.import_counts.memories..module.memories.len())
+        let local_memories = (module.import_counts.memories as usize..module.memories.len())
             .map(|idx| {
                 let idx = MemoryIndex::new(idx);
                 (module.memories[idx], info.memory_styles[idx].clone())
             })
             .collect();
-        let local_tables = (module.import_counts.tables..module.tables.len())
+        let local_tables = (module.import_counts.tables as usize..module.tables.len())
             .map(|idx| {
                 let idx = TableIndex::new(idx);
                 (module.tables[idx], info.table_styles[idx].clone())
@@ -109,7 +110,7 @@ impl UniversalEngine {
         let local_globals: Vec<(GlobalType, GlobalInit)> = module
             .globals
             .iter()
-            .skip(module.import_counts.globals)
+            .skip(module.import_counts.globals as usize)
             .enumerate()
             .map(|(idx, (_, t))| {
                 let init = module.global_initializers[LocalGlobalIndex::new(idx)];
@@ -128,7 +129,8 @@ impl UniversalEngine {
                 dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
                 executable.custom_sections.iter().map(|(_, s)| s.into()),
                 |idx: LocalFunctionIndex| {
-                    let func_idx = FunctionIndex::new(module.import_counts.functions + idx.index());
+                    let imports = module.import_counts.functions as usize;
+                    let func_idx = FunctionIndex::new(imports + idx.index());
                     let sig_idx = module.functions[func_idx];
                     let sig = &module.signatures[sig_idx];
                     (sig_idx, sig.into())
@@ -193,7 +195,7 @@ impl UniversalEngine {
             })
             .collect();
 
-        Ok(Arc::new(UniversalArtifact {
+        Ok(UniversalArtifact {
             engine: self.clone(),
             import_counts: module.import_counts,
             start_function: module.start_function,
@@ -211,24 +213,25 @@ impl UniversalEngine {
             passive_elements: module.passive_elements.clone(),
             local_globals,
             exported_functions,
-        }))
+        })
     }
 
-    pub(crate) fn load_archived(
+    /// Load a [`UniversalExecutableRef`](crate::UniversalExecutableRef) with this engine.
+    pub fn load_universal_executable_ref(
         &self,
         executable: &UniversalExecutableRef,
-    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
+    ) -> Result<UniversalArtifact, CompileError> {
         let info = &executable.compile_info;
         let module = &info.module;
         let import_counts: EntityCounts = unrkyv(&module.import_counts);
-        let local_memories = (import_counts.memories..module.memories.len())
+        let local_memories = (import_counts.memories as usize..module.memories.len())
             .map(|idx| {
                 let idx = MemoryIndex::new(idx);
                 let mty = &module.memories[&idx];
                 (unrkyv(mty), unrkyv(&info.memory_styles[&idx]))
             })
             .collect();
-        let local_tables = (import_counts.tables..module.tables.len())
+        let local_tables = (import_counts.tables as usize..module.tables.len())
             .map(|idx| {
                 let idx = TableIndex::new(idx);
                 let tty = &module.tables[&idx];
@@ -238,7 +241,7 @@ impl UniversalEngine {
         let local_globals: Vec<(GlobalType, GlobalInit)> = module
             .globals
             .iter()
-            .skip(import_counts.globals)
+            .skip(import_counts.globals as _)
             .enumerate()
             .map(|(idx, (_, t))| {
                 let init = unrkyv(&module.global_initializers[&LocalGlobalIndex::new(idx)]);
@@ -270,7 +273,8 @@ impl UniversalEngine {
                 dynamic_trampolines.map(|(_, b)| b.into()),
                 executable.custom_sections.iter().map(|(_, s)| s.into()),
                 |idx: LocalFunctionIndex| {
-                    let func_idx = FunctionIndex::new(import_counts.functions + idx.index());
+                    let imports = import_counts.functions as usize;
+                    let func_idx = FunctionIndex::new(imports + idx.index());
                     let sig_idx = module.functions[&func_idx];
                     let sig = &module.signatures[&sig_idx];
                     (sig_idx, sig.into())
@@ -340,7 +344,7 @@ impl UniversalEngine {
             })
             .collect();
 
-        Ok(Arc::new(UniversalArtifact {
+        Ok(UniversalArtifact {
             engine: self.clone(),
             import_counts,
             start_function: unrkyv(&module.start_function),
@@ -358,7 +362,7 @@ impl UniversalEngine {
             passive_elements,
             local_globals,
             exported_functions,
-        }))
+        })
     }
 }
 
@@ -377,10 +381,7 @@ impl Engine for UniversalEngine {
         self.inner().signatures.register(func_type, trampoline)
     }
 
-    fn ensure_signature(
-        &self,
-        func_type: FunctionTypeRef<'_>,
-    ) -> Option<VMSharedSignatureIndex> {
+    fn ensure_signature(&self, func_type: FunctionTypeRef<'_>) -> Option<VMSharedSignatureIndex> {
         self.inner().signatures.ensure(func_type)
     }
 

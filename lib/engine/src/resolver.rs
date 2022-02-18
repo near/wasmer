@@ -37,11 +37,12 @@ pub fn resolve_imports(
     imports: &[VMImport],
     finished_dynamic_function_trampolines: &BoxedSlice<FunctionIndex, FunctionBodyPtr>,
 ) -> Result<Imports, LinkError> {
-    let mut function_imports = PrimaryMap::with_capacity(import_counts.functions);
-    let mut host_function_env_initializers = PrimaryMap::with_capacity(import_counts.functions);
-    let mut table_imports = PrimaryMap::with_capacity(import_counts.tables);
-    let mut memory_imports = PrimaryMap::with_capacity(import_counts.memories);
-    let mut global_imports = PrimaryMap::with_capacity(import_counts.globals);
+    let mut function_imports = PrimaryMap::with_capacity(import_counts.functions as _);
+    let mut host_function_env_initializers =
+        PrimaryMap::with_capacity(import_counts.functions as _);
+    let mut table_imports = PrimaryMap::with_capacity(import_counts.tables as _);
+    let mut memory_imports = PrimaryMap::with_capacity(import_counts.memories as _);
+    let mut global_imports = PrimaryMap::with_capacity(import_counts.globals as _);
     for VMImport {
         import_no,
         module,

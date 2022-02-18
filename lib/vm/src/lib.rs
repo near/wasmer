@@ -112,3 +112,15 @@ impl std::ops::Deref for SectionBodyPtr {
         &self.0
     }
 }
+
+/// Represents a continuous region of executable memory starting with a function
+/// entry point.
+#[derive(Debug)]
+#[repr(C)]
+pub struct FunctionExtent {
+    /// Entry point for normal entry of the function. All addresses in the
+    /// function lie after this address.
+    pub address: FunctionBodyPtr,
+    /// Length in bytes.
+    pub length: usize,
+}

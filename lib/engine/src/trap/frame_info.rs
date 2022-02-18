@@ -17,7 +17,7 @@ use std::sync::{Arc, RwLock};
 use wasmer_compiler::{CompiledFunctionFrameInfo, SourceLoc, TrapInformation};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{LocalFunctionIndex, ModuleInfo};
-use wasmer_vm::FunctionBodyPtr;
+use wasmer_vm::{FunctionBodyPtr, FunctionExtent};
 
 lazy_static::lazy_static! {
     /// This is a global cache of backtrace frame information for all active
@@ -167,18 +167,6 @@ impl Drop for GlobalFrameInfoRegistration {
             info.ranges.remove(&self.key);
         }
     }
-}
-
-/// Represents a continuous region of executable memory starting with a function
-/// entry point.
-#[derive(Debug)]
-#[repr(C)]
-pub struct FunctionExtent {
-    /// Entry point for normal entry of the function. All addresses in the
-    /// function lie after this address.
-    pub ptr: FunctionBodyPtr,
-    /// Length in bytes.
-    pub length: usize,
 }
 
 /// Description of a frame in a backtrace for a [`RuntimeError::trace`](crate::RuntimeError::trace).

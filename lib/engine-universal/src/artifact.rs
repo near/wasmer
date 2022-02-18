@@ -2,7 +2,8 @@
 //! done as separate steps.
 
 use loupe::MemoryUsage;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
@@ -13,8 +14,8 @@ use wasmer_types::{
     TableType,
 };
 use wasmer_vm::{
-    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
-    VMImport, VMLocalFunction, VMOffsets, VMTrampoline,
+    Artifact, FunctionBodyPtr, FunctionExtent, InstanceHandle, MemoryStyle, Resolver, TableStyle,
+    Tunables, VMImport, VMLocalFunction, VMOffsets, VMTrampoline,
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
@@ -58,6 +59,15 @@ impl UniversalArtifact {
         // stands for “Wasm Universal”.
         "wasmu"
     }
+
+    /// Return the extents of the specified local function.
+    pub fn function_extent(&self, index: LocalFunctionIndex) -> Option<FunctionExtent> {
+        let func = self.functions.get(index)?;
+        Some(FunctionExtent {
+            address: func.body,
+            length: usize::try_from(func.length).unwrap(),
+        })
+    }
 }
 
 impl Artifact for UniversalArtifact {
@@ -93,7 +103,7 @@ impl Artifact for UniversalArtifact {
             PrimaryMap::with_capacity(self.local_memories.len());
         for (idx, (ty, style)) in (self.import_counts.memories..).zip(self.local_memories.iter()) {
             let memory = tunables
-                .create_vm_memory(&ty, &style, memory_definition_locations[idx])
+                .create_vm_memory(&ty, &style, memory_definition_locations[idx as usize])
                 .map_err(|e| {
                     InstantiationError::Link(wasmer_engine::LinkError::Resource(format!(
                         "Failed to create memory: {}",
@@ -108,7 +118,7 @@ impl Artifact for UniversalArtifact {
             PrimaryMap::with_capacity(self.local_tables.len());
         for (idx, (ty, style)) in (self.import_counts.tables..).zip(self.local_tables.iter()) {
             let table = tunables
-                .create_vm_table(ty, style, table_definition_locations[idx])
+                .create_vm_table(ty, style, table_definition_locations[idx as usize])
                 .map_err(|e| InstantiationError::Link(wasmer_engine::LinkError::Resource(e)))?;
             tables.push(table);
         }

@@ -1,6 +1,7 @@
 use crate::Engine;
 use enumset::EnumSet;
 use wasmer_compiler::{CompileError, CpuFeature, Features};
+use wasmer_types::{FunctionIndex, LocalFunctionIndex};
 use wasmer_vm::Artifact;
 
 mod private {
@@ -14,7 +15,7 @@ mod private {
 pub trait Executable {
     /// Load this executable with the specified engine.
     ///
-    /// TODO: change error type here.
+    /// TODO(0-copy): change error type here.
     fn load(
         &self,
         engine: &(dyn Engine + 'static),
@@ -28,6 +29,20 @@ pub trait Executable {
 
     /// Serializes the artifact into bytes
     fn serialize(&self) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Obtain a best effort description for the function at the given function index.
+    ///
+    /// Implementations are not required to maintain symbol names, so this may always return None.
+    fn function_name(&self, index: FunctionIndex) -> Option<&str>;
+
+    /// Convert a function index to a LocalFunctionIndex
+    fn make_local_function_index(
+        &self,
+        index: FunctionIndex,
+    ) -> Result<LocalFunctionIndex, FunctionIndex>;
+
+    /// Convert a `LocalFunctionIndex` to a FunctionIndex
+    fn make_function_index(&self, index: LocalFunctionIndex) -> FunctionIndex;
 
     /// Internal: support for downcasting `Executable`s.
     #[doc(hidden)]
