@@ -9,8 +9,6 @@ use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use wasmer_types::{FunctionType, FunctionTypeRef};
 
-use crate::VMTrampoline;
-
 /// An index into the shared signature registry, usable for checking signatures
 /// at indirect calls.
 #[repr(C)]
@@ -30,17 +28,17 @@ impl VMSharedSignatureIndex {
 /// index comparison.
 #[derive(Debug, MemoryUsage)]
 pub struct SignatureRegistry {
-    signature2index: HashMap<FunctionType, VMSharedSignatureIndex>,
+    type_to_index: HashMap<FunctionType, VMSharedSignatureIndex>,
     #[loupe(skip)] // TODO(0-copy):
-    index2signature: Vec<(FunctionType, VMTrampoline)>,
+    index_to_data: Vec<FunctionType>,
 }
 
 impl SignatureRegistry {
     /// Create a new `SignatureRegistry`.
     pub fn new() -> Self {
         Self {
-            signature2index: HashMap::new(),
-            index2signature: Vec::new(),
+            type_to_index: HashMap::new(),
+            index_to_data: Vec::new(),
         }
     }
 
@@ -48,16 +46,15 @@ impl SignatureRegistry {
     pub fn ensure(&mut self, sig: FunctionTypeRef<'_>) -> Option<VMSharedSignatureIndex> {
         // TODO(0-copy): no need to clone here.
         let sig = FunctionType::new(sig.params(), sig.results());
-        self.signature2index.get(&sig).copied()
+        self.type_to_index.get(&sig).copied()
     }
 
     /// Register a signature and return its unique index.
     pub fn register(
         &mut self,
         sig: FunctionTypeRef<'_>,
-        trampoline: VMTrampoline,
     ) -> VMSharedSignatureIndex {
-        let len = self.index2signature.len();
+        let len = self.index_to_data.len();
         // TODO(0-copy): this. should. not. allocate.
         //
         // This is pretty hard to avoid, however. In order to implement bijective map, we'd want
@@ -66,7 +63,7 @@ impl SignatureRegistry {
         //
         // Consider `transmute` or `hashbrown`'s raw_entry.
         let sig = FunctionType::new(sig.params(), sig.results());
-        match self.signature2index.entry(sig.clone()) {
+        match self.type_to_index.entry(sig.clone()) {
             hash_map::Entry::Occupied(entry) => *entry.get(),
             hash_map::Entry::Vacant(entry) => {
                 debug_assert!(
@@ -75,7 +72,7 @@ impl SignatureRegistry {
                 );
                 let sig_id = VMSharedSignatureIndex::new(u32::try_from(len).unwrap());
                 entry.insert(sig_id);
-                self.index2signature.push((sig, trampoline));
+                self.index_to_data.push(sig);
                 sig_id
             }
         }
@@ -85,9 +82,8 @@ impl SignatureRegistry {
     ///
     /// Note that for this operation to be semantically correct the `idx` must
     /// have previously come from a call to `register` of this same object.
-    pub fn lookup(&self, idx: VMSharedSignatureIndex) -> Option<(&FunctionType, &VMTrampoline)> {
-        self.index2signature
+    pub fn lookup(&self, idx: VMSharedSignatureIndex) -> Option<&FunctionType> {
+        self.index_to_data
             .get(idx.0 as usize)
-            .map(|(a, b)| (a, b))
     }
 }

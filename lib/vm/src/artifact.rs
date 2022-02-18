@@ -60,8 +60,6 @@ pub trait Artifact: Send + Sync + MemoryUsage {
     /// Function by export name.
     fn function_by_export_field(&self, name: &str) -> Option<FunctionIndex>;
 
-    /// The signature registry for this artifact.
-    ///
-    /// This registry is only valid to be used with `VMSharedSignatureIndex`es from this artifact.
-    fn function_trampoline(&self, idx: VMSharedSignatureIndex) -> Option<VMTrampoline>;
+    /// Mapping between module SignatureIndex and VMSharedSignatureIndex.
+    fn signatures(&self) -> &[VMSharedSignatureIndex];
 }

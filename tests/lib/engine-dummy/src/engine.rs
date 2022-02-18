@@ -59,16 +59,8 @@ impl Engine for DummyEngine {
     }
 
     /// Register a signature
-    fn register_signature(
-        &self,
-        func_type: FunctionTypeRef<'_>,
-        trampoline: VMTrampoline,
-    ) -> VMSharedSignatureIndex {
-        self.inner
-            .lock()
-            .unwrap()
-            .signatures
-            .register(func_type, trampoline)
+    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
+        self.inner.lock().unwrap().signatures.register(func_type)
     }
 
     fn ensure_signature(
@@ -84,12 +76,7 @@ impl Engine for DummyEngine {
 
     /// Lookup a signature
     fn lookup_signature(&self, sig: VMSharedSignatureIndex) -> Option<FunctionType> {
-        self.inner
-            .lock()
-            .unwrap()
-            .signatures
-            .lookup(sig)
-            .map(|(s, _)| s.clone())
+        self.inner.lock().unwrap().signatures.lookup(sig).cloned()
     }
 
     #[cfg(feature = "compiler")]

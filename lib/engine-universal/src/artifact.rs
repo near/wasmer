@@ -15,7 +15,7 @@ use wasmer_types::{
 };
 use wasmer_vm::{
     Artifact, FunctionBodyPtr, FunctionExtent, InstanceHandle, MemoryStyle, Resolver, TableStyle,
-    Tunables, VMImport, VMLocalFunction, VMOffsets, VMTrampoline,
+    Tunables, VMImport, VMLocalFunction, VMOffsets, VMTrampoline, VMSharedSignatureIndex,
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
@@ -37,6 +37,7 @@ pub struct UniversalArtifact {
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
     #[loupe(skip)] // TODO(0-copy):
     pub(crate) exported_functions: BTreeMap<String, FunctionIndex>,
+    pub(crate) signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
 
     pub(crate) local_memories: Vec<(MemoryType, MemoryStyle)>,
     pub(crate) data_segments: Vec<OwnedDataInitializer>,
@@ -182,7 +183,7 @@ impl Artifact for UniversalArtifact {
         self.exported_functions.get(name).copied()
     }
 
-    fn function_trampoline(&self, idx: wasmer_vm::VMSharedSignatureIndex) -> Option<VMTrampoline> {
-        self.engine.inner().signatures.lookup(idx).map(|r| *r.1)
+    fn signatures(&self) -> &[wasmer_vm::VMSharedSignatureIndex] {
+        self.signatures.values().as_slice()
     }
 }

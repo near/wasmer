@@ -198,7 +198,7 @@ impl Artifact for DummyArtifact {
         todo!()
     }
 
-    fn function_trampoline(&self, idx: VMSharedSignatureIndex) -> Option<VMTrampoline> {
+    fn signatures(&self) -> &[VMSharedSignatureIndex] {
         todo!()
     }
 }

@@ -8847,30 +8847,31 @@ pub(crate) fn gen_import_call_trampoline(
     // Emits a tail call trampoline that loads the address of the target import function
     // from Ctx and jumps to it.
 
-    let offset = vmoffsets.vmctx_vmfunction_import(index);
+    let body_offset = vmoffsets.vmctx_vmfunction_import_body(index);
+    let vmctx_offset = vmoffsets.vmctx_vmfunction_import_vmctx(index);
 
     match calling_convention {
         CallingConvention::WindowsFastcall => {
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RCX, offset as i32), // function pointer
+                Location::Memory(GPR::RCX, body_offset as i32), // function pointer
                 Location::GPR(GPR::RAX),
             );
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RCX, offset as i32 + 8), // target vmctx
+                Location::Memory(GPR::RCX, vmctx_offset as i32), // target vmctx
                 Location::GPR(GPR::RCX),
             );
         }
         _ => {
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RDI, offset as i32), // function pointer
+                Location::Memory(GPR::RDI, body_offset as i32), // function pointer
                 Location::GPR(GPR::RAX),
             );
             a.emit_mov(
                 Size::S64,
-                Location::Memory(GPR::RDI, offset as i32 + 8), // target vmctx
+                Location::Memory(GPR::RDI, vmctx_offset as i32), // target vmctx
                 Location::GPR(GPR::RDI),
             );
         }

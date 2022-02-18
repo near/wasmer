@@ -254,7 +254,7 @@ pub struct NamedResolverChain<A: NamedResolver + Send + Sync, B: NamedResolver +
 /// A trait for chaining resolvers together.
 ///
 /// ```
-/// # use wasmer_engine::{ChainableNamedResolver, NamedResolver};
+/// # use wasmer_vm::{ChainableNamedResolver, NamedResolver};
 /// # fn chainable_test<A, B>(imports1: A, imports2: B)
 /// # where A: NamedResolver + Sized + Send + Sync,
 /// #       B: NamedResolver + Sized + Send + Sync,
@@ -269,7 +269,7 @@ pub trait ChainableNamedResolver: NamedResolver + Sized + Send + Sync {
     /// This will cause the second resolver to override the first.
     ///
     /// ```
-    /// # use wasmer_engine::{ChainableNamedResolver, NamedResolver};
+    /// # use wasmer_vm::{ChainableNamedResolver, NamedResolver};
     /// # fn chainable_test<A, B>(imports1: A, imports2: B)
     /// # where A: NamedResolver + Sized + Send + Sync,
     /// #       B: NamedResolver + Sized + Send + Sync,
@@ -290,7 +290,7 @@ pub trait ChainableNamedResolver: NamedResolver + Sized + Send + Sync {
     /// This will cause the first resolver to override the second.
     ///
     /// ```
-    /// # use wasmer_engine::{ChainableNamedResolver, NamedResolver};
+    /// # use wasmer_vm::{ChainableNamedResolver, NamedResolver};
     /// # fn chainable_test<A, B>(imports1: A, imports2: B)
     /// # where A: NamedResolver + Sized + Send + Sync,
     /// #       B: NamedResolver + Sized + Send + Sync,

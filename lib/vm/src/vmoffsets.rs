@@ -129,14 +129,14 @@ impl VMOffsets {
     /// The offset of the `vmctx` field.
     #[allow(clippy::identity_op)]
     pub const fn vmfunction_import_vmctx(&self) -> u8 {
-        1 * self.pointer_size
+        3 * self.pointer_size
     }
 
     /// Return the size of [`VMFunctionImport`].
     ///
     /// [`VMFunctionImport`]: crate::vmcontext::VMFunctionImport
     pub const fn size_of_vmfunction_import(&self) -> u8 {
-        2 * self.pointer_size
+        4 * self.pointer_size
     }
 }
 

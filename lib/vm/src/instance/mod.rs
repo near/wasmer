@@ -49,8 +49,8 @@ use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, 
 use wasmer_types::{
     DataIndex, DataInitializer, ElemIndex, ExportIndex, FastGasCounter, FunctionIndex, GlobalIndex,
     GlobalInit, InstanceConfig, LocalFunctionIndex, LocalGlobalIndex, LocalMemoryIndex,
-    LocalTableIndex, MemoryIndex, ModuleInfo, OwnedTableInitializer, Pages,
-    SignatureIndex, TableIndex,
+    LocalTableIndex, MemoryIndex, ModuleInfo, OwnedTableInitializer, Pages, SignatureIndex,
+    TableIndex,
 };
 
 /// The function pointer to call with data and an [`Instance`] pointer to
@@ -952,7 +952,7 @@ impl InstanceHandle {
                     vmctx_ptr,
                 );
                 *(instance.trap_catcher_ptr()) = get_trap_handler();
-                *(instance.gas_counter_ptr()) = dbg!(instance_config.gas_counter);
+                *(instance.gas_counter_ptr()) = instance_config.gas_counter;
                 *(instance.stack_limit_ptr()) = instance_config.stack_limit;
                 *(instance.stack_limit_initial_ptr()) = instance_config.stack_limit;
             }
@@ -963,12 +963,11 @@ impl InstanceHandle {
         };
         let instance = handle.instance().as_ref();
 
-        // TODO(0-copy): this should no longer be necessary.
-        // ptr::copy(
-        //     vmshared_signatures.values().as_slice().as_ptr(),
-        //     instance.signature_ids_ptr() as *mut VMSharedSignatureIndex,
-        //     vmshared_signatures.len(),
-        // );
+        ptr::copy(
+            instance.artifact.signatures().as_ptr(),
+            instance.signature_ids_ptr() as *mut VMSharedSignatureIndex,
+            instance.artifact.signatures().len(),
+        );
 
         ptr::copy(
             imports.functions.values().as_slice().as_ptr(),
@@ -1062,24 +1061,22 @@ impl InstanceHandle {
         let imports = instance.artifact.import_counts().functions as usize;
         let (address, signature, vmctx, trampoline) = if idx.index() < imports {
             let import = instance.imported_function(idx);
-            let trampoline = instance.artifact.function_trampoline(import.signature)?;
             (
                 *(import.body),
                 import.signature,
                 import.environment,
-                trampoline,
+                import.trampoline,
             )
         } else {
             let index = LocalFunctionIndex::new(idx.index() - imports);
             let func = instance.artifact.functions().get(index)?;
-            let trampoline = instance.artifact.function_trampoline(func.signature)?;
             (
                 *(func.body),
                 func.signature,
                 VMFunctionEnvironment {
                     vmctx: instance.vmctx_ptr(),
                 },
-                trampoline,
+                Some(func.trampoline),
             )
         };
         Some(VMFunction {
@@ -1091,7 +1088,7 @@ impl InstanceHandle {
             address,
             signature,
             vmctx,
-            call_trampoline: Some(trampoline),
+            call_trampoline: trampoline,
             instance_ref: Some(WeakOrStrongInstanceRef::Strong(self.instance().clone())),
         })
     }

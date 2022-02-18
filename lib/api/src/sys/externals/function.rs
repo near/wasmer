@@ -17,7 +17,7 @@ use wasmer_vm::{
     raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
     ExportFunctionMetadata, ImportInitializerFuncPtr, VMCallerCheckedAnyfunc,
     VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody, VMFunctionEnvironment,
-    VMFunctionKind, VMTrampoline,
+    VMFunctionKind, VMTrampoline, VMContext,
 };
 
 /// A WebAssembly `function` instance.
@@ -231,8 +231,8 @@ impl Function {
         let vmctx = VMFunctionEnvironment { host_env };
         let signature = store
             .engine()
-            .ensure_signature((&ty).into())
-            .expect("signature should have been registered already");
+            // TODO(0-copy):
+            .register_signature((&ty).into());
 
         Self {
             store: store.clone(),
@@ -284,8 +284,8 @@ impl Function {
         };
         let signature = store
             .engine()
-            .ensure_signature((&function.ty()).into())
-            .expect("signature should have been registered already");
+            // TODO(0-copy):
+            .register_signature((&function.ty()).into());
 
         Self {
             store: store.clone(),
@@ -347,8 +347,7 @@ impl Function {
         let vmctx = VMFunctionEnvironment { host_env };
         let signature = store
             .engine()
-            .ensure_signature((&function.ty()).into())
-            .expect("signature should have been registered already");
+            .register_signature((&function.ty()).into());
         Self {
             store: store.clone(),
             exported: ExportFunction {

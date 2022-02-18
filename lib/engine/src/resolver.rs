@@ -4,12 +4,12 @@
 use crate::{Engine, ImportError, LinkError};
 use more_asserts::assert_ge;
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
-use wasmer_types::{EntityCounts, ExternType, FunctionIndex, MemoryType, TableType};
+use wasmer_types::{EntityCounts, ExternType, FunctionIndex, MemoryType, TableType, SignatureIndex};
 
 use wasmer_vm::{
     Export, ExportFunctionMetadata, FunctionBodyPtr, ImportFunctionEnv, Imports, MemoryStyle,
     NamedResolver, Resolver, VMFunctionBody, VMFunctionEnvironment, VMFunctionImport,
-    VMFunctionKind, VMGlobalImport, VMImport, VMImportType, VMMemoryImport, VMTableImport,
+    VMFunctionKind, VMGlobalImport, VMImport, VMImportType, VMMemoryImport, VMTableImport, VMSharedSignatureIndex, VMTrampoline,
 };
 
 fn is_compatible_table(ex: &TableType, im: &TableType) -> bool {
@@ -118,6 +118,7 @@ pub fn resolve_imports(
                     body: FunctionBodyPtr(address),
                     signature: *im,
                     environment: VMFunctionEnvironment { host_env: env },
+                    trampoline: ex.vm_function.call_trampoline,
                 });
 
                 let initializer = ex

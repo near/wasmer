@@ -78,6 +78,10 @@ pub struct VMFunctionImport {
     /// Function signature index within the source module.
     pub signature: VMSharedSignatureIndex,
 
+    /// Function call trampoline
+    #[loupe(skip)]
+    pub trampoline: Option<VMTrampoline>,
+
     /// A pointer to the `VMContext` that owns the function or host env data.
     pub environment: VMFunctionEnvironment,
 }
@@ -121,6 +125,10 @@ pub struct VMLocalFunction {
 
     /// Function signature
     pub signature: VMSharedSignatureIndex,
+
+    /// Trampoline for host->VM function calls.
+    #[loupe(skip)]
+    pub trampoline: VMTrampoline,
 }
 
 /// The `VMDynamicFunctionContext` is the context that dynamic

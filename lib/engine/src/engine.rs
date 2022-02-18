@@ -26,7 +26,6 @@ pub trait Engine: MemoryUsage {
     fn register_signature(
         &self,
         func_type: FunctionTypeRef<'_>,
-        trampoline: VMTrampoline,
     ) -> VMSharedSignatureIndex;
 
     /// Ensure a signature specified has already been registered.
