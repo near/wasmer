@@ -371,21 +371,7 @@ impl Wast {
 
     fn instantiate(&self, module: &[u8]) -> Result<Instance> {
         let module = Module::new(&self.store, module)?;
-        let mut imports = self.import_object.clone();
-
-        // for import in module.imports() {
-        //     let module_name = import.module();
-        //     if imports.contains_namespace(module_name) {
-        //         continue;
-        //     }
-        //     let instance = self
-        //         .instances
-        //         .get(module_name)
-        //         .ok_or_else(|| anyhow!("constant expression required"))?;
-        //     imports.register(module_name, instance.exports.clone());
-        // }
-
-        let instance = Instance::new(&module, &imports)?;
+        let instance = Instance::new(&module, &self)?;
         Ok(instance)
     }
 
@@ -519,6 +505,19 @@ impl Wast {
                 expected
             ),
         })
+    }
+}
+
+impl NamedResolver for Wast {
+    fn resolve_by_name(&self, module: &str, field: &str) -> Option<Export> {
+        let imports = self.import_object.clone();
+        if imports.contains_namespace(module) {
+            imports.resolve_by_name(module, field)
+        } else {
+            let instance = self.instances.get(module)?;
+            let function = instance.lookup_function(field)?;
+            Some(function.to_export())
+        }
     }
 }
 
