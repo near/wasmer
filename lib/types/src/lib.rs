@@ -54,7 +54,6 @@ pub mod lib {
     }
 }
 
-#[cfg(feature = "enable-rkyv")]
 mod archives;
 mod extern_ref;
 mod features;
@@ -91,7 +90,6 @@ pub use types::{
     Import, InstanceConfig, MemoryType, Mutability, TableType, Type, V128,
 };
 
-#[cfg(feature = "enable-rkyv")]
 pub use archives::ArchivableIndexMap;
 
 /// Version number of this crate.

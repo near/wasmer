@@ -12,7 +12,6 @@ use crate::{
     JumpTableOffsets, Relocation,
 };
 use loupe::MemoryUsage;
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "enable-serde")]
 use serde::{Deserialize, Serialize};
@@ -24,11 +23,9 @@ use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
 /// This structure is only used for reconstructing
 /// the frame information after a `Trap`.
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
+#[derive(
+    RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, Default, MemoryUsage,
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Default, MemoryUsage)]
 pub struct CompiledFunctionFrameInfo {
     /// The traps (in the function body).
     ///
@@ -41,11 +38,7 @@ pub struct CompiledFunctionFrameInfo {
 
 /// The function body.
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
-#[derive(Debug, Clone, PartialEq, Eq, MemoryUsage)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, MemoryUsage)]
 pub struct FunctionBody {
     /// The function body bytes.
     #[cfg_attr(feature = "enable-serde", serde(with = "serde_bytes"))]
@@ -88,11 +81,7 @@ impl<'a> From<&'a ArchivedFunctionBody> for FunctionBodyRef<'a> {
 /// (function bytecode body, relocations, traps, jump tables
 /// and unwind information).
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
 pub struct CompiledFunction {
     /// The function body.
     pub body: FunctionBody,
@@ -120,11 +109,7 @@ pub type CustomSections = PrimaryMap<SectionIndex, CustomSection>;
 /// In the future this structure may also hold other information useful
 /// for debugging.
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
-#[derive(Debug, PartialEq, Eq, Clone, MemoryUsage)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, PartialEq, Eq, Clone, MemoryUsage)]
 pub struct Dwarf {
     /// The section index in the [`Compilation`] that corresponds to the exception frames.
     /// [Learn
@@ -141,11 +126,7 @@ impl Dwarf {
 
 /// Trampolines section used by ARM short jump (26bits)
 #[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
-)]
-#[derive(Debug, PartialEq, Eq, Clone, MemoryUsage)]
+#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, PartialEq, Eq, Clone, MemoryUsage)]
 pub struct TrampolinesSection {
     /// SectionIndex for the actual Trampolines code
     pub section_index: SectionIndex,

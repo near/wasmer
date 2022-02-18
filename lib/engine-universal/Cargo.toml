@@ -14,9 +14,9 @@ edition = "2018"
 name = "wasmer_engine_universal"
 
 [dependencies]
-wasmer-types = { path = "../types", version = "=2.2.2", package = "wasmer-types-near", features = ["enable-rkyv"] }
-wasmer-compiler = { path = "../compiler", version = "=2.2.2", package = "wasmer-compiler-near", features = ["translator", "enable-rkyv"] }
-wasmer-vm = { path = "../vm", version = "=2.2.2", package = "wasmer-vm-near", features = ["enable-rkyv"] }
+wasmer-types = { path = "../types", version = "=2.2.2", package = "wasmer-types-near" }
+wasmer-compiler = { path = "../compiler", version = "=2.2.2", package = "wasmer-compiler-near", features = ["translator"] }
+wasmer-vm = { path = "../vm", version = "=2.2.2", package = "wasmer-vm-near" }
 wasmer-engine = { path = "../engine", package = "wasmer-engine-near", version = "=2.2.2" }
 # flexbuffers = { path = "../../../flatbuffers/rust/flexbuffers", version = "0.1.0" }
 region = "3.0"

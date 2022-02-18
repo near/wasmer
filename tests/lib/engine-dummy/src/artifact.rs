@@ -16,8 +16,9 @@ use wasmer_types::{
     OwnedDataInitializer, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
-    VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex, VMTrampoline, SignatureRegistry,
+    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, SignatureRegistry,
+    TableStyle, Tunables, VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex,
+    VMTrampoline,
 };
 
 /// Serializable struct for the artifact

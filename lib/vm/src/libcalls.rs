@@ -44,7 +44,6 @@ use crate::trap::{raise_lib_trap, Trap, TrapCode};
 use crate::vmcontext::VMContext;
 use crate::VMExternRef;
 use loupe::MemoryUsage;
-#[cfg(feature = "enable-rkyv")]
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -685,11 +684,20 @@ pub static wasmer_vm_probestack: unsafe extern "C" fn() = PROBESTACK;
 /// The name of a runtime library routine.
 ///
 /// This list is likely to grow over time.
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(RkyvSerialize, RkyvDeserialize, Archive)
+#[derive(
+    RkyvSerialize,
+    RkyvDeserialize,
+    Archive,
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    MemoryUsage,
 )]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, MemoryUsage)]
 pub enum LibCall {
     /// ceil.f32
     CeilF32,

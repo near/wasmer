@@ -19,10 +19,7 @@ use std::sync::Arc;
 /// A list of all possible value types in WebAssembly.
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Hash, MemoryUsage)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub enum Type {
     /// Signed 32 bit integer.
@@ -65,10 +62,7 @@ impl fmt::Display for Type {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 /// The WebAssembly V128 type
 pub struct V128(pub(crate) [u8; 16]);
@@ -176,10 +170,7 @@ impl ExternType {
 /// WebAssembly functions can have 0 or more parameters and results.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, MemoryUsage)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct FunctionType {
     /// The parameters of the function
     params: Arc<[Type]>,
@@ -300,10 +291,7 @@ impl<'a> From<&'a ArchivedFunctionType> for FunctionTypeRef<'a> {
 /// Indicator of whether a global is mutable or not
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub enum Mutability {
     /// The global is constant and its value does not change
@@ -325,10 +313,7 @@ impl Mutability {
 /// WebAssembly global.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub struct GlobalType {
     /// The type of the value stored in the global.
@@ -373,10 +358,7 @@ impl fmt::Display for GlobalType {
 /// Globals are initialized via the `const` operators or by referring to another import.
 #[derive(Debug, Clone, Copy, MemoryUsage, PartialEq)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub enum GlobalInit {
     /// An `i32.const`.
@@ -434,10 +416,7 @@ impl GlobalInit {
 /// which `call_indirect` can invoke other functions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct TableType {
     /// The type of data stored in elements of the table.
     pub ty: Type,
@@ -477,10 +456,7 @@ impl fmt::Display for TableType {
 /// chunks of addressable memory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "enable-rkyv",
-    derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)
-)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct MemoryType {
     /// The minimum number of pages in the memory.
     pub minimum: Pages,
