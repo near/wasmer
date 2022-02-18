@@ -63,13 +63,6 @@ impl Engine for DummyEngine {
         self.inner.lock().unwrap().signatures.register(func_type)
     }
 
-    fn ensure_signature(
-        &self,
-        _: FunctionTypeRef<'_>,
-    ) -> std::option::Option<VMSharedSignatureIndex> {
-        todo!()
-    }
-
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {
         self.inner.lock().unwrap().func_data.register(func_data)
     }

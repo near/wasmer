@@ -269,12 +269,7 @@ impl UniversalEngine {
         let signatures = module
             .signatures
             .values()
-            .map(|sig| {
-                inner_engine
-                    .signatures
-                    .ensure(sig.into())
-                    .expect("TODO(0-copy)")
-            })
+            .map(|sig| inner_engine.signatures.register(sig.into()))
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
         let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
@@ -382,10 +377,6 @@ impl Engine for UniversalEngine {
     /// Register a signature
     fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
         self.inner().signatures.register(func_type)
-    }
-
-    fn ensure_signature(&self, func_type: FunctionTypeRef<'_>) -> Option<VMSharedSignatureIndex> {
-        self.inner().signatures.ensure(func_type)
     }
 
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef {

@@ -28,12 +28,6 @@ pub trait Engine: MemoryUsage {
         func_type: FunctionTypeRef<'_>,
     ) -> VMSharedSignatureIndex;
 
-    /// Ensure a signature specified has already been registered.
-    fn ensure_signature(
-        &self,
-        func_type: FunctionTypeRef<'_>,
-    ) -> Option<VMSharedSignatureIndex>;
-
     /// Register a function's data.
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef;
 

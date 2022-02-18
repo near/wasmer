@@ -42,13 +42,6 @@ impl SignatureRegistry {
         }
     }
 
-    /// Ensure that the specified signature has been registered already and return its index.
-    pub fn ensure(&mut self, sig: FunctionTypeRef<'_>) -> Option<VMSharedSignatureIndex> {
-        // TODO(0-copy): no need to clone here.
-        let sig = FunctionType::new(sig.params(), sig.results());
-        self.type_to_index.get(&sig).copied()
-    }
-
     /// Register a signature and return its unique index.
     pub fn register(
         &mut self,
