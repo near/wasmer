@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
-use wasmer_types::entity::{BoxedSlice, PrimaryMap, EntityRef};
+use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
     DataIndex, ElemIndex, EntityCounts, FunctionIndex, GlobalInit, GlobalType, LocalFunctionIndex,
     LocalGlobalIndex, MemoryType, OwnedDataInitializer, OwnedTableInitializer, SignatureIndex,
@@ -15,7 +15,7 @@ use wasmer_types::{
 };
 use wasmer_vm::{
     Artifact, FunctionBodyPtr, FunctionExtent, InstanceHandle, MemoryStyle, Resolver, TableStyle,
-    Tunables, VMImport, VMLocalFunction, VMOffsets, VMSharedSignatureIndex, VMTrampoline, VMImportType,
+    Tunables, VMImport, VMImportType, VMLocalFunction, VMOffsets, VMSharedSignatureIndex,
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
@@ -30,8 +30,6 @@ pub struct UniversalArtifact {
     #[loupe(skip)] // TODO(0-copy): support loupe...
     pub(crate) imports: Vec<VMImport>,
 
-    #[loupe(skip)]
-    pub(crate) function_call_trampolines: BoxedSlice<SignatureIndex, VMTrampoline>,
     pub(crate) dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
@@ -195,13 +193,16 @@ impl Artifact for UniversalArtifact {
     fn function_signature(&self, index: FunctionIndex) -> Option<VMSharedSignatureIndex> {
         let imports = self.import_counts.functions as usize;
         if index.index() < imports {
-            self.imports.iter().filter_map(|im| {
-                if let VMImportType::Function(idx) = im.ty {
-                    Some(idx)
-                } else {
-                    None
-                }
-            }).nth(index.index())
+            self.imports
+                .iter()
+                .filter_map(|im| {
+                    if let VMImportType::Function(idx) = im.ty {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                })
+                .nth(index.index())
         } else {
             let index = LocalFunctionIndex::new(index.index() - imports);
             Some(self.functions[index].signature)

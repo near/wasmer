@@ -17,7 +17,6 @@ use std::sync::{Arc, RwLock};
 use wasmer_compiler::{CompiledFunctionFrameInfo, SourceLoc, TrapInformation};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{LocalFunctionIndex, ModuleInfo};
-use wasmer_vm::{FunctionBodyPtr, FunctionExtent};
 
 lazy_static::lazy_static! {
     /// This is a global cache of backtrace frame information for all active

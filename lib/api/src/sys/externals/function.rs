@@ -17,7 +17,7 @@ use wasmer_vm::{
     raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
     ExportFunctionMetadata, ImportInitializerFuncPtr, VMCallerCheckedAnyfunc,
     VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody, VMFunctionEnvironment,
-    VMFunctionKind, VMTrampoline, VMContext,
+    VMFunctionKind, VMTrampoline,
 };
 
 /// A WebAssembly `function` instance.

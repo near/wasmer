@@ -1,7 +1,4 @@
-use crate::{
-    InstanceHandle, Resolver, SignatureRegistry, Tunables, VMLocalFunction, VMSharedSignatureIndex,
-    VMTrampoline,
-};
+use crate::{InstanceHandle, Resolver, Tunables, VMLocalFunction, VMSharedSignatureIndex};
 use loupe::MemoryUsage;
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 use wasmer_types::{

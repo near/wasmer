@@ -1,5 +1,4 @@
 use crate::sys::store::Store;
-use crate::sys::types::ExportType;
 use crate::sys::InstantiationError;
 use loupe::MemoryUsage;
 use std::fmt;
@@ -11,7 +10,7 @@ use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
 use wasmer_engine::RuntimeError;
-use wasmer_types::{ExportsIterator, ImportsIterator, InstanceConfig};
+use wasmer_types::InstanceConfig;
 use wasmer_vm::{Artifact, InstanceHandle, Resolver};
 
 #[derive(Error, Debug)]
@@ -114,13 +113,10 @@ impl Module {
     /// Creates a new WebAssembly module from a file path.
     pub fn from_file(store: &Store, file: impl AsRef<Path>) -> Result<Self, IoCompileError> {
         let file_ref = file.as_ref();
-        let canonical = file_ref.canonicalize()?;
         let wasm_bytes = std::fs::read(file_ref)?;
-        let mut module = Self::new(store, &wasm_bytes)?;
+        let module = Self::new(store, &wasm_bytes)?;
         // Set the module name to the absolute path of the filename.
         // This is useful for debugging the stack traces.
-        let filename = canonical.as_path().to_str().unwrap();
-        module.set_name(filename);
         Ok(module)
     }
 
@@ -203,131 +199,6 @@ impl Module {
         }
     }
 
-    /// Returns the name of the current module.
-    ///
-    /// This name is normally set in the WebAssembly bytecode by some
-    /// compilers, but can be also overwritten using the [`Module::set_name`] method.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// let wat = "(module $moduleName)";
-    /// let module = Module::new(&store, wat)?;
-    /// assert_eq!(module.name(), Some("moduleName"));
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn name(&self) -> Option<&str> {
-        todo!() // probably remove entirely
-                // self.artifact.module_ref().name.as_deref()
-    }
-
-    /// Sets the name of the current module.
-    /// This is normally useful for stacktraces and debugging.
-    ///
-    /// It will return `true` if the module name was changed successfully,
-    /// and return `false` otherwise (in case the module is already
-    /// instantiated).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use wasmer::*;
-    /// # fn main() -> anyhow::Result<()> {
-    /// # let store = Store::default();
-    /// let wat = "(module)";
-    /// let mut module = Module::new(&store, wat)?;
-    /// assert_eq!(module.name(), None);
-    /// module.set_name("foo");
-    /// assert_eq!(module.name(), Some("foo"));
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn set_name(&mut self, name: &str) -> bool {
-        todo!() // probably remove
-                // Arc::get_mut(&mut self.artifact)
-                //     .and_then(|artifact| artifact.module_mut())
-                //     .map(|mut module_info| {
-                //         module_info.name = Some(name.to_string());
-                //         true
-                //     })
-                //     .unwrap_or(false)
-    }
-
-    // /// Returns an iterator over the imported types in the Module.
-    // ///
-    // /// The order of the imports is guaranteed to be the same as in the
-    // /// WebAssembly bytecode.
-    // ///
-    // /// # Example
-    // ///
-    // /// ```
-    // /// # use wasmer::*;
-    // /// # fn main() -> anyhow::Result<()> {
-    // /// # let store = Store::default();
-    // /// let wat = r#"(module
-    // ///     (import "host" "func1" (func))
-    // ///     (import "host" "func2" (func))
-    // /// )"#;
-    // /// let module = Module::new(&store, wat)?;
-    // /// for import in module.imports() {
-    // ///     assert_eq!(import.module(), "host");
-    // ///     assert!(import.name().contains("func"));
-    // ///     import.ty();
-    // /// }
-    // /// # Ok(())
-    // /// # }
-    // /// ```
-    // pub fn imports<'a>(&'a self) -> ImportsIterator {
-    //     todo!() // could likely be fetched from the instance.
-    //             // self.artifact.module_ref().imports()
-    // }
-
-    // /// Returns an iterator over the exported types in the Module.
-    // ///
-    // /// The order of the exports is guaranteed to be the same as in the
-    // /// WebAssembly bytecode.
-    // ///
-    // /// # Example
-    // ///
-    // /// ```
-    // /// # use wasmer::*;
-    // /// # fn main() -> anyhow::Result<()> {
-    // /// # let store = Store::default();
-    // /// let wat = r#"(module
-    // ///     (func (export "namedfunc"))
-    // ///     (memory (export "namedmemory") 1)
-    // /// )"#;
-    // /// let module = Module::new(&store, wat)?;
-    // /// for export_ in module.exports() {
-    // ///     assert!(export_.name().contains("named"));
-    // ///     export_.ty();
-    // /// }
-    // /// # Ok(())
-    // /// # }
-    // /// ```
-    // pub fn exports<'a>(&'a self) -> ExportsIterator<impl Iterator<Item = ExportType> + 'a> {
-    //     // TODO(0-copy) could probably be fetched from the instance.
-    //     ExportsIterator::new(std::iter::empty(), 0)
-    //     // self.artifact.module_ref().exports()
-    // }
-
-    // /// Get the custom sections of the module given a `name`.
-    // ///
-    // /// # Important
-    // ///
-    // /// Following the WebAssembly spec, one name can have multiple
-    // /// custom sections. That's why an iterator (rather than one element)
-    // /// is returned.
-    // pub fn custom_sections<'a>(&'a self, name: &'a str) -> impl Iterator<Item = Arc<[u8]>> + 'a {
-    //     // TODO(0-copy): could probably fetched from instance
-    //     std::iter::empty()
-    //     // self.artifact.module_ref().custom_sections(name)
-    // }
-
     /// Returns the [`Store`] where the `Instance` belongs.
     pub fn store(&self) -> &Store {
         &self.store
@@ -336,8 +207,6 @@ impl Module {
 
 impl fmt::Debug for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Module")
-            .field("name", &self.name())
-            .finish()
+        f.debug_struct("Module").finish()
     }
 }

@@ -4,26 +4,26 @@ use crate::executable::{unrkyv, UniversalExecutableRef};
 use crate::{CodeMemory, UniversalArtifact, UniversalExecutable};
 use loupe::MemoryUsage;
 use rkyv::de::deserializers::SharedDeserializeMap;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "compiler")]
 use wasmer_compiler::Compiler;
 use wasmer_compiler::{
     CompileError, CustomSectionProtection, CustomSectionRef, FunctionBodyRef, JumpTable,
-    ModuleMiddlewareChain, Relocation, SectionIndex, Target, TrampolinesSection,
+    ModuleMiddlewareChain, SectionIndex, Target,
 };
 use wasmer_engine::{Engine, EngineId};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataIndex, DataInitializer, EntityCounts, ExportIndex, Features, FunctionIndex, FunctionType,
+    DataInitializer, EntityCounts, ExportIndex, Features, FunctionIndex, FunctionType,
     FunctionTypeRef, GlobalInit, GlobalType, ImportIndex, LocalFunctionIndex, LocalGlobalIndex,
-    MemoryIndex, MemoryType, SignatureIndex, TableIndex, TableType,
+    MemoryIndex, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    Artifact, FuncDataRegistry, FunctionBodyPtr, MemoryStyle, SectionBodyPtr, SignatureRegistry,
-    TableStyle, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMFunctionBody, VMImport,
-    VMImportType, VMLocalFunction, VMOffsets, VMSharedSignatureIndex, VMTrampoline,
+    FuncDataRegistry, FunctionBodyPtr, SectionBodyPtr, SignatureRegistry, Tunables,
+    VMCallerCheckedAnyfunc, VMFuncRef, VMFunctionBody, VMImportType, VMLocalFunction, VMOffsets,
+    VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// A WebAssembly `Universal` Engine.
@@ -196,22 +196,21 @@ impl UniversalEngine {
         let signatures = module
             .signatures
             .iter()
-            .map(|(sig_idx, sig)| inner_engine.signatures.register(sig.into()))
+            .map(|(_, sig)| inner_engine.signatures.register(sig.into()))
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
-        let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
-            .allocate(
-                local_functions,
-                function_call_trampolines.iter().map(|(_, b)| b.into()),
-                dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
-                executable.custom_sections.iter().map(|(_, s)| s.into()),
-                |idx: LocalFunctionIndex| {
-                    let imports = module.import_counts.functions as usize;
-                    let func_idx = FunctionIndex::new(imports + idx.index());
-                    let sig_idx = module.functions[func_idx];
-                    (sig_idx, signatures[sig_idx])
-                },
-            )?;
+        let (functions, _, dynamic_trampolines, custom_sections) = inner_engine.allocate(
+            local_functions,
+            function_call_trampolines.iter().map(|(_, b)| b.into()),
+            dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
+            executable.custom_sections.iter().map(|(_, s)| s.into()),
+            |idx: LocalFunctionIndex| {
+                let imports = module.import_counts.functions as usize;
+                let func_idx = FunctionIndex::new(imports + idx.index());
+                let sig_idx = module.functions[func_idx];
+                (sig_idx, signatures[sig_idx])
+            },
+        )?;
         let imports = module
             .imports
             .iter()
@@ -271,7 +270,6 @@ impl UniversalEngine {
             start_function: module.start_function,
             vmoffsets: VMOffsets::for_host().with_module_info(&*module),
             imports,
-            function_call_trampolines: call_trampolines.into_boxed_slice(),
             dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
             frame_info_registration: Mutex::new(None),
             functions: functions.into_boxed_slice(),
@@ -322,7 +320,7 @@ impl UniversalEngine {
 
         let passive_data =
             rkyv::Deserialize::deserialize(&module.passive_data, &mut SharedDeserializeMap::new())
-                .map_err(|e| CompileError::Validate("could not deserialize passive data".into()))?;
+                .map_err(|_| CompileError::Validate("could not deserialize passive data".into()))?;
         let data_segments = executable.data_initializers.iter();
         let data_segments = data_segments
             .map(|s| DataInitializer::from(s).into())
@@ -343,19 +341,18 @@ impl UniversalEngine {
             .map(|sig| inner_engine.signatures.register(sig.into()))
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
-        let (functions, call_trampolines, dynamic_trampolines, custom_sections) = inner_engine
-            .allocate(
-                local_functions,
-                call_trampolines.map(|(_, b)| b.into()),
-                dynamic_trampolines.map(|(_, b)| b.into()),
-                executable.custom_sections.iter().map(|(_, s)| s.into()),
-                |idx: LocalFunctionIndex| {
-                    let imports = import_counts.functions as usize;
-                    let func_idx = FunctionIndex::new(imports + idx.index());
-                    let sig_idx = module.functions[&func_idx];
-                    (sig_idx, signatures[sig_idx])
-                },
-            )?;
+        let (functions, _, dynamic_trampolines, custom_sections) = inner_engine.allocate(
+            local_functions,
+            call_trampolines.map(|(_, b)| b.into()),
+            dynamic_trampolines.map(|(_, b)| b.into()),
+            executable.custom_sections.iter().map(|(_, s)| s.into()),
+            |idx: LocalFunctionIndex| {
+                let imports = import_counts.functions as usize;
+                let func_idx = FunctionIndex::new(imports + idx.index());
+                let sig_idx = module.functions[&func_idx];
+                (sig_idx, signatures[sig_idx])
+            },
+        )?;
         let imports = {
             module
                 .imports
@@ -422,7 +419,6 @@ impl UniversalEngine {
             start_function: unrkyv(&module.start_function),
             vmoffsets: VMOffsets::for_host().with_archived_module_info(&*module),
             imports,
-            function_call_trampolines: call_trampolines.into_boxed_slice(),
             dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
             frame_info_registration: Mutex::new(None),
             functions: functions.into_boxed_slice(),
@@ -571,11 +567,7 @@ impl UniversalEngineInner {
         ),
         CompileError,
     > {
-        let Self {
-            ref mut code_memory,
-            ref mut signatures,
-            ..
-        } = self;
+        let code_memory = &mut self.code_memory;
         let function_count = local_functions.len();
         let call_trampoline_count = call_trampolines.len();
         let function_bodies = call_trampolines

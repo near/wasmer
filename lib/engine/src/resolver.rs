@@ -4,15 +4,12 @@
 use crate::{Engine, ImportError, LinkError};
 use more_asserts::assert_ge;
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
-use wasmer_types::{
-    EntityCounts, ExternType, FunctionIndex, MemoryType, SignatureIndex, TableType,
-};
+use wasmer_types::{EntityCounts, ExternType, FunctionIndex, MemoryType, TableType};
 
 use wasmer_vm::{
     Export, ExportFunctionMetadata, FunctionBodyPtr, ImportFunctionEnv, Imports, MemoryStyle,
-    NamedResolver, Resolver, VMFunctionBody, VMFunctionEnvironment, VMFunctionImport,
-    VMFunctionKind, VMGlobalImport, VMImport, VMImportType, VMMemoryImport, VMSharedSignatureIndex,
-    VMTableImport, VMTrampoline,
+    Resolver, VMFunctionBody, VMFunctionEnvironment, VMFunctionImport, VMFunctionKind,
+    VMGlobalImport, VMImport, VMImportType, VMMemoryImport, VMTableImport,
 };
 
 fn is_compatible_table(ex: &TableType, im: &TableType) -> bool {

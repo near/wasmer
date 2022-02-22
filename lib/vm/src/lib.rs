@@ -68,12 +68,12 @@ pub use crate::vmcontext::{
 };
 pub use crate::vmoffsets::{TargetSharedSignatureIndex, VMOffsets};
 use loupe::MemoryUsage;
-pub use wasmer_types::VMExternRef;
 #[deprecated(
     since = "2.1.0",
     note = "ModuleInfo, ExportsIterator, ImportsIterator should be imported from wasmer_types."
 )]
-pub use wasmer_types::{ExportsIterator, ImportsIterator, ModuleInfo};
+pub use wasmer_types::ModuleInfo;
+pub use wasmer_types::VMExternRef;
 
 /// Version number of this crate.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -6,7 +6,7 @@ use wasmer_engine::{Engine, EngineId};
 use wasmer_types::{FunctionType, FunctionTypeRef};
 use wasmer_vm::{
     Artifact, FuncDataRegistry, SignatureRegistry, Tunables, VMCallerCheckedAnyfunc, VMContext,
-    VMFuncRef, VMFunctionBody, VMSharedSignatureIndex, VMTrampoline,
+    VMFuncRef, VMFunctionBody, VMSharedSignatureIndex,
 };
 
 #[allow(dead_code)]

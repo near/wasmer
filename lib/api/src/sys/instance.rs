@@ -1,5 +1,3 @@
-use crate::sys::exports::Exports;
-use crate::sys::externals::Extern;
 use crate::sys::module::Module;
 use crate::sys::store::Store;
 use crate::sys::{HostEnvInitError, LinkError, RuntimeError};
@@ -142,9 +140,7 @@ impl Instance {
                 ));
             }
         }
-        let store = module.store();
         let handle = module.instantiate(resolver, config)?;
-
         let instance = Self {
             handle: Arc::new(Mutex::new(handle)),
             module: module.clone(),

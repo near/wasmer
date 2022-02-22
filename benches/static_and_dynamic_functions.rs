@@ -39,7 +39,7 @@ pub fn run_basic_static_function(store: &Store, compiler_name: &str, c: &mut Cri
         },
     };
     let instance = Instance::new(&module, &import_object).unwrap();
-    let dyn_f: &Function = instance.exports.get("add").unwrap();
+    let dyn_f = instance.lookup_function("add").unwrap();
     let f: NativeFunc<(i32, i32), i32> = dyn_f.native().unwrap();
 
     c.bench_function(&format!("basic static func {}", compiler_name), |b| {
@@ -49,7 +49,7 @@ pub fn run_basic_static_function(store: &Store, compiler_name: &str, c: &mut Cri
         })
     });
 
-    let dyn_f_many: &Function = instance.exports.get("add20").unwrap();
+    let dyn_f_many = instance.lookup_function("add20").unwrap();
     let f_many: NativeFunc<
         (
             i32,
@@ -101,7 +101,7 @@ pub fn run_basic_dynamic_function(store: &Store, compiler_name: &str, c: &mut Cr
     };
     let instance = Instance::new(&module, &import_object).unwrap();
 
-    let dyn_f: &Function = instance.exports.get("add").unwrap();
+    let dyn_f = instance.lookup_function("add").unwrap();
     c.bench_function(&format!("basic dynfunc {}", compiler_name), |b| {
         b.iter(|| {
             let dyn_result = black_box(dyn_f.call(&[Val::I32(4), Val::I32(6)]).unwrap());
@@ -109,7 +109,7 @@ pub fn run_basic_dynamic_function(store: &Store, compiler_name: &str, c: &mut Cr
         })
     });
 
-    let dyn_f_many: &Function = instance.exports.get("add20").unwrap();
+    let dyn_f_many = instance.lookup_function("add20").unwrap();
     c.bench_function(
         &format!("basic dynfunc with many args {}", compiler_name),
         |b| {

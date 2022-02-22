@@ -7,10 +7,10 @@
 use crate::entity::{EntityRef, PrimaryMap};
 use crate::ArchivableIndexMap;
 use crate::{
-    CustomSectionIndex, DataIndex, ElemIndex, ExportIndex, ExportType, ExternType, FunctionIndex,
-    FunctionType, GlobalIndex, GlobalInit, GlobalType, Import, ImportIndex, LocalFunctionIndex,
-    LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex, MemoryType,
-    OwnedTableInitializer, SignatureIndex, TableIndex, TableType,
+    CustomSectionIndex, DataIndex, ElemIndex, ExportIndex, FunctionIndex, FunctionType,
+    GlobalIndex, GlobalInit, GlobalType, ImportIndex, LocalFunctionIndex, LocalGlobalIndex,
+    LocalMemoryIndex, LocalTableIndex, MemoryIndex, MemoryType, OwnedTableInitializer,
+    SignatureIndex, TableIndex, TableType,
 };
 use indexmap::IndexMap;
 use loupe::MemoryUsage;
@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
-use std::iter::ExactSizeIterator;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 
@@ -304,33 +303,6 @@ impl ModuleInfo {
             .collect::<Vec<FunctionType>>()
     }
 
-    /// Get the export types of the module
-    pub fn exports<'a>(&'a self) -> ExportsIterator<impl Iterator<Item = ExportType> + 'a> {
-        let iter = self.exports.iter().map(move |(name, export_index)| {
-            let extern_type = match export_index {
-                ExportIndex::Function(i) => {
-                    let signature = self.functions.get(*i).unwrap();
-                    let func_type = self.signatures.get(*signature).unwrap();
-                    ExternType::Function(func_type.clone())
-                }
-                ExportIndex::Table(i) => {
-                    let table_type = self.tables.get(*i).unwrap();
-                    ExternType::Table(*table_type)
-                }
-                ExportIndex::Memory(i) => {
-                    let memory_type = self.memories.get(*i).unwrap();
-                    ExternType::Memory(*memory_type)
-                }
-                ExportIndex::Global(i) => {
-                    let global_type = self.globals.get(*i).unwrap();
-                    ExternType::Global(*global_type)
-                }
-            };
-            ExportType::new(name, extern_type)
-        });
-        ExportsIterator::new(iter, self.exports.len())
-    }
-
     /// Get the custom sections of the module given a `name`.
     pub fn custom_sections<'a>(&'a self, name: &'a str) -> impl Iterator<Item = Arc<[u8]>> + 'a {
         self.custom_sections
@@ -438,126 +410,5 @@ impl ModuleInfo {
 impl fmt::Display for ModuleInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
-    }
-}
-
-// Code inspired from
-// https://www.reddit.com/r/rust/comments/9vspv4/extending_iterators_ergonomically/
-
-/// This iterator allows us to iterate over the exports
-/// and offer nice API ergonomics over it.
-pub struct ExportsIterator<I: Iterator<Item = ExportType> + Sized> {
-    iter: I,
-    size: usize,
-}
-
-impl<I: Iterator<Item = ExportType> + Sized> ExportsIterator<I> {
-    /// Create a new `ExportsIterator` for a given iterator and size
-    pub fn new(iter: I, size: usize) -> Self {
-        Self { iter, size }
-    }
-}
-
-impl<I: Iterator<Item = ExportType> + Sized> ExactSizeIterator for ExportsIterator<I> {
-    // We can easily calculate the remaining number of iterations.
-    fn len(&self) -> usize {
-        self.size
-    }
-}
-
-impl<I: Iterator<Item = ExportType> + Sized> ExportsIterator<I> {
-    /// Get only the functions
-    pub fn functions(self) -> impl Iterator<Item = ExportType<FunctionType>> + Sized {
-        self.iter.filter_map(|extern_| match extern_.ty() {
-            ExternType::Function(ty) => Some(ExportType::new(extern_.name(), ty.clone())),
-            _ => None,
-        })
-    }
-    /// Get only the memories
-    pub fn memories(self) -> impl Iterator<Item = ExportType<MemoryType>> + Sized {
-        self.iter.filter_map(|extern_| match extern_.ty() {
-            ExternType::Memory(ty) => Some(ExportType::new(extern_.name(), *ty)),
-            _ => None,
-        })
-    }
-    /// Get only the tables
-    pub fn tables(self) -> impl Iterator<Item = ExportType<TableType>> + Sized {
-        self.iter.filter_map(|extern_| match extern_.ty() {
-            ExternType::Table(ty) => Some(ExportType::new(extern_.name(), *ty)),
-            _ => None,
-        })
-    }
-    /// Get only the globals
-    pub fn globals(self) -> impl Iterator<Item = ExportType<GlobalType>> + Sized {
-        self.iter.filter_map(|extern_| match extern_.ty() {
-            ExternType::Global(ty) => Some(ExportType::new(extern_.name(), *ty)),
-            _ => None,
-        })
-    }
-}
-
-impl<I: Iterator<Item = ExportType> + Sized> Iterator for ExportsIterator<I> {
-    type Item = ExportType;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
-
-/// This iterator allows us to iterate over the imports
-/// and offer nice API ergonomics over it.
-pub struct ImportsIterator<'a> {
-    iter: Box<dyn ExactSizeIterator<Item = (ImportIndex, Import<&'a str, ExternType>)> + 'a>,
-}
-
-impl<'a> ExactSizeIterator for ImportsIterator<'a> {
-    // We can easily calculate the remaining number of iterations.
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
-
-impl<'a> ImportsIterator<'a> {
-    /// Get only the functions
-    pub fn functions(self) -> impl Iterator<Item = Import<&'a str, FunctionType>> + Sized {
-        std::iter::empty()
-        // self.iter.filter_map(|extern_| match extern_.ty() {
-        //     ExternType::Function(ty) => Some(Import::new(
-        //         extern_.module(),
-        //         extern_.name(),
-        //         ty.clone(),
-        //     )),
-        //     _ => None,
-        // })
-    }
-    /// Get only the memories
-    pub fn memories(self) -> impl Iterator<Item = Import<&'a str, MemoryType>> + Sized {
-        std::iter::empty()
-        // self.iter.filter_map(|extern_| match extern_.ty() {
-        //     ExternType::Memory(ty) => Some(Import::new(extern_.module(), extern_.name(), *ty)),
-        //     _ => None,
-        // })
-    }
-    /// Get only the tables
-    pub fn tables(self) -> impl Iterator<Item = Import<&'a str, TableType>> + Sized {
-        std::iter::empty()
-        // self.iter.filter_map(|extern_| match extern_.ty() {
-        //     ExternType::Table(ty) => Some(Import::new(extern_.module(), extern_.name(), *ty)),
-        //     _ => None,
-        // })
-    }
-    /// Get only the globals
-    pub fn globals(self) -> impl Iterator<Item = Import<&'a str, GlobalType>> + Sized {
-        std::iter::empty()
-        // self.iter.filter_map(|extern_| match extern_.ty() {
-        //     ExternType::Global(ty) => Some(Import::new(extern_.module(), extern_.name(), *ty)),
-        //     _ => None,
-        // })
-    }
-}
-
-impl<'a> Iterator for ImportsIterator<'a> {
-    type Item = (ImportIndex, Import<&'a str, ExternType>);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
     }
 }

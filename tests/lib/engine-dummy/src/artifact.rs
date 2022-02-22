@@ -9,16 +9,15 @@ use std::sync::{Arc, Mutex};
 use wasmer_compiler::CompileError;
 #[cfg(feature = "compiler")]
 use wasmer_compiler::ModuleEnvironment;
-use wasmer_engine::{DeserializeError, Engine as _, InstantiationError};
+use wasmer_engine::{DeserializeError, Engine as _};
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{
     Features, FunctionIndex, InstanceConfig, LocalFunctionIndex, MemoryIndex, ModuleInfo,
     OwnedDataInitializer, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
-    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, SignatureRegistry,
-    TableStyle, Tunables, VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex,
-    VMTrampoline,
+    Artifact, FunctionBodyPtr, InstanceHandle, MemoryStyle, Resolver, TableStyle, Tunables,
+    VMContext, VMFunctionBody, VMLocalFunction, VMSharedSignatureIndex, VMTrampoline,
 };
 
 /// Serializable struct for the artifact
@@ -199,6 +198,10 @@ impl Artifact for DummyArtifact {
     }
 
     fn signatures(&self) -> &[VMSharedSignatureIndex] {
+        todo!()
+    }
+
+    fn function_signature(&self, index: FunctionIndex) -> Option<VMSharedSignatureIndex> {
         todo!()
     }
 }

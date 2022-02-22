@@ -1,8 +1,6 @@
 use wasmer::*;
 use wasmer_engine::{Engine, Executable};
 use wasmer_engine_universal::Universal;
-
-use wasmer_types::InstanceConfig;
 use wasmer_vm::Artifact;
 
 fn slow_to_compile_contract(n_fns: usize, n_locals: usize) -> Vec<u8> {
@@ -87,12 +85,16 @@ fn profiling() {
             let executable =
                 wasmer_engine_universal::UniversalExecutableRef::deserialize(&serialized).unwrap();
             let artifact = engine.load_universal_executable_ref(&executable).unwrap();
-            let info = artifact.functions().iter().filter_map(|(idx, _)| {
-                let extent = artifact.function_extent(idx)?;
-                let idx = executable.make_function_index(idx);
-                let name = executable.function_name(idx)?;
-                Some((name, extent))
-            }).collect::<Vec<_>>();
+            let info = artifact
+                .functions()
+                .iter()
+                .filter_map(|(idx, _)| {
+                    let extent = artifact.function_extent(idx)?;
+                    let idx = executable.make_function_index(idx);
+                    let name = executable.function_name(idx)?;
+                    Some((name, extent))
+                })
+                .collect::<Vec<_>>();
             assert_eq!(4, info.len());
             assert_eq!("f0", info[0].0);
             assert_eq!("f1", info[1].0);

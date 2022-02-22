@@ -399,10 +399,8 @@ impl<'data> ModuleEnvironment<'data> {
         Ok(())
     }
 
-    pub(crate) fn reserve_passive_data(&mut self, count: u32) -> WasmResult<()> {
-        // TODO(0-copy):
-        // let count = usize::try_from(count).unwrap();
-        // self.module.passive_data.reserve(count);
+    pub(crate) fn reserve_passive_data(&mut self, _count: u32) -> WasmResult<()> {
+        // TODO(0-copy): consider finding a more appropriate data structure for this?
         Ok(())
     }
 
