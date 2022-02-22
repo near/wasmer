@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
-use wasmer_types::entity::{BoxedSlice, PrimaryMap};
+use wasmer_types::entity::{BoxedSlice, PrimaryMap, EntityRef};
 use wasmer_types::{
     DataIndex, ElemIndex, EntityCounts, FunctionIndex, GlobalInit, GlobalType, LocalFunctionIndex,
     LocalGlobalIndex, MemoryType, OwnedDataInitializer, OwnedTableInitializer, SignatureIndex,
@@ -15,7 +15,7 @@ use wasmer_types::{
 };
 use wasmer_vm::{
     Artifact, FunctionBodyPtr, FunctionExtent, InstanceHandle, MemoryStyle, Resolver, TableStyle,
-    Tunables, VMImport, VMLocalFunction, VMOffsets, VMTrampoline, VMSharedSignatureIndex,
+    Tunables, VMImport, VMLocalFunction, VMOffsets, VMSharedSignatureIndex, VMTrampoline, VMImportType,
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
@@ -68,6 +68,11 @@ impl UniversalArtifact {
             address: func.body,
             length: usize::try_from(func.length).unwrap(),
         })
+    }
+
+    /// Return the engine instance this artifact is loaded into.
+    pub fn engine(&self) -> &crate::UniversalEngine {
+        &self.engine
     }
 }
 
@@ -185,5 +190,21 @@ impl Artifact for UniversalArtifact {
 
     fn signatures(&self) -> &[wasmer_vm::VMSharedSignatureIndex] {
         self.signatures.values().as_slice()
+    }
+
+    fn function_signature(&self, index: FunctionIndex) -> Option<VMSharedSignatureIndex> {
+        let imports = self.import_counts.functions as usize;
+        if index.index() < imports {
+            self.imports.iter().filter_map(|im| {
+                if let VMImportType::Function(idx) = im.ty {
+                    Some(idx)
+                } else {
+                    None
+                }
+            }).nth(index.index())
+        } else {
+            let index = LocalFunctionIndex::new(index.index() - imports);
+            Some(self.functions[index].signature)
+        }
     }
 }

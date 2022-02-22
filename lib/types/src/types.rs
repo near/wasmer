@@ -262,6 +262,11 @@ pub struct FunctionTypeRef<'a> {
 }
 
 impl<'a> FunctionTypeRef<'a> {
+    /// Create a new temporary function type.
+    pub fn new(params: &'a [Type], results: &'a [Type]) -> Self {
+        Self { params, results }
+    }
+
     /// Parameter types.
     pub fn params(&self) -> &[Type] {
         self.params

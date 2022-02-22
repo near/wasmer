@@ -963,6 +963,7 @@ impl InstanceHandle {
         };
         let instance = handle.instance().as_ref();
 
+        // TODO(0-copy): make sure indirect calls continue working?
         ptr::copy(
             instance.artifact.signatures().as_ptr(),
             instance.signature_ids_ptr() as *mut VMSharedSignatureIndex,
@@ -1053,11 +1054,9 @@ impl InstanceHandle {
         self.instance().as_ref().offsets()
     }
 
-    /// Lookup an exported function with the given name.
-    /// TODO: make return type lifetime be dependent on lifetime of self...
-    pub fn lookup_function(&self, field: &str) -> Option<VMFunction> {
+    /// Lookup an exported function with the specified function index.
+    pub fn function_by_index(&self, idx: FunctionIndex) -> Option<VMFunction> {
         let instance = self.instance.as_ref();
-        let idx = instance.artifact.function_by_export_field(field)?;
         let imports = instance.artifact.import_counts().functions as usize;
         let (address, signature, vmctx, trampoline) = if idx.index() < imports {
             let import = instance.imported_function(idx);
@@ -1091,6 +1090,14 @@ impl InstanceHandle {
             call_trampoline: trampoline,
             instance_ref: Some(WeakOrStrongInstanceRef::Strong(self.instance().clone())),
         })
+    }
+
+    /// Lookup an exported function with the given name.
+    /// TODO: make return type lifetime be dependent on lifetime of self...
+    pub fn lookup_function(&self, field: &str) -> Option<VMFunction> {
+        let instance = self.instance.as_ref();
+        let idx = instance.artifact.function_by_export_field(field)?;
+        self.function_by_index(idx)
     }
 
     // /// Lookup an export with the given export declaration.

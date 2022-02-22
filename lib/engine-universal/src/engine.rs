@@ -88,6 +88,77 @@ impl UniversalEngine {
         self.inner.lock().unwrap()
     }
 
+    /// Compile a WebAssembly binary
+    #[cfg(feature = "compiler")]
+    pub fn compile_universal(
+        &self,
+        binary: &[u8],
+        tunables: &dyn Tunables,
+    ) -> Result<crate::UniversalExecutable, CompileError> {
+        let inner_engine = self.inner_mut();
+        let features = inner_engine.features();
+        let compiler = inner_engine.compiler()?;
+        let environ = wasmer_compiler::ModuleEnvironment::new();
+        let translation = environ.translate(binary).map_err(CompileError::Wasm)?;
+
+        // Apply the middleware first
+        let mut module = translation.module;
+        let middlewares = compiler.get_middlewares();
+        middlewares.apply_on_module_info(&mut module);
+
+        let memory_styles: PrimaryMap<wasmer_types::MemoryIndex, _> = module
+            .memories
+            .values()
+            .map(|memory_type| tunables.memory_style(memory_type))
+            .collect();
+        let table_styles: PrimaryMap<wasmer_types::TableIndex, _> = module
+            .tables
+            .values()
+            .map(|table_type| tunables.table_style(table_type))
+            .collect();
+        let compile_info = wasmer_compiler::CompileModuleInfo {
+            module: Arc::new(module),
+            features: features.clone(),
+            memory_styles,
+            table_styles,
+        };
+
+        // Compile the Module
+        let compilation = compiler.compile_module(
+            &self.target(),
+            &compile_info,
+            // SAFETY: Calling `unwrap` is correct since
+            // `environ.translate()` above will write some data into
+            // `module_translation_state`.
+            translation.module_translation_state.as_ref().unwrap(),
+            translation.function_body_inputs,
+        )?;
+        let function_call_trampolines = compilation.get_function_call_trampolines();
+        let dynamic_function_trampolines = compilation.get_dynamic_function_trampolines();
+        let data_initializers = translation
+            .data_initializers
+            .iter()
+            .map(wasmer_types::OwnedDataInitializer::new)
+            .collect();
+
+        let frame_infos = compilation.get_frame_info();
+        Ok(crate::UniversalExecutable {
+            function_bodies: compilation.get_function_bodies(),
+            function_relocations: compilation.get_relocations(),
+            function_jt_offsets: compilation.get_jt_offsets(),
+            function_frame_info: frame_infos,
+            function_call_trampolines,
+            dynamic_function_trampolines,
+            custom_sections: compilation.get_custom_sections(),
+            custom_section_relocations: compilation.get_custom_section_relocations(),
+            debug: compilation.get_debug(),
+            trampolines: compilation.get_trampolines(),
+            compile_info,
+            data_initializers,
+            cpu_features: self.target().cpu_features().as_u64(),
+        })
+    }
+
     /// Load a [`UniversalExecutable`](crate::UniversalExecutable) with this engine.
     pub fn load_universal_executable(
         &self,
@@ -393,80 +464,27 @@ impl Engine for UniversalEngine {
         self.inner().validate(binary)
     }
 
-    /// Compile a WebAssembly binary
+    #[cfg(not(feature = "compiler"))]
     fn compile(
         &self,
         binary: &[u8],
         tunables: &dyn Tunables,
     ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
-        if !cfg!(feature = "compiler") {
-            return Err(CompileError::Codegen(
-                "The UniversalEngine is operating in headless mode, so it can not compile Modules."
-                    .to_string(),
-            ));
-        }
-        let inner_engine = self.inner_mut();
-        let features = inner_engine.features();
-        let compiler = inner_engine.compiler()?;
-        let environ = wasmer_compiler::ModuleEnvironment::new();
-        let translation = environ.translate(binary).map_err(CompileError::Wasm)?;
+        return Err(CompileError::Codegen(
+            "The UniversalEngine is operating in headless mode, so it can not compile Modules."
+                .to_string(),
+        ));
+    }
 
-        // Apply the middleware first
-        let mut module = translation.module;
-        let middlewares = compiler.get_middlewares();
-        middlewares.apply_on_module_info(&mut module);
-
-        let memory_styles: PrimaryMap<wasmer_types::MemoryIndex, _> = module
-            .memories
-            .values()
-            .map(|memory_type| tunables.memory_style(memory_type))
-            .collect();
-        let table_styles: PrimaryMap<wasmer_types::TableIndex, _> = module
-            .tables
-            .values()
-            .map(|table_type| tunables.table_style(table_type))
-            .collect();
-        let compile_info = wasmer_compiler::CompileModuleInfo {
-            module: Arc::new(module),
-            features: features.clone(),
-            memory_styles,
-            table_styles,
-        };
-
-        // Compile the Module
-        let compilation = compiler.compile_module(
-            &self.target(),
-            &compile_info,
-            // SAFETY: Calling `unwrap` is correct since
-            // `environ.translate()` above will write some data into
-            // `module_translation_state`.
-            translation.module_translation_state.as_ref().unwrap(),
-            translation.function_body_inputs,
-        )?;
-        let function_call_trampolines = compilation.get_function_call_trampolines();
-        let dynamic_function_trampolines = compilation.get_dynamic_function_trampolines();
-        let data_initializers = translation
-            .data_initializers
-            .iter()
-            .map(wasmer_types::OwnedDataInitializer::new)
-            .collect();
-
-        let frame_infos = compilation.get_frame_info();
-        Ok(Box::new(crate::UniversalExecutable {
-            function_bodies: compilation.get_function_bodies(),
-            function_relocations: compilation.get_relocations(),
-            function_jt_offsets: compilation.get_jt_offsets(),
-            function_frame_info: frame_infos,
-            function_call_trampolines,
-            dynamic_function_trampolines,
-            custom_sections: compilation.get_custom_sections(),
-            custom_section_relocations: compilation.get_custom_section_relocations(),
-            debug: compilation.get_debug(),
-            trampolines: compilation.get_trampolines(),
-            compile_info,
-            data_initializers,
-            cpu_features: self.target().cpu_features().as_u64(),
-        }))
+    /// Compile a WebAssembly binary
+    #[cfg(feature = "compiler")]
+    fn compile(
+        &self,
+        binary: &[u8],
+        tunables: &dyn Tunables,
+    ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
+        self.compile_universal(binary, tunables)
+            .map(|ex| Box::new(ex) as _)
     }
 
     fn load(

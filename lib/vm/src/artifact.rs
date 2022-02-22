@@ -62,4 +62,7 @@ pub trait Artifact: Send + Sync + MemoryUsage {
 
     /// Mapping between module SignatureIndex and VMSharedSignatureIndex.
     fn signatures(&self) -> &[VMSharedSignatureIndex];
+
+    /// Obtain the function signature for either the import or local definition.
+    fn function_signature(&self, index: FunctionIndex) -> Option<VMSharedSignatureIndex>;
 }
