@@ -155,8 +155,7 @@ fn non_native_functions_and_closures_with_no_env_work(config: crate::Config) -> 
 
     let instance = Instance::new(&module, &import_object)?;
 
-    let test: NativeFunc<(i32, i32, i32, i32, i32), i32> =
-        instance.get_native_function("test")?;
+    let test: NativeFunc<(i32, i32, i32, i32, i32), i32> = instance.get_native_function("test")?;
 
     let result = test.call(2, 3, 4, 5, 6)?;
     let manually_computed_result = 6 * (5 * (4 * (3 * 2 * 20) * 10 * 20)) * 10;

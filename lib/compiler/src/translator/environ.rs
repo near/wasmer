@@ -140,9 +140,7 @@ impl<'data> ModuleEnvironment<'data> {
             "Imported functions must be declared first"
         );
         self.declare_import(
-            ImportIndex::Function(FunctionIndex::from_u32(
-                self.module.import_counts.functions,
-            )),
+            ImportIndex::Function(FunctionIndex::from_u32(self.module.import_counts.functions)),
             module,
             field,
         )?;
@@ -184,9 +182,7 @@ impl<'data> ModuleEnvironment<'data> {
             "Imported memories must be declared first"
         );
         self.declare_import(
-            ImportIndex::Memory(MemoryIndex::from_u32(
-                self.module.import_counts.memories,
-            )),
+            ImportIndex::Memory(MemoryIndex::from_u32(self.module.import_counts.memories)),
             module,
             field,
         )?;
@@ -207,9 +203,7 @@ impl<'data> ModuleEnvironment<'data> {
             "Imported globals must be declared first"
         );
         self.declare_import(
-            ImportIndex::Global(GlobalIndex::from_u32(
-                self.module.import_counts.globals,
-            )),
+            ImportIndex::Global(GlobalIndex::from_u32(self.module.import_counts.globals)),
             module,
             field,
         )?;

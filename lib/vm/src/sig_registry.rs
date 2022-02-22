@@ -43,10 +43,7 @@ impl SignatureRegistry {
     }
 
     /// Register a signature and return its unique index.
-    pub fn register(
-        &mut self,
-        sig: FunctionTypeRef<'_>,
-    ) -> VMSharedSignatureIndex {
+    pub fn register(&mut self, sig: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
         let len = self.index_to_data.len();
         // TODO(0-copy): this. should. not. allocate.
         //
@@ -76,7 +73,6 @@ impl SignatureRegistry {
     /// Note that for this operation to be semantically correct the `idx` must
     /// have previously come from a call to `register` of this same object.
     pub fn lookup(&self, idx: VMSharedSignatureIndex) -> Option<&FunctionType> {
-        self.index_to_data
-            .get(idx.0 as usize)
+        self.index_to_data.get(idx.0 as usize)
     }
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use crate::{ImportInitializerFuncPtr, VMExtern, VMFunction, VMGlobal, VMMemory, VMTable};
 use loupe::MemoryUsage;
-use crate::{VMTable, VMMemory, VMGlobal, VMExtern, ImportInitializerFuncPtr, VMFunction};
 
 /// The value of an export passed from one instance to another.
 #[derive(Debug, Clone)]
