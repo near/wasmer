@@ -100,7 +100,7 @@ impl Wast {
                 let result = self.instantiate(&binary);
                 result.map(|_| Vec::new())
             }
-            wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
+            wast::WastExecute::Get { .. } => unimplemented!(),
         }
     }
 
@@ -397,14 +397,6 @@ impl Wast {
             Ok(result) => Ok(result.into()),
             Err(e) => Err(e.into()),
         }
-    }
-
-    /// Get the value of an exported global from an instance.
-    fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<Val>> {
-        // let instance = self.get_instance(instance_name.as_deref())?;
-        // let global: &Global = instance.exports.get(field)?;
-        // Ok(vec![global.get()])
-        todo!() // TODO(0-copy):
     }
 
     /// Translate from a `script::Value` to a `Val`.

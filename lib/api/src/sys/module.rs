@@ -175,13 +175,11 @@ impl Module {
         config: InstanceConfig,
     ) -> Result<InstanceHandle, InstantiationError> {
         unsafe {
-            let instance_handle = self
-                .artifact
-                .clone()
+            let instance_handle = Arc::clone(&self.artifact)
                 .instantiate(
                     self.store.tunables(),
                     resolver,
-                    Box::new((self.store.clone(), self.artifact.clone())),
+                    Box::new((self.store.clone(), Arc::clone(&self.artifact))),
                     config,
                 )
                 .map_err(InstantiationError::Instantiation)?;

@@ -18,8 +18,11 @@ use wasmer_types::{
 };
 use wasmer_vm::Artifact;
 
-static MAGIC_HEADER: [u8; 32] =
-    *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF";
+const MAGIC_HEADER: [u8; 32] = {
+    let value = *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF";
+    let _length_must_be_multiple_of_16: bool = [true][value.len() % 16];
+    value
+};
 
 /// A 0-copy view of the encoded `UniversalExecutable` payload.
 #[derive(Clone, Copy)]
@@ -124,12 +127,6 @@ pub enum ExecutableSerializeError {
     ),
 }
 
-// SAFETY: the pointers in `rkyv::AllocScratchError` are present there for display purposes – this
-// type does not expose any mechanism to access or operate on the pointers, unless they are
-// accessed directly by the user.
-unsafe impl Send for ExecutableSerializeError {}
-unsafe impl Sync for ExecutableSerializeError {}
-
 impl wasmer_engine::Executable for UniversalExecutable {
     fn load(
         &self,
@@ -158,13 +155,15 @@ impl wasmer_engine::Executable for UniversalExecutable {
         // RKYV POSITION
         //
         // It is expected that any framing for message length is handled by the caller.
-        let mut out = Vec::with_capacity(32);
-        out.extend(&MAGIC_HEADER);
         let mut serializer = AllocSerializer::<1024>::default();
         let pos = rkyv::ser::Serializer::serialize_value(&mut serializer, self)
             .map_err(ExecutableSerializeError::Executable)? as u64;
-        out.extend(serializer.into_serializer().into_inner().as_slice());
-        out.extend(&pos.to_le_bytes());
+        let pos_bytes = pos.to_le_bytes();
+        let data = serializer.into_serializer().into_inner();
+        let mut out = Vec::with_capacity(MAGIC_HEADER.len() + pos_bytes.len() + data.len());
+        out.extend(&MAGIC_HEADER);
+        out.extend(data.as_slice());
+        out.extend(&pos_bytes);
         Ok(out)
     }
 
