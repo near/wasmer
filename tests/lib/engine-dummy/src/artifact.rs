@@ -163,7 +163,7 @@ impl Artifact for DummyArtifact {
         todo!()
     }
 
-    fn import_counts(&self) -> &wasmer_types::EntityCounts {
+    fn import_counts(&self) -> &wasmer_types::ImportCounts {
         todo!()
     }
 

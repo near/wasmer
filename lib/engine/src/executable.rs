@@ -1,7 +1,7 @@
 use crate::Engine;
 use enumset::EnumSet;
 use wasmer_compiler::{CompileError, CpuFeature, Features};
-use wasmer_types::{FunctionIndex, LocalFunctionIndex};
+use wasmer_types::FunctionIndex;
 use wasmer_vm::Artifact;
 
 mod private {
@@ -34,15 +34,6 @@ pub trait Executable {
     ///
     /// Implementations are not required to maintain symbol names, so this may always return None.
     fn function_name(&self, index: FunctionIndex) -> Option<&str>;
-
-    /// Convert a function index to a LocalFunctionIndex
-    fn make_local_function_index(
-        &self,
-        index: FunctionIndex,
-    ) -> Result<LocalFunctionIndex, FunctionIndex>;
-
-    /// Convert a `LocalFunctionIndex` to a FunctionIndex
-    fn make_function_index(&self, index: LocalFunctionIndex) -> FunctionIndex;
 
     /// Internal: support for downcasting `Executable`s.
     #[doc(hidden)]

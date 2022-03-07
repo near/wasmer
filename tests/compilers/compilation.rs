@@ -90,7 +90,7 @@ fn profiling() {
                 .iter()
                 .filter_map(|(idx, _)| {
                     let extent = artifact.function_extent(idx)?;
-                    let idx = executable.make_function_index(idx);
+                    let idx = artifact.import_counts().function_index(idx);
                     let name = executable.function_name(idx)?;
                     Some((name, extent))
                 })

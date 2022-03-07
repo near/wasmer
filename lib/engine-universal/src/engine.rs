@@ -16,8 +16,8 @@ use wasmer_compiler::{
 use wasmer_engine::{Engine, EngineId};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataInitializer, EntityCounts, ExportIndex, Features, FunctionIndex, FunctionType,
-    FunctionTypeRef, GlobalInit, GlobalType, ImportIndex, LocalFunctionIndex, LocalGlobalIndex,
+    DataInitializer, ExportIndex, Features, FunctionIndex, FunctionType, FunctionTypeRef,
+    GlobalInit, GlobalType, ImportCounts, ImportIndex, LocalFunctionIndex, LocalGlobalIndex,
     MemoryIndex, SignatureIndex, TableIndex,
 };
 use wasmer_vm::{
@@ -205,8 +205,7 @@ impl UniversalEngine {
             dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
             executable.custom_sections.iter().map(|(_, s)| s.into()),
             |idx: LocalFunctionIndex| {
-                let imports = module.import_counts.functions as usize;
-                let func_idx = FunctionIndex::new(imports + idx.index());
+                let func_idx = module.import_counts.function_index(idx);
                 let sig_idx = module.functions[func_idx];
                 (sig_idx, signatures[sig_idx])
             },
@@ -292,7 +291,7 @@ impl UniversalEngine {
     ) -> Result<UniversalArtifact, CompileError> {
         let info = &executable.compile_info;
         let module = &info.module;
-        let import_counts: EntityCounts = unrkyv(&module.import_counts);
+        let import_counts: ImportCounts = unrkyv(&module.import_counts);
         let local_memories = (import_counts.memories as usize..module.memories.len())
             .map(|idx| {
                 let idx = MemoryIndex::new(idx);
@@ -329,7 +328,7 @@ impl UniversalEngine {
         let passive_elements: BTreeMap<wasmer_types::ElemIndex, Box<[FunctionIndex]>> =
             unrkyv(&module.passive_elements);
 
-        let import_counts: EntityCounts = unrkyv(&module.import_counts);
+        let import_counts: ImportCounts = unrkyv(&module.import_counts);
         let mut inner_engine = self.inner_mut();
 
         let local_functions = executable.function_bodies.iter().map(|(_, b)| b.into());
@@ -347,8 +346,7 @@ impl UniversalEngine {
             dynamic_trampolines.map(|(_, b)| b.into()),
             executable.custom_sections.iter().map(|(_, s)| s.into()),
             |idx: LocalFunctionIndex| {
-                let imports = import_counts.functions as usize;
-                let func_idx = FunctionIndex::new(imports + idx.index());
+                let func_idx = import_counts.function_index(idx);
                 let sig_idx = module.functions[&func_idx];
                 (sig_idx, signatures[sig_idx])
             },

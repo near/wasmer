@@ -9,7 +9,7 @@ use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataIndex, ElemIndex, EntityCounts, FunctionIndex, GlobalInit, GlobalType, LocalFunctionIndex,
+    DataIndex, ElemIndex, FunctionIndex, GlobalInit, GlobalType, ImportCounts, LocalFunctionIndex,
     LocalGlobalIndex, MemoryType, OwnedDataInitializer, OwnedTableInitializer, SignatureIndex,
     TableType,
 };
@@ -23,7 +23,7 @@ use wasmer_vm::{
 pub struct UniversalArtifact {
     // TODO: figure out how to allocate fewer distinct structures onto heap. Maybe have an arena…?
     pub(crate) engine: crate::UniversalEngine,
-    pub(crate) import_counts: EntityCounts,
+    pub(crate) import_counts: ImportCounts,
     pub(crate) start_function: Option<FunctionIndex>,
     pub(crate) vmoffsets: VMOffsets,
 
@@ -154,7 +154,7 @@ impl Artifact for UniversalArtifact {
         &self.vmoffsets
     }
 
-    fn import_counts(&self) -> &EntityCounts {
+    fn import_counts(&self) -> &ImportCounts {
         &self.import_counts
     }
 
@@ -191,9 +191,10 @@ impl Artifact for UniversalArtifact {
     }
 
     fn function_signature(&self, index: FunctionIndex) -> Option<VMSharedSignatureIndex> {
-        let imports = self.import_counts.functions as usize;
-        if index.index() < imports {
-            self.imports
+        match self.import_counts().local_function_index(index) {
+            Ok(local) => Some(self.functions[local].signature),
+            Err(import) => self
+                .imports
                 .iter()
                 .filter_map(|im| {
                     if let VMImportType::Function(idx) = im.ty {
@@ -202,10 +203,7 @@ impl Artifact for UniversalArtifact {
                         None
                     }
                 })
-                .nth(index.index())
-        } else {
-            let index = LocalFunctionIndex::new(index.index() - imports);
-            Some(self.functions[index].signature)
+                .nth(import.index()),
         }
     }
 }

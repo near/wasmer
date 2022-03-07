@@ -79,7 +79,7 @@ pub use crate::initializers::{
     DataInitializer, DataInitializerLocation, OwnedDataInitializer, OwnedTableInitializer,
 };
 pub use crate::memory_view::{Atomically, MemoryView};
-pub use crate::module::{EntityCounts, ModuleInfo};
+pub use crate::module::{ImportCounts, ModuleInfo};
 pub use crate::native::{NativeWasmType, ValueType};
 pub use crate::units::{
     Bytes, PageCountOutOfRange, Pages, WASM_MAX_PAGES, WASM_MIN_PAGES, WASM_PAGE_SIZE,

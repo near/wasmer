@@ -2,7 +2,7 @@ use crate::{InstanceHandle, Resolver, Tunables, VMLocalFunction, VMSharedSignatu
 use loupe::MemoryUsage;
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 use wasmer_types::{
-    entity::BoxedSlice, ElemIndex, EntityCounts, FunctionIndex, GlobalInit, GlobalType,
+    entity::BoxedSlice, ElemIndex, FunctionIndex, GlobalInit, GlobalType, ImportCounts,
     InstanceConfig, LocalFunctionIndex, OwnedDataInitializer, OwnedTableInitializer,
 };
 
@@ -31,7 +31,7 @@ pub trait Artifact: Send + Sync + MemoryUsage {
     fn offsets(&self) -> &crate::VMOffsets;
 
     /// The count of imported entities.
-    fn import_counts(&self) -> &EntityCounts;
+    fn import_counts(&self) -> &ImportCounts;
 
     /// The locally defined functions.
     ///

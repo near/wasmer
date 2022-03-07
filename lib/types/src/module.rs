@@ -62,7 +62,7 @@ impl Default for ModuleId {
 )]
 #[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[archive(as = "Self")]
-pub struct EntityCounts {
+pub struct ImportCounts {
     /// Number of imported functions in the module.
     pub functions: u32,
 
@@ -74,6 +74,63 @@ pub struct EntityCounts {
 
     /// Number of imported globals in the module.
     pub globals: u32,
+}
+
+impl ImportCounts {
+    fn make_local<R: EntityRef, I: EntityRef>(idx: I, imports: u32) -> Result<R, I> {
+        EntityRef::index(idx)
+            .checked_sub(imports as _)
+            .map(R::new)
+            .ok_or(idx)
+    }
+
+    /// Convert the `FunctionIndex` to a `LocalFunctionIndex`.
+    pub fn local_function_index(
+        &self,
+        idx: FunctionIndex,
+    ) -> Result<LocalFunctionIndex, FunctionIndex> {
+        Self::make_local(idx, self.functions)
+    }
+
+    /// Convert the `TableIndex` to a `LocalTableIndex`.
+    pub fn local_table_index(&self, idx: TableIndex) -> Result<LocalTableIndex, TableIndex> {
+        Self::make_local(idx, self.tables)
+    }
+
+    /// Convert the `MemoryIndex` to a `LocalMemoryIndex`.
+    pub fn local_memory_index(&self, idx: MemoryIndex) -> Result<LocalMemoryIndex, MemoryIndex> {
+        Self::make_local(idx, self.memories)
+    }
+
+    /// Convert the `GlobalIndex` to a `LocalGlobalIndex`.
+    pub fn local_global_index(&self, idx: GlobalIndex) -> Result<LocalGlobalIndex, GlobalIndex> {
+        Self::make_local(idx, self.globals)
+    }
+
+    fn make_index<R: EntityRef, I: EntityRef>(idx: I, imports: u32) -> R {
+        let imports = imports as usize;
+        R::new(idx.index() + imports)
+    }
+
+    /// Convert the `LocalFunctionIndex` to a `FunctionIndex`.
+    pub fn function_index(&self, idx: LocalFunctionIndex) -> FunctionIndex {
+        Self::make_index(idx, self.functions)
+    }
+
+    /// Convert the `LocalTableIndex` to a `TableIndex`.
+    pub fn table_index(&self, idx: LocalTableIndex) -> TableIndex {
+        Self::make_index(idx, self.tables)
+    }
+
+    /// Convert the `LocalMemoryIndex` to a `MemoryIndex`.
+    pub fn memory_index(&self, idx: LocalMemoryIndex) -> MemoryIndex {
+        Self::make_index(idx, self.memories)
+    }
+
+    /// Convert the `LocalGlobalIndex` to a `GlobalIndex`.
+    pub fn global_index(&self, idx: LocalGlobalIndex) -> GlobalIndex {
+        Self::make_index(idx, self.globals)
+    }
 }
 
 /// A translated WebAssembly module, excluding the function bodies and
@@ -145,7 +202,7 @@ pub struct ModuleInfo {
     pub custom_sections_data: PrimaryMap<CustomSectionIndex, Arc<[u8]>>,
 
     /// The counts of imported entities.
-    pub import_counts: EntityCounts,
+    pub import_counts: ImportCounts,
 }
 
 /// Mirror version of ModuleInfo that can derive rkyv traits
@@ -167,7 +224,7 @@ pub struct ArchivableModuleInfo {
     pub globals: PrimaryMap<GlobalIndex, GlobalType>,
     pub custom_sections: ArchivableIndexMap<String, CustomSectionIndex>,
     pub custom_sections_data: PrimaryMap<CustomSectionIndex, Arc<[u8]>>,
-    pub import_counts: EntityCounts,
+    pub import_counts: ImportCounts,
 }
 
 impl From<ModuleInfo> for ArchivableModuleInfo {
@@ -317,77 +374,66 @@ impl ModuleInfo {
 
     /// Convert a `LocalFunctionIndex` into a `FunctionIndex`.
     pub fn func_index(&self, local_func: LocalFunctionIndex) -> FunctionIndex {
-        FunctionIndex::new(self.import_counts.functions as usize + local_func.index())
+        self.import_counts.function_index(local_func)
     }
 
     /// Convert a `FunctionIndex` into a `LocalFunctionIndex`. Returns None if the
     /// index is an imported function.
     pub fn local_func_index(&self, func: FunctionIndex) -> Option<LocalFunctionIndex> {
-        func.index()
-            .checked_sub(self.import_counts.functions as usize)
-            .map(LocalFunctionIndex::new)
+        self.import_counts.local_function_index(func).ok()
     }
 
     /// Test whether the given function index is for an imported function.
     pub fn is_imported_function(&self, index: FunctionIndex) -> bool {
-        index.index() < self.import_counts.functions as usize
+        self.local_func_index(index).is_none()
     }
 
     /// Convert a `LocalTableIndex` into a `TableIndex`.
     pub fn table_index(&self, local_table: LocalTableIndex) -> TableIndex {
-        TableIndex::new(self.import_counts.tables as usize + local_table.index())
+        self.import_counts.table_index(local_table)
     }
 
     /// Convert a `TableIndex` into a `LocalTableIndex`. Returns None if the
     /// index is an imported table.
     pub fn local_table_index(&self, table: TableIndex) -> Option<LocalTableIndex> {
-        table
-            .index()
-            .checked_sub(self.import_counts.tables as usize)
-            .map(LocalTableIndex::new)
+        self.import_counts.local_table_index(table).ok()
     }
 
     /// Test whether the given table index is for an imported table.
     pub fn is_imported_table(&self, index: TableIndex) -> bool {
-        index.index() < self.import_counts.tables as usize
+        self.local_table_index(index).is_none()
     }
 
     /// Convert a `LocalMemoryIndex` into a `MemoryIndex`.
     pub fn memory_index(&self, local_memory: LocalMemoryIndex) -> MemoryIndex {
-        MemoryIndex::new(self.import_counts.memories as usize + local_memory.index())
+        self.import_counts.memory_index(local_memory)
     }
 
     /// Convert a `MemoryIndex` into a `LocalMemoryIndex`. Returns None if the
     /// index is an imported memory.
     pub fn local_memory_index(&self, memory: MemoryIndex) -> Option<LocalMemoryIndex> {
-        memory
-            .index()
-            .checked_sub(self.import_counts.memories as usize)
-            .map(LocalMemoryIndex::new)
+        self.import_counts.local_memory_index(memory).ok()
     }
 
     /// Test whether the given memory index is for an imported memory.
     pub fn is_imported_memory(&self, index: MemoryIndex) -> bool {
-        index.index() < self.import_counts.memories as usize
+        self.local_memory_index(index).is_none()
     }
 
     /// Convert a `LocalGlobalIndex` into a `GlobalIndex`.
     pub fn global_index(&self, local_global: LocalGlobalIndex) -> GlobalIndex {
-        GlobalIndex::new(self.import_counts.globals as usize + local_global.index())
+        self.import_counts.global_index(local_global)
     }
 
     /// Convert a `GlobalIndex` into a `LocalGlobalIndex`. Returns None if the
     /// index is an imported global.
     pub fn local_global_index(&self, global: GlobalIndex) -> Option<LocalGlobalIndex> {
-        global
-            .index()
-            .checked_sub(self.import_counts.globals as usize)
-            .map(LocalGlobalIndex::new)
+        self.import_counts.local_global_index(global).ok()
     }
 
     /// Test whether the given global index is for an imported global.
     pub fn is_imported_global(&self, index: GlobalIndex) -> bool {
-        index.index() < self.import_counts.globals as usize
+        self.local_global_index(index).is_none()
     }
 
     /// Get the Module name

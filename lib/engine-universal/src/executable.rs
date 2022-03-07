@@ -11,10 +11,10 @@ use wasmer_compiler::{
     Features, FunctionBody, JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
 };
 use wasmer_engine::{DeserializeError, Engine};
-use wasmer_types::entity::{EntityRef, PrimaryMap};
+use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{
-    EntityCounts, ExportIndex, FunctionIndex, ImportIndex, LocalFunctionIndex,
-    OwnedDataInitializer, SignatureIndex,
+    ExportIndex, FunctionIndex, ImportIndex, LocalFunctionIndex, OwnedDataInitializer,
+    SignatureIndex,
 };
 use wasmer_vm::Artifact;
 
@@ -187,18 +187,6 @@ impl wasmer_engine::Executable for UniversalExecutable {
         }
         None
     }
-
-    fn make_local_function_index(
-        &self,
-        index: FunctionIndex,
-    ) -> Result<LocalFunctionIndex, FunctionIndex> {
-        local_function_index(index, &self.compile_info.module.import_counts)
-    }
-
-    fn make_function_index(&self, index: LocalFunctionIndex) -> FunctionIndex {
-        let imports = self.compile_info.module.import_counts.functions as usize;
-        FunctionIndex::new(index.index() + imports)
-    }
 }
 
 impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
@@ -244,32 +232,6 @@ impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
             }
         }
         None
-    }
-
-    fn make_local_function_index(
-        &self,
-        index: FunctionIndex,
-    ) -> Result<LocalFunctionIndex, FunctionIndex> {
-        local_function_index(index, &self.compile_info.module.import_counts)
-    }
-
-    fn make_function_index(&self, index: LocalFunctionIndex) -> FunctionIndex {
-        let imports = self.compile_info.module.import_counts.functions as usize;
-        FunctionIndex::new(index.index() + imports)
-    }
-}
-
-/// Convert a function index to a LocalFunctionIndex. Returns `Err` if `index` is not a local
-/// function index.
-fn local_function_index(
-    index: FunctionIndex,
-    imports: &EntityCounts,
-) -> Result<LocalFunctionIndex, FunctionIndex> {
-    let imports = imports.functions as usize;
-    if index.index() < imports {
-        Err(index)
-    } else {
-        Ok(LocalFunctionIndex::new(index.index() - imports))
     }
 }
 

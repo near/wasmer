@@ -205,9 +205,4 @@ impl InstanceAllocator {
         // because we write `Instance` to the pointer in this function.
         unsafe { InstanceRef::new(instance, instance_layout) }
     }
-
-    /// Get the [`VMOffsets`] for the allocated buffer.
-    pub(crate) fn offsets(&self) -> &VMOffsets {
-        &self.offsets
-    }
 }

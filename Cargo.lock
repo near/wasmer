@@ -625,6 +625,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c21d40587b92fa6a6c6e3c1bdbf87d75511db5672f9c93175574b3a00df1758"
+dependencies = [
+ "ahash 0.7.6",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1207,12 +1216,12 @@ dependencies = [
 
 [[package]]
 name = "rkyv"
-version = "0.7.30"
+version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6758d0cb5660d71471e815a5a7ef9f3bebf072fda13c7503429db9a751ef2708"
+checksum = "2cdcf5caf69bcc87b1e3f5427b4f21a32fdd53c2847687bdf9861abb1cdaa0d8"
 dependencies = [
  "bytecheck",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "ptr_meta",
  "rend",
  "rkyv_derive",
@@ -1221,9 +1230,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv_derive"
-version = "0.7.30"
+version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "795f0a26ee48557c19ccedba4fc67cfb894d929d8898a4d94a5a25ad47900290"
+checksum = "a6cf557da1f81b8c7e889c59c9c3abaf6978f7feb156b9579e4f8bf6d7a2bada"
 dependencies = [
  "proc-macro2",
  "quote",

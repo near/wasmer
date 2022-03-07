@@ -4,7 +4,7 @@
 use crate::{Engine, ImportError, LinkError};
 use more_asserts::assert_ge;
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
-use wasmer_types::{EntityCounts, ExternType, FunctionIndex, MemoryType, TableType};
+use wasmer_types::{ExternType, FunctionIndex, ImportCounts, MemoryType, TableType};
 
 use wasmer_vm::{
     Export, ExportFunctionMetadata, FunctionBodyPtr, ImportFunctionEnv, Imports, MemoryStyle,
@@ -33,7 +33,7 @@ fn is_compatible_memory(ex: &MemoryType, im: &MemoryType) -> bool {
 pub fn resolve_imports(
     engine: &dyn Engine,
     resolver: &dyn Resolver,
-    import_counts: &EntityCounts,
+    import_counts: &ImportCounts,
     imports: &[VMImport],
     finished_dynamic_function_trampolines: &BoxedSlice<FunctionIndex, FunctionBodyPtr>,
 ) -> Result<Imports, LinkError> {

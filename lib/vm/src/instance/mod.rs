@@ -44,8 +44,8 @@ use std::sync::Arc;
 use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
     DataIndex, DataInitializer, ElemIndex, FastGasCounter, FunctionIndex, GlobalIndex, GlobalInit,
-    InstanceConfig, LocalFunctionIndex, LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex,
-    MemoryIndex, OwnedTableInitializer, Pages, TableIndex,
+    InstanceConfig, LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex,
+    OwnedTableInitializer, Pages, TableIndex,
 };
 
 /// The function pointer to call with data and an [`Instance`] pointer to
@@ -258,12 +258,10 @@ impl Instance {
     }
 
     /// Return the indexed `VMTableDefinition`.
-    #[allow(dead_code)]
     fn table(&self, index: LocalTableIndex) -> VMTableDefinition {
         unsafe { *self.table_ptr(index).as_ref() }
     }
 
-    #[allow(dead_code)]
     /// Updates the value for a defined table to `VMTableDefinition`.
     fn set_table(&self, index: LocalTableIndex, table: &VMTableDefinition) {
         unsafe {
@@ -284,12 +282,9 @@ impl Instance {
 
     /// Return the indexed `VMMemoryDefinition`.
     fn memory(&self, index: MemoryIndex) -> &VMMemoryDefinition {
-        let imports = self.artifact.import_counts().memories as usize;
-        if index.index() < imports {
-            unsafe { self.imported_memory(index).definition.as_ref() }
-        } else {
-            let index = LocalMemoryIndex::new(index.index() - imports);
-            unsafe { self.memory_ptr(index).as_ref() }
+        match self.artifact.import_counts().local_memory_index(index) {
+            Ok(local) => unsafe { self.memory_ptr(local).as_ref() },
+            Err(import) => unsafe { self.imported_memory(import).definition.as_ref() },
         }
     }
 
@@ -314,12 +309,9 @@ impl Instance {
 
     /// Return the indexed `VMGlobalDefinition`.
     fn global(&self, index: GlobalIndex) -> &VMGlobalDefinition {
-        let imports = self.artifact.import_counts().globals as usize;
-        if index.index() < imports {
-            unsafe { self.imported_global(index).definition.as_ref() }
-        } else {
-            let index = LocalGlobalIndex::new(index.index() - imports);
-            unsafe { self.global_ptr(index).as_ref() }
+        match self.artifact.import_counts().local_global_index(index) {
+            Ok(local) => unsafe { self.global_ptr(local).as_ref() },
+            Err(import) => unsafe { self.imported_global(import).definition.as_ref() },
         }
     }
 
@@ -823,12 +815,9 @@ impl Instance {
     /// Get a table by index regardless of whether it is locally-defined or an
     /// imported, foreign table.
     pub(crate) fn get_table(&self, table_index: TableIndex) -> &dyn Table {
-        let imports = self.artifact.import_counts().tables as usize;
-        if table_index.index() < imports {
-            self.get_foreign_table(table_index)
-        } else {
-            let index = LocalTableIndex::new(table_index.index() - imports);
-            self.get_local_table(index)
+        match self.artifact.import_counts().local_table_index(table_index) {
+            Ok(local) => self.get_local_table(local),
+            Err(import) => self.get_foreign_table(import),
         }
     }
 
@@ -1033,27 +1022,30 @@ impl InstanceHandle {
     /// Lookup an exported function with the specified function index.
     pub fn function_by_index(&self, idx: FunctionIndex) -> Option<VMFunction> {
         let instance = self.instance.as_ref();
-        let imports = instance.artifact.import_counts().functions as usize;
-        let (address, signature, vmctx, trampoline) = if idx.index() < imports {
-            let import = instance.imported_function(idx);
-            (
-                *(import.body),
-                import.signature,
-                import.environment,
-                import.trampoline,
-            )
-        } else {
-            let index = LocalFunctionIndex::new(idx.index() - imports);
-            let func = instance.artifact.functions().get(index)?;
-            (
-                *(func.body),
-                func.signature,
-                VMFunctionEnvironment {
-                    vmctx: instance.vmctx_ptr(),
-                },
-                Some(func.trampoline),
-            )
-        };
+
+        let (address, signature, vmctx, trampoline) =
+            match instance.artifact.import_counts().local_function_index(idx) {
+                Ok(local) => {
+                    let func = instance.artifact.functions().get(local)?;
+                    (
+                        *(func.body),
+                        func.signature,
+                        VMFunctionEnvironment {
+                            vmctx: instance.vmctx_ptr(),
+                        },
+                        Some(func.trampoline),
+                    )
+                }
+                Err(import) => {
+                    let import = instance.imported_function(import);
+                    (
+                        *(import.body),
+                        import.signature,
+                        import.environment,
+                        import.trampoline,
+                    )
+                }
+            };
         Some(VMFunction {
             // Any function received is already static at this point as:
             // 1. All locally defined functions in the Wasm have a static signature.
