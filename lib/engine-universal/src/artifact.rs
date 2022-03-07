@@ -5,7 +5,6 @@ use loupe::MemoryUsage;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
-use wasmer_compiler::Triple;
 use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
@@ -52,13 +51,6 @@ pub struct UniversalArtifact {
 }
 
 impl UniversalArtifact {
-    /// Get the default extension when serializing this artifact
-    pub fn get_default_extension(_triple: &Triple) -> &'static str {
-        // `.wasmu` is the default extension for all the triples. It
-        // stands for “Wasm Universal”.
-        "wasmu"
-    }
-
     /// Return the extents of the specified local function.
     pub fn function_extent(&self, index: LocalFunctionIndex) -> Option<FunctionExtent> {
         let func = self.functions.get(index)?;
