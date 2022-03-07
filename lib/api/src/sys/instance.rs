@@ -119,18 +119,15 @@ impl Instance {
     /// Those are, as defined by the spec:
     ///  * Link errors that happen when plugging the imports into the instance
     ///  * Runtime errors that happen when running the module `start` function.
-    pub fn new<'a>(
-        module: &Module,
-        resolver: &'a (dyn Resolver + 'a),
-    ) -> Result<Self, InstantiationError> {
+    pub fn new(module: &Module, resolver: &dyn Resolver) -> Result<Self, InstantiationError> {
         Instance::new_with_config(module, InstanceConfig::default(), resolver)
     }
 
     /// New instance with config.
-    pub fn new_with_config<'a>(
+    pub fn new_with_config(
         module: &Module,
         config: InstanceConfig,
-        resolver: &'a (dyn Resolver + 'a),
+        resolver: &dyn Resolver,
     ) -> Result<Self, InstantiationError> {
         unsafe {
             if (*config.gas_counter).opcode_cost > i32::MAX as u64 {
