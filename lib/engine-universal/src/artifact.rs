@@ -138,8 +138,8 @@ impl Artifact for UniversalArtifact {
             host_state,
             import_function_envs,
             config,
-        ) // FIXME(0-copy): wrong error type, fix
-        .map_err(|t| InstantiationError::Start(RuntimeError::from_trap(t)))?)
+        )
+        .map_err(|t| InstantiationError::CreateInstance(RuntimeError::from_trap(t)))?)
     }
 
     fn offsets(&self) -> &wasmer_vm::VMOffsets {

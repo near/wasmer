@@ -52,11 +52,11 @@ pub enum InstantiationError {
     Link(LinkError),
 
     /// Could not instantiate the artifact.
-    #[error(transparent)]
+    #[error("could not instantiate the artifact: {0}")]
     Instantiation(Box<dyn std::error::Error + Send + Sync>),
 
     /// A runtime error occured while invoking the start function
-    #[error("could not invoke the start function")]
+    #[error("could not invoke the start function: {0}")]
     Start(RuntimeError),
 
     /// The module was compiled with a CPU feature that is not available on
@@ -75,6 +75,9 @@ impl From<wasmer_engine::InstantiationError> for InstantiationError {
             wasmer_engine::InstantiationError::Link(e) => Self::Link(e),
             wasmer_engine::InstantiationError::Start(e) => Self::Start(e),
             wasmer_engine::InstantiationError::CpuFeature(e) => Self::CpuFeature(e),
+            wasmer_engine::InstantiationError::CreateInstance(e) => {
+                Self::Instantiation(Box::new(e).into())
+            }
         }
     }
 }
