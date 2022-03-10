@@ -212,6 +212,28 @@ mod test_vmfunction_body {
     }
 }
 
+/// A pointer to the beginning of the function body.
+#[derive(Clone, Copy, Debug, MemoryUsage)]
+#[repr(transparent)]
+pub struct FunctionBodyPtr(pub *const VMFunctionBody);
+
+impl std::ops::Deref for FunctionBodyPtr {
+    type Target = *const VMFunctionBody;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// SAFETY: The VMFunctionBody that this points to is opaque, so there's no data to read or write
+// through this pointer. This is essentially a usize.
+unsafe impl Send for FunctionBodyPtr {}
+
+/// SAFETY: The VMFunctionBody that this points to is opaque, so there's no data to read or write
+/// through this pointer. This is essentially a usize.
+unsafe impl Sync for FunctionBodyPtr {}
+
+
 /// A function kind is a calling convention into and out of wasm code.
 #[derive(Debug, Copy, Clone, PartialEq, MemoryUsage)]
 #[repr(C)]
@@ -1130,3 +1152,17 @@ pub type VMTrampoline = unsafe extern "C" fn(
     *const VMFunctionBody, // function we're actually calling
     *mut u128,             // space for arguments and return values
 );
+
+
+/// Pointers to section data.
+#[derive(Clone, Copy, Debug)]
+#[repr(transparent)]
+pub struct SectionBodyPtr(pub *const u8);
+
+impl std::ops::Deref for SectionBodyPtr {
+    type Target = *const u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
