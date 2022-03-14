@@ -11,7 +11,7 @@ use crate::memory::Memory;
 use crate::sig_registry::VMSharedSignatureIndex;
 use crate::table::Table;
 use crate::trap::{Trap, TrapCode};
-use crate::{FunctionBodyPtr, VMExternRef};
+use crate::VMExternRef;
 use loupe::{MemoryUsage, MemoryUsageTracker, POINTER_BYTE_SIZE};
 use std::any::Any;
 use std::convert::TryFrom;
@@ -66,6 +66,18 @@ impl MemoryUsage for VMFunctionEnvironment {
     fn size_of_val(&self, _: &mut dyn MemoryUsageTracker) -> usize {
         mem::size_of_val(self)
     }
+}
+
+/// Represents a continuous region of executable memory starting with a function
+/// entry point.
+#[derive(Debug)]
+#[repr(C)]
+pub struct FunctionExtent {
+    /// Entry point for normal entry of the function. All addresses in the
+    /// function lie after this address.
+    pub address: FunctionBodyPtr,
+    /// Length in bytes.
+    pub length: usize,
 }
 
 /// An imported function.
@@ -232,7 +244,6 @@ unsafe impl Send for FunctionBodyPtr {}
 /// SAFETY: The VMFunctionBody that this points to is opaque, so there's no data to read or write
 /// through this pointer. This is essentially a usize.
 unsafe impl Sync for FunctionBodyPtr {}
-
 
 /// A function kind is a calling convention into and out of wasm code.
 #[derive(Debug, Copy, Clone, PartialEq, MemoryUsage)]
@@ -426,6 +437,7 @@ impl VMMemoryDefinition {
     /// bounds.
     ///
     /// # Safety
+    ///
     /// The memory is not copied atomically and is not synchronized: it's the
     /// caller's responsibility to synchronize.
     pub(crate) unsafe fn memory_copy(&self, dst: u32, src: u32, len: u32) -> Result<(), Trap> {
@@ -1152,7 +1164,6 @@ pub type VMTrampoline = unsafe extern "C" fn(
     *const VMFunctionBody, // function we're actually calling
     *mut u128,             // space for arguments and return values
 );
-
 
 /// Pointers to section data.
 #[derive(Clone, Copy, Debug)]

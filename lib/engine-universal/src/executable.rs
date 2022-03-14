@@ -134,7 +134,7 @@ impl wasmer_engine::Executable for UniversalExecutable {
     ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
         engine
             .downcast_ref::<crate::UniversalEngine>()
-            .ok_or_else(|| CompileError::Codegen("can't downcast TODO FIXME".into()))?
+            .ok_or(CompileError::EngineDowncast)?
             .load_universal_executable(self)
             .map(|a| Arc::new(a) as _)
     }

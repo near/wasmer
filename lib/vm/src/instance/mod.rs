@@ -704,10 +704,7 @@ impl Instance {
         len: u32,
     ) -> Result<(), Trap> {
         // https://webassembly.github.io/reference-types/core/exec/instructions.html#exec-memory-copy
-        let memory = unsafe {
-            // TODO: safety comment
-            self.memory_ptr(memory_index).as_ref()
-        };
+        let memory = unsafe { self.memory_ptr(memory_index).as_ref() };
         // The following memory copy is not synchronized and is not atomic:
         unsafe { memory.memory_copy(dst, src, len) }
     }
@@ -738,10 +735,7 @@ impl Instance {
         val: u32,
         len: u32,
     ) -> Result<(), Trap> {
-        let memory = unsafe {
-            // TODO: safety comment
-            self.memory_ptr(memory_index).as_ref()
-        };
+        let memory = unsafe { self.memory_ptr(memory_index).as_ref() };
         // The following memory fill is not synchronized and is not atomic:
         unsafe { memory.memory_fill(dst, val, len) }
     }
@@ -928,7 +922,6 @@ impl InstanceHandle {
         };
         let instance = handle.instance().as_ref();
 
-        // TODO(0-copy): make sure indirect calls continue working?
         ptr::copy(
             instance.artifact.signatures().as_ptr(),
             instance.signature_ids_ptr() as *mut VMSharedSignatureIndex,
@@ -1061,7 +1054,6 @@ impl InstanceHandle {
     }
 
     /// Lookup an exported function with the given name.
-    /// TODO(0-copy): make return type lifetime be dependent on lifetime of self...
     pub fn lookup_function(&self, field: &str) -> Option<VMFunction> {
         let instance = self.instance.as_ref();
         let idx = instance.artifact.function_by_export_field(field)?;
