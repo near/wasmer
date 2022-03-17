@@ -108,7 +108,7 @@ impl Trap {
     ///
     /// Internally saves a backtrace when constructed.
     pub fn wasm(pc: usize, backtrace: Backtrace, signal_trap: Option<TrapCode>) -> Self {
-        Trap::Wasm {
+        Self::Wasm {
             pc,
             backtrace,
             signal_trap,
@@ -120,7 +120,7 @@ impl Trap {
     /// Internally saves a backtrace when constructed.
     pub fn lib(trap_code: TrapCode) -> Self {
         let backtrace = Backtrace::new_unresolved();
-        Trap::Lib {
+        Self::Lib {
             trap_code,
             backtrace,
         }
@@ -131,7 +131,7 @@ impl Trap {
     /// Internally saves a backtrace when constructed.
     pub fn oom() -> Self {
         let backtrace = Backtrace::new_unresolved();
-        Trap::OOM { backtrace }
+        Self::OOM { backtrace }
     }
 }
 
@@ -169,7 +169,9 @@ pub unsafe fn wasmer_call_trampoline(
 /// Catches any wasm traps that happen within the execution of `closure`,
 /// returning them as a `Result`.
 ///
-/// Highly unsafe since `closure` won't have any dtors run.
+/// # Safety
+///
+/// Soundness must not depend on `closure` destructors being run.
 pub unsafe fn catch_traps<F>(mut closure: F) -> Result<(), Trap>
 where
     F: FnMut(),
@@ -243,7 +245,7 @@ impl<'a> CallThreadState {
         }
     }
 
-    fn with(self, closure: impl FnOnce(&CallThreadState) -> i32) -> Result<(), Trap> {
+    fn with(self, closure: impl FnOnce(&Self) -> i32) -> Result<(), Trap> {
         let ret = tls::set(&self, || closure(&self))?;
         if ret != 0 {
             return Ok(());
@@ -341,7 +343,7 @@ mod tls {
         ///
         /// This is not a safe operation since it's intended to only be used
         /// with stack switching found with fibers and async wasmer.
-        pub unsafe fn take() -> Result<TlsRestore, Trap> {
+        pub unsafe fn take() -> Result<Self, Trap> {
             // Our tls pointer must be set at this time, and it must not be
             // null. We need to restore the previous pointer since we're
             // removing ourselves from the call-stack, and in the process we
@@ -351,7 +353,7 @@ mod tls {
             assert!(!raw.is_null());
             let prev = (*raw).prev.replace(ptr::null());
             raw::replace(prev)?;
-            Ok(TlsRestore(raw))
+            Ok(Self(raw))
         }
 
         /// Restores a previous tls state back into this thread's TLS.

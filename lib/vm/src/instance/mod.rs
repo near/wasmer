@@ -34,7 +34,7 @@ use more_asserts::assert_lt;
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::ffi;
 use std::fmt;
 use std::mem;
@@ -258,11 +258,13 @@ impl Instance {
     }
 
     /// Return the indexed `VMTableDefinition`.
+    #[allow(unused)]
     fn table(&self, index: LocalTableIndex) -> VMTableDefinition {
         unsafe { *self.table_ptr(index).as_ref() }
     }
 
     /// Updates the value for a defined table to `VMTableDefinition`.
+    #[allow(unused)]
     fn set_table(&self, index: LocalTableIndex, table: &VMTableDefinition) {
         unsafe {
             *self.table_ptr(index).as_ptr() = *table;
@@ -538,7 +540,7 @@ impl Instance {
     ) -> Option<u32> {
         let import = self.imported_table(table_index);
         let from = import.from.as_ref();
-        from.grow(delta.into(), init_value)
+        from.grow(delta, init_value)
     }
 
     /// Get table element by index.
@@ -779,24 +781,22 @@ impl Instance {
         let passive_data = self.passive_data.borrow();
         let data = passive_data.get(&data_index).map_or(&[][..], |d| &**d);
 
-        if src
+        let oob_access = src
             .checked_add(len)
             .map_or(true, |n| n as usize > data.len())
             || dst.checked_add(len).map_or(true, |m| {
                 usize::try_from(m).unwrap() > memory.current_length
-            })
-        {
+            });
+
+        if oob_access {
             return Err(Trap::lib(TrapCode::HeapAccessOutOfBounds));
         }
-
         let src_slice = &data[src as usize..(src + len) as usize];
-
         unsafe {
             let dst_start = memory.base.add(dst as usize);
             let dst_slice = slice::from_raw_parts_mut(dst_start, len as usize);
             dst_slice.copy_from_slice(src_slice);
         }
-
         Ok(())
     }
 
@@ -979,7 +979,7 @@ impl InstanceHandle {
     /// # Safety
     ///
     /// Only safe to call immediately after instantiation.
-    pub unsafe fn finish_instantiation<'a>(&self) -> Result<(), Trap> {
+    pub unsafe fn finish_instantiation(&self) -> Result<(), Trap> {
         let instance = self.instance().as_ref();
 
         // Apply the initializers.
@@ -1182,7 +1182,7 @@ unsafe fn get_memory_slice<'instance>(
     instance: &'instance Instance,
 ) -> &'instance mut [u8] {
     let memory = instance.memory(init.location.memory_index);
-    slice::from_raw_parts_mut(memory.base, memory.current_length.try_into().unwrap())
+    slice::from_raw_parts_mut(memory.base, memory.current_length)
 }
 
 /// Compute the offset for a table element initializer.
@@ -1261,7 +1261,7 @@ fn initialize_memories<'a>(
         let start = get_memory_init_start(&init, instance);
         if start
             .checked_add(init.data.len())
-            .map_or(true, |end| end > memory.current_length.try_into().unwrap())
+            .map_or(true, |end| end > memory.current_length)
         {
             return Err(Trap::lib(TrapCode::HeapAccessOutOfBounds));
         }

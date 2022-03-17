@@ -5,7 +5,7 @@
 #![warn(unused_import_braces)]
 #![cfg_attr(
     feature = "cargo-clippy",
-    allow(clippy::new_without_default, vtable_address_comparisons)
+    allow(clippy::new_without_default, clippy::vtable_address_comparisons)
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
@@ -13,7 +13,7 @@
         clippy::float_arithmetic,
         clippy::mut_mut,
         clippy::nonminimal_bool,
-        clippy::option_map_unwrap_or,
+        clippy::map_unwrap_or,
         clippy::option_map_unwrap_or_else,
         clippy::print_stdout,
         clippy::unicode_not_nfc,
@@ -68,7 +68,6 @@ pub use crate::vmcontext::{
     VMTrampoline,
 };
 pub use crate::vmoffsets::{TargetSharedSignatureIndex, VMOffsets};
-use loupe::MemoryUsage;
 #[deprecated(
     since = "2.1.0",
     note = "ModuleInfo, ExportsIterator, ImportsIterator should be imported from wasmer_types."

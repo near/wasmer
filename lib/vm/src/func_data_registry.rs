@@ -89,7 +89,7 @@ unsafe impl Sync for VMFuncRef {}
 
 #[derive(Debug, Default, MemoryUsage)]
 struct Inner {
-    func_data: Vec<Box<VMCallerCheckedAnyfunc>>,
+    func_data: Vec<VMCallerCheckedAnyfunc>,
     anyfunc_to_index: HashMap<VMCallerCheckedAnyfunc, usize>,
 }
 
@@ -104,18 +104,14 @@ impl FuncDataRegistry {
     /// Register a signature and return its unique index.
     pub fn register(&self, anyfunc: VMCallerCheckedAnyfunc) -> VMFuncRef {
         let mut inner = self.inner.lock().unwrap();
-        if let Some(&idx) = inner.anyfunc_to_index.get(&anyfunc) {
-            let data: &Box<_> = &inner.func_data[idx];
-            let inner_ptr: &VMCallerCheckedAnyfunc = &*data;
-            VMFuncRef(inner_ptr)
+        let data = if let Some(&idx) = inner.anyfunc_to_index.get(&anyfunc) {
+            &inner.func_data[idx]
         } else {
             let idx = inner.func_data.len();
-            inner.func_data.push(Box::new(anyfunc.clone()));
+            inner.func_data.push(anyfunc);
             inner.anyfunc_to_index.insert(anyfunc, idx);
-
-            let data: &Box<_> = &inner.func_data[idx];
-            let inner_ptr: &VMCallerCheckedAnyfunc = &*data;
-            VMFuncRef(inner_ptr)
-        }
+            &inner.func_data[idx]
+        };
+        VMFuncRef(data)
     }
 }

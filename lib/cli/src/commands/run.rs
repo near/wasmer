@@ -102,7 +102,7 @@ impl Run {
         let contents = std::fs::read(self.path.clone())?;
         #[cfg(feature = "universal")]
         {
-            use wasmer_engine_universal::{UniversalExecutable, UniversalArtifact, Universal};
+            use wasmer_engine_universal::{Universal, UniversalArtifact, UniversalExecutable};
 
             if UniversalExecutable::verify_serialized(&contents) {
                 unsafe {

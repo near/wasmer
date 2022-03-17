@@ -374,7 +374,7 @@ impl VMOffsets {
     ///
     /// [`VMFuncRef`]: crate::func_data_registry::VMFuncRef
     pub const fn size_of_vm_funcref(&self) -> u8 {
-        1 * self.pointer_size
+        self.pointer_size
     }
 }
 
