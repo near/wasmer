@@ -38,11 +38,15 @@ impl Machine {
     }
 
     pub fn get_used_gprs(&self) -> Vec<GPR> {
-        self.used_gprs.iter().cloned().collect()
+        let mut result = self.used_gprs.iter().cloned().collect::<Vec<_>>();
+        result.sort_unstable();
+        result
     }
 
     pub fn get_used_xmms(&self) -> Vec<XMM> {
-        self.used_xmms.iter().cloned().collect()
+        let mut result = self.used_xmms.iter().cloned().collect::<Vec<_>>();
+        result.sort_unstable();
+        result
     }
 
     pub fn get_vmctx_reg() -> GPR {
