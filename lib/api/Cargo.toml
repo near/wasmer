@@ -32,7 +32,6 @@ wasmer-derive = { path = "../derive", version = "=2.2.2", package = "wasmer-deri
 wasmer-engine = { path = "../engine", version = "=2.2.2", package = "wasmer-engine-near" }
 wasmer-types = { path = "../types", version = "=2.2.2", package = "wasmer-types-near" }
 target-lexicon = { version = "0.12.2", default-features = false }
-loupe = "0.1"
 # - Optional dependencies for `sys`.
 wasmer-compiler-singlepass = { path = "../compiler-singlepass", package = "wasmer-compiler-singlepass-near", version = "=2.2.2", optional = true}
 wasmer-compiler-cranelift = { path = "../compiler-cranelift", version = "2.1.0", optional = true }

@@ -1,6 +1,5 @@
 use crate::sys::store::Store;
 use crate::sys::InstantiationError;
-use loupe::MemoryUsage;
 use std::fmt;
 use std::io;
 use std::path::Path;
@@ -31,7 +30,7 @@ pub enum IoCompileError {
 ///
 /// Cloning a module is cheap: it does a shallow copy of the compiled
 /// contents rather than a deep copy.
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct Module {
     store: Store,
     artifact: Arc<dyn Artifact>,

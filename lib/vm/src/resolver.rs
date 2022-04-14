@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::{ImportInitializerFuncPtr, VMExtern, VMFunction, VMGlobal, VMMemory, VMTable};
-use loupe::MemoryUsage;
 
 /// The value of an export passed from one instance to another.
 #[derive(Debug, Clone)]
@@ -52,7 +51,7 @@ impl From<VMExtern> for Export {
 ///
 /// This struct owns the original `host_env`, thus when it gets dropped
 /// it calls the `drop` function on it.
-#[derive(Debug, PartialEq, MemoryUsage)]
+#[derive(Debug, PartialEq)]
 pub struct ExportFunctionMetadata {
     /// This field is stored here to be accessible by `Drop`.
     ///
@@ -74,11 +73,9 @@ pub struct ExportFunctionMetadata {
     /// we create the `api::Instance`.
     // This one is optional for now because dynamic host envs need the rest
     // of this without the init fn
-    #[loupe(skip)]
     pub import_init_function_ptr: Option<ImportInitializerFuncPtr>,
 
     /// A function analogous to `Clone::clone` that returns a leaked `Box`.
-    #[loupe(skip)]
     pub host_env_clone_fn: fn(*mut std::ffi::c_void) -> *mut std::ffi::c_void,
 
     /// The destructor to free the host environment.
@@ -86,7 +83,6 @@ pub struct ExportFunctionMetadata {
     /// # Safety
     /// - This function should only be called in when properly synchronized.
     /// For example, in the `Drop` implementation of this type.
-    #[loupe(skip)]
     pub host_env_drop_fn: unsafe fn(*mut std::ffi::c_void),
 }
 
@@ -136,7 +132,7 @@ impl Drop for ExportFunctionMetadata {
 
 /// A function export value with an extra function pointer to initialize
 /// host environments.
-#[derive(Debug, Clone, PartialEq, MemoryUsage)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExportFunction {
     /// The VM function, containing most of the data.
     pub vm_function: VMFunction,

@@ -2,7 +2,6 @@ use crate::sys::module::Module;
 use crate::sys::store::Store;
 use crate::sys::{HostEnvInitError, LinkError, RuntimeError};
 use crate::{ExportError, NativeFunc, WasmTypeList};
-use loupe::MemoryUsage;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -17,7 +16,7 @@ use wasmer_vm::{ExportFunction, InstanceHandle, Resolver, VMContext};
 /// interacting with WebAssembly.
 ///
 /// Spec: <https://webassembly.github.io/spec/core/exec/runtime.html#module-instances>
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct Instance {
     handle: Arc<Mutex<InstanceHandle>>,
     module: Module,
@@ -175,7 +174,7 @@ impl Instance {
         self.module.store()
     }
 
-    /// Lookup an exported function by its name..
+    /// Lookup an exported function by its name.
     pub fn lookup_function(&self, field: &str) -> Option<crate::Function> {
         let vm_function = self.handle.lock().unwrap().lookup_function(field)?;
         Some(crate::Function::from_vm_export(

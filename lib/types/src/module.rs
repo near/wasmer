@@ -13,7 +13,6 @@ use crate::{
     SignatureIndex, TableIndex, TableType,
 };
 use indexmap::IndexMap;
-use loupe::MemoryUsage;
 use rkyv::{
     de::SharedDeserializeRegistry, ser::ScratchSpace, ser::Serializer,
     ser::SharedSerializeRegistry, Archive, Archived, Deserialize as RkyvDeserialize, Fallible,
@@ -27,7 +26,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 
-#[derive(Debug, Clone, MemoryUsage, RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Debug, Clone, RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct ModuleId {
     id: usize,
 }
@@ -49,16 +48,7 @@ impl Default for ModuleId {
 
 /// The counts of imported entities in a WebAssembly module.
 #[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    loupe::MemoryUsage,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    rkyv::Archive,
+    Debug, Copy, Clone, Default, PartialEq, Eq, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive,
 )]
 #[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[archive(as = "Self")]
@@ -135,7 +125,7 @@ impl ImportCounts {
 
 /// A translated WebAssembly module, excluding the function bodies and
 /// memory initializers.
-#[derive(Debug, Clone, Default, MemoryUsage)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 pub struct ModuleInfo {
     /// A unique identifier (within this process) for this module.
@@ -167,11 +157,9 @@ pub struct ModuleInfo {
     pub table_initializers: Vec<OwnedTableInitializer>,
 
     /// WebAssembly passive elements.
-    #[loupe(skip)] // TODO(0-copy): don't skip loupe
     pub passive_elements: BTreeMap<ElemIndex, Box<[FunctionIndex]>>,
 
     /// WebAssembly passive data segments.
-    #[loupe(skip)] // TODO(0-copy): don't skip loupe
     pub passive_data: BTreeMap<DataIndex, Arc<[u8]>>,
 
     /// WebAssembly global initializers.

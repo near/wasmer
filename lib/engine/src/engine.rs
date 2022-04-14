@@ -1,7 +1,5 @@
 //! Engine trait and associated types.
 
-use loupe::MemoryUsage;
-
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
@@ -18,7 +16,7 @@ mod private {
 /// such as: Universal or Native.
 ///
 /// The product that an `Engine` produces and consumes is the [`Artifact`].
-pub trait Engine: MemoryUsage {
+pub trait Engine {
     /// Gets the target
     fn target(&self) -> &Target;
 
@@ -65,7 +63,7 @@ pub trait Engine: MemoryUsage {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, MemoryUsage)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 /// A unique identifier for an Engine.
 pub struct EngineId {

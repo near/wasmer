@@ -5,7 +5,6 @@ use crate::lib::std::string::{String, ToString};
 use crate::lib::std::vec::Vec;
 use crate::units::Pages;
 use crate::values::{Value, WasmValueType};
-use loupe::{MemoryUsage, MemoryUsageTracker};
 #[cfg(feature = "enable-serde")]
 use serde::{Deserialize, Serialize};
 use std::cell::UnsafeCell;
@@ -17,7 +16,7 @@ use std::sync::Arc;
 // Value Types
 
 /// A list of all possible value types in WebAssembly.
-#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash, MemoryUsage)]
+#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
@@ -103,12 +102,6 @@ impl From<&[u8]> for V128 {
     }
 }
 
-impl MemoryUsage for V128 {
-    fn size_of_val(&self, tracker: &mut dyn MemoryUsageTracker) -> usize {
-        self.as_slice().size_of_val(tracker)
-    }
-}
-
 // External Types
 
 /// A list of all possible types which can be externally referenced from a
@@ -168,7 +161,7 @@ impl ExternType {
 /// in a Wasm module or exposed to Wasm by the host.
 ///
 /// WebAssembly functions can have 0 or more parameters and results.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct FunctionType {
@@ -294,7 +287,7 @@ impl<'a> From<&'a ArchivedFunctionType> for FunctionTypeRef<'a> {
 }
 
 /// Indicator of whether a global is mutable or not
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
@@ -316,7 +309,7 @@ impl Mutability {
 }
 
 /// WebAssembly global.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
@@ -361,7 +354,7 @@ impl fmt::Display for GlobalType {
 }
 
 /// Globals are initialized via the `const` operators or by referring to another import.
-#[derive(Debug, Clone, Copy, MemoryUsage, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
@@ -419,7 +412,7 @@ impl GlobalInit {
 /// Tables are contiguous chunks of a specific element, typically a `funcref` or
 /// an `externref`. The most common use for tables is a function table through
 /// which `call_indirect` can invoke other functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct TableType {
@@ -459,7 +452,7 @@ impl fmt::Display for TableType {
 ///
 /// Memories are described in units of pages (64KB) and represent contiguous
 /// chunks of addressable memory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, MemoryUsage)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct MemoryType {
@@ -632,11 +625,10 @@ impl fmt::Display for FastGasCounter {
 }
 
 /// External configuration of execution environment for Instance.
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct InstanceConfig {
     /// External gas counter pointer.
     pub gas_counter: *mut FastGasCounter,
-    #[loupe(skip)]
     default_gas_counter: Option<Rc<UnsafeCell<FastGasCounter>>>,
     /// Stack limit, in 8-byte slots.
     pub stack_limit: i32,

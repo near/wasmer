@@ -3,25 +3,24 @@
 
 use crate::compiler::SinglepassCompiler;
 use crate::emitter_x64::Location;
-use loupe::MemoryUsage;
 use smallvec::SmallVec;
 use std::sync::Arc;
 use wasmer_compiler::{Compiler, CompilerConfig, CpuFeature, ModuleMiddleware, Target};
 use wasmer_types::{Features, FunctionType, Type};
 
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 pub(crate) enum IntrinsicKind {
     Gas,
 }
 
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 pub(crate) struct Intrinsic {
     pub(crate) kind: IntrinsicKind,
     pub(crate) name: String,
     pub(crate) signature: FunctionType,
 }
 
-#[derive(Debug, Clone, MemoryUsage)]
+#[derive(Debug, Clone)]
 pub struct Singlepass {
     pub(crate) enable_nan_canonicalization: bool,
     pub(crate) enable_stack_check: bool,

@@ -2,14 +2,13 @@ use crate::MemoryError;
 use crate::{Memory, Table};
 use crate::{MemoryStyle, TableStyle};
 use crate::{VMMemoryDefinition, VMTableDefinition};
-use loupe::MemoryUsage;
 use std::ptr::NonNull;
 use std::sync::Arc;
 use wasmer_types::{MemoryType, TableType};
 
 /// An engine delegates the creation of memories, tables, and globals
 /// to a foreign implementor of this trait.
-pub trait Tunables: MemoryUsage {
+pub trait Tunables {
     /// Construct a `MemoryStyle` for the provided `MemoryType`
     fn memory_style(&self, memory: &MemoryType) -> MemoryStyle;
 

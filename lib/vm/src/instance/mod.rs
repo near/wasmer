@@ -28,7 +28,6 @@ use crate::vmcontext::{
 };
 use crate::VMFunction;
 use crate::{Artifact, VMOffsets};
-use loupe::{MemoryUsage, MemoryUsageTracker};
 use memoffset::offset_of;
 use more_asserts::assert_lt;
 use std::any::Any;
@@ -59,7 +58,6 @@ pub type ImportInitializerFuncPtr<ResultErr = *mut ffi::c_void> =
 /// contain various data. That's why the type has a C representation
 /// to ensure that the `vmctx` field is last. See the documentation of
 /// the `vmctx` field to learn more.
-#[derive(MemoryUsage)]
 #[repr(C)]
 pub(crate) struct Instance {
     pub(crate) artifact: Arc<dyn Artifact>,
@@ -78,12 +76,10 @@ pub(crate) struct Instance {
 
     /// Passive elements in this instantiation. As `elem.drop`s happen, these
     /// entries get removed.
-    #[loupe(skip)] // TODO(0-copy)
     passive_elements: RefCell<BTreeMap<ElemIndex, Box<[VMFuncRef]>>>,
 
     /// Passive data segments from our module. As `data.drop`s happen, entries
     /// get removed. A missing entry is considered equivalent to an empty slice.
-    #[loupe(skip)] // TODO(0-copy)
     passive_data: RefCell<BTreeMap<DataIndex, Arc<[u8]>>>,
 
     /// Mapping of function indices to their func ref backing data. `VMFuncRef`s
@@ -105,7 +101,6 @@ pub(crate) struct Instance {
     /// field is last, and represents a dynamically-sized array that
     /// extends beyond the nominal end of the struct (similar to a
     /// flexible array member).
-    #[loupe(skip)]
     vmctx: VMContext,
 }
 
@@ -178,12 +173,6 @@ impl Drop for ImportFunctionEnv {
             }
             Self::NoEnv => (),
         }
-    }
-}
-
-impl MemoryUsage for ImportFunctionEnv {
-    fn size_of_val(&self, _: &mut dyn MemoryUsageTracker) -> usize {
-        mem::size_of_val(self)
     }
 }
 
@@ -832,7 +821,7 @@ impl Instance {
 ///
 /// This is more or less a public facade of the private `Instance`,
 /// providing useful higher-level API.
-#[derive(Debug, PartialEq, MemoryUsage)]
+#[derive(Debug, PartialEq)]
 pub struct InstanceHandle {
     /// The [`InstanceRef`]. See its documentation to learn more.
     instance: InstanceRef,

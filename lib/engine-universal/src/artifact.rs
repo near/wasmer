@@ -1,7 +1,6 @@
 //! Define `UniversalArtifact` to allow compiling and instantiating to be
 //! done as separate steps.
 
-use loupe::MemoryUsage;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
@@ -18,7 +17,6 @@ use wasmer_vm::{
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
-#[derive(MemoryUsage)]
 pub struct UniversalArtifact {
     // TODO: figure out how to allocate fewer distinct structures onto heap. Maybe have an arena…?
     pub(crate) engine: crate::UniversalEngine,
@@ -26,24 +24,20 @@ pub struct UniversalArtifact {
     pub(crate) start_function: Option<FunctionIndex>,
     pub(crate) vmoffsets: VMOffsets,
 
-    #[loupe(skip)] // TODO(0-copy): support loupe...
     pub(crate) imports: Vec<VMImport>,
 
     pub(crate) dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
-    #[loupe(skip)] // TODO(0-copy):
     pub(crate) exported_functions: BTreeMap<String, FunctionIndex>,
     pub(crate) signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
 
     pub(crate) local_memories: Vec<(MemoryType, MemoryStyle)>,
     pub(crate) data_segments: Vec<OwnedDataInitializer>,
-    #[loupe(skip)] // TODO(0-copy): loupe skip...
     pub(crate) passive_data: BTreeMap<DataIndex, Arc<[u8]>>,
 
     pub(crate) local_tables: Vec<(TableType, TableStyle)>,
     pub(crate) element_segments: Vec<OwnedTableInitializer>,
-    #[loupe(skip)] // TODO(0-copy): loupe skip...
     // TODO: does this need to be a BTreeMap? Can it be a plain vector?
     pub(crate) passive_elements: BTreeMap<ElemIndex, Box<[FunctionIndex]>>,
 

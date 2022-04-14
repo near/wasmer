@@ -1,5 +1,4 @@
 use crate::{InstanceHandle, Resolver, Tunables, VMLocalFunction, VMSharedSignatureIndex};
-use loupe::MemoryUsage;
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 use wasmer_types::{
     entity::BoxedSlice, ElemIndex, FunctionIndex, GlobalInit, GlobalType, ImportCounts,
@@ -13,7 +12,7 @@ use wasmer_types::{
 ///
 /// Some other operations such as linking, relocating and similar may also be performed during
 /// constructon of the Artifact, making this type particularly well suited for caching in-memory.
-pub trait Artifact: Send + Sync + MemoryUsage {
+pub trait Artifact: Send + Sync {
     /// Crate an `Instance` from this `Artifact`.
     ///
     /// # Safety

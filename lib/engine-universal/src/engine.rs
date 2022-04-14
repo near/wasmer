@@ -2,7 +2,6 @@
 
 use crate::executable::{unrkyv, UniversalExecutableRef};
 use crate::{CodeMemory, UniversalArtifact, UniversalExecutable};
-use loupe::MemoryUsage;
 use rkyv::de::deserializers::SharedDeserializeMap;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -27,7 +26,7 @@ use wasmer_vm::{
 };
 
 /// A WebAssembly `Universal` Engine.
-#[derive(Clone, MemoryUsage)]
+#[derive(Clone)]
 pub struct UniversalEngine {
     inner: Arc<Mutex<UniversalEngineInner>>,
     /// The target for the compiler
@@ -498,7 +497,6 @@ impl Engine for UniversalEngine {
 }
 
 /// The inner contents of `UniversalEngine`
-#[derive(MemoryUsage)]
 pub struct UniversalEngineInner {
     /// The compiler
     #[cfg(feature = "compiler")]

@@ -770,27 +770,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "loupe"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b6a72dfa44fe15b5e76b94307eeb2ff995a8c5b283b55008940c02e0c5b634d"
-dependencies = [
- "indexmap",
- "loupe-derive",
- "rustversion",
-]
-
-[[package]]
-name = "loupe-derive"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0fbfc88337168279f2e9ae06e157cfed4efd3316e14dc96ed074d4f2e6c5952"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "mach"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1762,7 +1741,6 @@ dependencies = [
  "gimli 0.25.0",
  "hashbrown 0.11.2",
  "lazy_static",
- "loupe",
  "more-asserts",
  "rayon",
  "smallvec",
@@ -1783,7 +1761,6 @@ dependencies = [
  "itertools",
  "lazy_static",
  "libc",
- "loupe",
  "object",
  "rayon",
  "regex",
@@ -1802,7 +1779,6 @@ version = "2.2.2"
 dependencies = [
  "enumset",
  "hashbrown 0.11.2",
- "loupe",
  "rkyv",
  "serde",
  "serde_bytes",
@@ -1823,7 +1799,6 @@ dependencies = [
  "dynasmrt",
  "hashbrown 0.11.2",
  "lazy_static",
- "loupe",
  "memoffset",
  "more-asserts",
  "rayon",
@@ -1853,7 +1828,6 @@ dependencies = [
  "backtrace",
  "enumset",
  "lazy_static",
- "loupe",
  "memmap2",
  "more-asserts",
  "rustc-demangle",
@@ -1873,7 +1847,6 @@ dependencies = [
  "cfg-if",
  "enumset",
  "leb128",
- "loupe",
  "region",
  "rkyv",
  "thiserror",
@@ -1895,7 +1868,6 @@ dependencies = [
  "anyhow",
  "cfg-if",
  "indexmap",
- "loupe",
  "more-asserts",
  "target-lexicon",
  "tempfile",
@@ -1918,7 +1890,6 @@ name = "wasmer-types-near"
 version = "2.2.2"
 dependencies = [
  "indexmap",
- "loupe",
  "rkyv",
  "serde",
  "thiserror",
@@ -1933,7 +1904,6 @@ dependencies = [
  "cfg-if",
  "indexmap",
  "libc",
- "loupe",
  "memoffset",
  "more-asserts",
  "region",
@@ -1967,7 +1937,6 @@ dependencies = [
  "criterion",
  "glob",
  "lazy_static",
- "loupe",
  "rustc_version",
  "serial_test",
  "tempfile",

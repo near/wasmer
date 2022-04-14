@@ -43,7 +43,6 @@ use crate::table::{RawTableElement, TableElement};
 use crate::trap::{raise_lib_trap, Trap, TrapCode};
 use crate::vmcontext::VMContext;
 use crate::VMExternRef;
-use loupe::MemoryUsage;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -692,7 +691,6 @@ pub static wasmer_vm_probestack: unsafe extern "C" fn() = PROBESTACK;
     Hash,
     Serialize,
     Deserialize,
-    MemoryUsage,
 )]
 pub enum LibCall {
     /// ceil.f32

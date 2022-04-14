@@ -7,7 +7,6 @@
 
 use crate::mmap::Mmap;
 use crate::vmcontext::VMMemoryDefinition;
-use loupe::MemoryUsage;
 use more_asserts::assert_ge;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
@@ -71,7 +70,6 @@ pub enum MemoryError {
     Hash,
     Serialize,
     Deserialize,
-    MemoryUsage,
     RkyvSerialize,
     RkyvDeserialize,
     Archive,
@@ -110,7 +108,7 @@ impl MemoryStyle {
 }
 
 /// Trait for implementing Wasm Memory used by Wasmer.
-pub trait Memory: fmt::Debug + Send + Sync + MemoryUsage {
+pub trait Memory: fmt::Debug + Send + Sync {
     /// Returns the memory type for this memory.
     fn ty(&self) -> MemoryType;
 
@@ -130,7 +128,7 @@ pub trait Memory: fmt::Debug + Send + Sync + MemoryUsage {
 }
 
 /// A linear memory instance.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 pub struct LinearMemory {
     // The underlying allocation.
     mmap: Mutex<WasmMmap>,
@@ -154,7 +152,7 @@ pub struct LinearMemory {
 
 /// A type to help manage who is responsible for the backing memory of them
 /// `VMMemoryDefinition`.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 enum VMMemoryDefinitionOwnership {
     /// The `VMMemoryDefinition` is owned by the `Instance` and we should use
     /// its memory. This is how a local memory that's exported should be stored.
@@ -177,7 +175,7 @@ unsafe impl Send for LinearMemory {}
 /// This is correct because all internal mutability is protected by a mutex.
 unsafe impl Sync for LinearMemory {}
 
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 struct WasmMmap {
     // Our OS allocation of mmap'd memory.
     alloc: Mmap,

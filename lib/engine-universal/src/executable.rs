@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use enumset::EnumSet;
-use loupe::MemoryUsage;
 use rkyv::de::deserializers::SharedDeserializeMap;
 use rkyv::ser::serializers::{
     AllocScratchError, AllocSerializer, CompositeSerializerError, SharedSerializeMapError,
@@ -95,7 +94,7 @@ impl<'a> UniversalExecutableRef<'a> {
 ///
 /// This is the result obtained after validating and compiling a WASM module with any of the
 /// supported compilers. This type falls in-between a module and [`Artifact`](crate::Artifact).
-#[derive(MemoryUsage, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
+#[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
 pub struct UniversalExecutable {
     pub(crate) function_bodies: PrimaryMap<LocalFunctionIndex, FunctionBody>,
     pub(crate) function_relocations: PrimaryMap<LocalFunctionIndex, Vec<Relocation>>,

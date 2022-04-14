@@ -4,7 +4,6 @@
 //! Implement a registry of function signatures, for fast indirect call
 //! signature checking.
 
-use loupe::MemoryUsage;
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
 use wasmer_types::{FunctionType, FunctionTypeRef};
@@ -12,7 +11,7 @@ use wasmer_types::{FunctionType, FunctionTypeRef};
 /// An index into the shared signature registry, usable for checking signatures
 /// at indirect calls.
 #[repr(C)]
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, MemoryUsage)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct VMSharedSignatureIndex(u32);
 
 impl VMSharedSignatureIndex {
@@ -26,10 +25,9 @@ impl VMSharedSignatureIndex {
 /// call must match. To implement this efficiently, keep a registry of all
 /// signatures, shared by all instances, so that call sites can just do an
 /// index comparison.
-#[derive(Debug, MemoryUsage)]
+#[derive(Debug)]
 pub struct SignatureRegistry {
     type_to_index: HashMap<FunctionType, VMSharedSignatureIndex>,
-    #[loupe(skip)] // TODO(0-copy):
     index_to_data: Vec<FunctionType>,
 }
 
