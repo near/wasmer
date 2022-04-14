@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use wasmer_types::InstanceConfig;
-use wasmer_vm::{ExportFunction, InstanceHandle, Resolver, VMContext};
+use wasmer_vm::{InstanceHandle, Resolver, VMContext};
 
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
@@ -174,16 +174,19 @@ impl Instance {
         self.module.store()
     }
 
+    /// Lookup an exported entity by its name.
+    pub fn lookup(&self, field: &str) -> Option<crate::Export> {
+        let vmextern = self.handle.lock().unwrap().lookup(field)?;
+        Some(vmextern.into())
+    }
+
     /// Lookup an exported function by its name.
     pub fn lookup_function(&self, field: &str) -> Option<crate::Function> {
-        let vm_function = self.handle.lock().unwrap().lookup_function(field)?;
-        Some(crate::Function::from_vm_export(
-            self.store(),
-            ExportFunction {
-                vm_function,
-                metadata: None,
-            },
-        ))
+        if let crate::Export::Function(f) = self.lookup(field)? {
+            Some(crate::Function::from_vm_export(self.store(), f))
+        } else {
+            None
+        }
     }
 
     /// Get an export as a `NativeFunc`.
@@ -195,10 +198,13 @@ impl Instance {
         Args: WasmTypeList,
         Rets: WasmTypeList,
     {
-        self.lookup_function(name)
-            .ok_or_else(|| ExportError::Missing("not found".into()))?
-            .native()
-            .map_err(|_| ExportError::IncompatibleType)
+        match self.lookup(name) {
+            Some(crate::Export::Function(f)) => crate::Function::from_vm_export(self.store(), f)
+                .native()
+                .map_err(|_| ExportError::IncompatibleType),
+            Some(_) => Err(ExportError::IncompatibleType),
+            None => Err(ExportError::Missing("not found".into())),
+        }
     }
 
     #[doc(hidden)]

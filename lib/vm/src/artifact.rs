@@ -54,7 +54,7 @@ pub trait Artifact: Send + Sync {
     fn start_function(&self) -> Option<FunctionIndex>;
 
     /// Function by export name.
-    fn function_by_export_field(&self, name: &str) -> Option<FunctionIndex>;
+    fn export_field(&self, name: &str) -> Option<wasmer_types::ExportIndex>;
 
     /// Mapping between module SignatureIndex and VMSharedSignatureIndex.
     fn signatures(&self) -> &[VMSharedSignatureIndex];

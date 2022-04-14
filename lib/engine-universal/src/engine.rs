@@ -253,14 +253,11 @@ impl UniversalEngine {
                 ))?;
             }
         }
-        let exported_functions = module
+        let exports = module
             .exports
             .iter()
-            .filter_map(|(s, v)| match v {
-                ExportIndex::Function(f) => Some((s.clone(), *f)),
-                _ => None,
-            })
-            .collect();
+            .map(|(s, i)| (s.clone(), i.clone()))
+            .collect::<BTreeMap<String, ExportIndex>>();
 
         Ok(UniversalArtifact {
             engine: self.clone(),
@@ -271,7 +268,7 @@ impl UniversalEngine {
             dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
             frame_info_registration: Mutex::new(None),
             functions: functions.into_boxed_slice(),
-            exported_functions,
+            exports,
             signatures,
             local_memories,
             data_segments: executable.data_initializers.clone(),
@@ -401,15 +398,11 @@ impl UniversalEngine {
                 ))?;
             }
         }
-        let exported_functions = module
+        let exports = module
             .exports
             .iter()
-            .filter_map(|(s, v)| match v {
-                ExportIndex::Function(f) => Some((unrkyv(s), *f)),
-                _ => None,
-            })
-            .collect();
-
+            .map(|(s, i)| (unrkyv(s), unrkyv(i)))
+            .collect::<BTreeMap<String, ExportIndex>>();
         Ok(UniversalArtifact {
             engine: self.clone(),
             import_counts,
@@ -419,7 +412,7 @@ impl UniversalEngine {
             dynamic_function_trampolines: dynamic_trampolines.into_boxed_slice(),
             frame_info_registration: Mutex::new(None),
             functions: functions.into_boxed_slice(),
-            exported_functions,
+            exports,
             signatures,
             local_memories,
             data_segments,

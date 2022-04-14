@@ -26,8 +26,8 @@ use crate::vmcontext::{
     VMFunctionEnvironment, VMFunctionImport, VMFunctionKind, VMGlobalDefinition, VMGlobalImport,
     VMLocalFunction, VMMemoryDefinition, VMMemoryImport, VMTableDefinition, VMTableImport,
 };
-use crate::VMFunction;
 use crate::{Artifact, VMOffsets};
+use crate::{VMExtern, VMFunction, VMGlobal};
 use memoffset::offset_of;
 use more_asserts::assert_lt;
 use std::any::Any;
@@ -42,8 +42,8 @@ use std::slice;
 use std::sync::Arc;
 use wasmer_types::entity::{packed_option::ReservedValue, BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
-    DataIndex, DataInitializer, ElemIndex, FastGasCounter, FunctionIndex, GlobalIndex, GlobalInit,
-    InstanceConfig, LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex,
+    DataIndex, DataInitializer, ElemIndex, ExportIndex, FastGasCounter, FunctionIndex, GlobalIndex,
+    GlobalInit, InstanceConfig, LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex,
     OwnedTableInitializer, Pages, TableIndex,
 };
 
@@ -68,7 +68,7 @@ pub(crate) struct Instance {
     /// WebAssembly linear memory data.
     memories: BoxedSlice<LocalMemoryIndex, Arc<dyn Memory>>,
 
-    /// WebAssembly table data.
+    /// Table data...
     tables: BoxedSlice<LocalTableIndex, Arc<dyn Table>>,
 
     /// WebAssembly global data.
@@ -272,10 +272,10 @@ impl Instance {
     }
 
     /// Return the indexed `VMMemoryDefinition`.
-    fn memory(&self, index: MemoryIndex) -> &VMMemoryDefinition {
+    fn memory_definition(&self, index: MemoryIndex) -> &VMMemoryDefinition {
         match self.artifact.import_counts().local_memory_index(index) {
             Ok(local) => unsafe { self.memory_ptr(local).as_ref() },
-            Err(import) => unsafe { self.imported_memory(import).definition.as_ref() },
+            Err(import) => unsafe { &self.imported_memory(import).from.vmmemory().as_ref() },
         }
     }
 
@@ -457,8 +457,7 @@ impl Instance {
         IntoPages: Into<Pages>,
     {
         let import = self.imported_memory(memory_index);
-        let from = import.from.as_ref();
-        from.grow(delta.into())
+        import.from.grow(delta.into())
     }
 
     /// Returns the number of allocated wasm pages.
@@ -475,17 +474,12 @@ impl Instance {
     /// This and `imported_memory_grow` are currently unsafe because they
     /// dereference the memory import's pointers.
     pub(crate) unsafe fn imported_memory_size(&self, memory_index: MemoryIndex) -> Pages {
-        let import = self.imported_memory(memory_index);
-        let from = import.from.as_ref();
-        from.size()
+        self.imported_memory(memory_index).from.size()
     }
 
     /// Returns the number of elements in a given table.
     pub(crate) fn table_size(&self, table_index: LocalTableIndex) -> u32 {
-        self.tables
-            .get(table_index)
-            .unwrap_or_else(|| panic!("no table for index {}", table_index.index()))
-            .size()
+        self.tables[table_index].size()
     }
 
     /// Returns the number of elements in a given imported table.
@@ -493,9 +487,7 @@ impl Instance {
     /// # Safety
     /// `table_index` must be a valid, imported table index.
     pub(crate) unsafe fn imported_table_size(&self, table_index: TableIndex) -> u32 {
-        let import = self.imported_table(table_index);
-        let from = import.from.as_ref();
-        from.size()
+        self.imported_table(table_index).from.size()
     }
 
     /// Grow table by the specified amount of elements.
@@ -528,8 +520,7 @@ impl Instance {
         init_value: TableElement,
     ) -> Option<u32> {
         let import = self.imported_table(table_index);
-        let from = import.from.as_ref();
-        from.grow(delta, init_value)
+        import.from.grow(delta, init_value)
     }
 
     /// Get table element by index.
@@ -554,8 +545,7 @@ impl Instance {
         index: u32,
     ) -> Option<TableElement> {
         let import = self.imported_table(table_index);
-        let from = import.from.as_ref();
-        from.get(index)
+        import.from.get(index)
     }
 
     /// Set table element by index.
@@ -582,8 +572,7 @@ impl Instance {
         val: TableElement,
     ) -> Result<(), Trap> {
         let import = self.imported_table(table_index);
-        let from = import.from.as_ref();
-        from.set(index, val)
+        import.from.set(index, val)
     }
 
     pub(crate) fn func_ref(&self, function_index: FunctionIndex) -> Option<VMFuncRef> {
@@ -709,9 +698,8 @@ impl Instance {
         len: u32,
     ) -> Result<(), Trap> {
         let import = self.imported_memory(memory_index);
-        let memory = unsafe { import.definition.as_ref() };
         // The following memory copy is not synchronized and is not atomic:
-        unsafe { memory.memory_copy(dst, src, len) }
+        unsafe { import.from.vmmemory().as_ref().memory_copy(dst, src, len) }
     }
 
     /// Perform the `memory.fill` operation on a locally defined memory.
@@ -744,9 +732,8 @@ impl Instance {
         len: u32,
     ) -> Result<(), Trap> {
         let import = self.imported_memory(memory_index);
-        let memory = unsafe { import.definition.as_ref() };
         // The following memory fill is not synchronized and is not atomic:
-        unsafe { memory.memory_fill(dst, val, len) }
+        unsafe { import.from.vmmemory().as_ref().memory_fill(dst, val, len) }
     }
 
     /// Performs the `memory.init` operation.
@@ -766,7 +753,7 @@ impl Instance {
     ) -> Result<(), Trap> {
         // https://webassembly.github.io/bulk-memory-operations/core/exec/instructions.html#exec-memory-init
 
-        let memory = self.memory(memory_index);
+        let memory = self.memory_definition(memory_index);
         let passive_data = self.passive_data.borrow();
         let data = passive_data.get(&data_index).map_or(&[][..], |d| &**d);
 
@@ -1042,11 +1029,54 @@ impl InstanceHandle {
         })
     }
 
-    /// Lookup an exported function with the given name.
-    pub fn lookup_function(&self, field: &str) -> Option<VMFunction> {
+    /// Return the indexed `VMMemoryDefinition`.
+    fn memory_by_index(&self, index: MemoryIndex) -> Option<crate::VMMemory> {
         let instance = self.instance.as_ref();
-        let idx = instance.artifact.function_by_export_field(field)?;
-        self.function_by_index(idx)
+        let from = match instance.artifact.import_counts().local_memory_index(index) {
+            Ok(local) => Arc::clone(&instance.memories[local]),
+            Err(import) => Arc::clone(&instance.imported_memory(import).from),
+        };
+        Some(crate::VMMemory {
+            from,
+            instance_ref: Some(WeakOrStrongInstanceRef::Strong(self.instance().clone())),
+        })
+    }
+
+    /// Return the indexed `VMMemoryDefinition`.
+    fn table_by_index(&self, index: TableIndex) -> Option<crate::VMTable> {
+        let instance = self.instance.as_ref();
+        let from = match instance.artifact.import_counts().local_table_index(index) {
+            Ok(local) => Arc::clone(&instance.tables[local]),
+            Err(import) => Arc::clone(&instance.imported_table(import).from),
+        };
+        Some(crate::VMTable {
+            from,
+            instance_ref: Some(WeakOrStrongInstanceRef::Strong(self.instance().clone())),
+        })
+    }
+
+    /// Obtain a reference to a global entity by its index.
+    pub fn global_by_index(&self, index: GlobalIndex) -> Option<VMGlobal> {
+        let instance = self.instance.as_ref();
+        let from = match instance.artifact.import_counts().local_global_index(index) {
+            Ok(local) => Arc::clone(&instance.globals[local]),
+            Err(import) => Arc::clone(&instance.imported_global(import).from),
+        };
+        Some(crate::VMGlobal {
+            from,
+            instance_ref: Some(WeakOrStrongInstanceRef::Strong(self.instance().clone())),
+        })
+    }
+
+    /// Lookup an exported function with the given name.
+    pub fn lookup(&self, field: &str) -> Option<VMExtern> {
+        let instance = self.instance.as_ref();
+        Some(match instance.artifact.export_field(field)? {
+            ExportIndex::Function(idx) => VMExtern::Function(self.function_by_index(idx)?),
+            ExportIndex::Table(idx) => VMExtern::Table(self.table_by_index(idx)?),
+            ExportIndex::Global(idx) => VMExtern::Global(self.global_by_index(idx)?),
+            ExportIndex::Memory(idx) => VMExtern::Memory(self.memory_by_index(idx)?),
+        })
     }
 
     /// Return a reference to the custom state attached to this instance.
@@ -1170,7 +1200,7 @@ unsafe fn get_memory_slice<'instance>(
     init: &DataInitializer<'_>,
     instance: &'instance Instance,
 ) -> &'instance mut [u8] {
-    let memory = instance.memory(init.location.memory_index);
+    let memory = instance.memory_definition(init.location.memory_index);
     slice::from_raw_parts_mut(memory.base, memory.current_length)
 }
 
@@ -1245,7 +1275,7 @@ fn initialize_memories<'a>(
     data_initializers: impl Iterator<Item = DataInitializer<'a>>,
 ) -> Result<(), Trap> {
     for init in data_initializers {
-        let memory = instance.memory(init.location.memory_index);
+        let memory = instance.memory_definition(init.location.memory_index);
 
         let start = get_memory_init_start(&init, instance);
         if start

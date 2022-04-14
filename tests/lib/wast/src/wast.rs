@@ -100,7 +100,16 @@ impl Wast {
                 let result = self.instantiate(&binary);
                 result.map(|_| Vec::new())
             }
-            wast::WastExecute::Get { .. } => unimplemented!(),
+            wast::WastExecute::Get { module, global } => {
+                let instance_name = module.map(|i| i.name());
+                let instance = self.get_instance(instance_name.as_deref())?;
+                let global = if let Some(Export::Global(global)) = instance.lookup(global) {
+                    global
+                } else {
+                    bail!("could not find the global: {}", global)
+                };
+                Ok(vec![global.from.get(&self.store)])
+            }
         }
     }
 
@@ -502,12 +511,12 @@ impl Wast {
 impl NamedResolver for Wast {
     fn resolve_by_name(&self, module: &str, field: &str) -> Option<Export> {
         let imports = self.import_object.clone();
+
         if imports.contains_namespace(module) {
             imports.resolve_by_name(module, field)
         } else {
             let instance = self.instances.get(module)?;
-            let function = instance.lookup_function(field)?;
-            Some(function.to_export())
+            instance.lookup(field)
         }
     }
 }

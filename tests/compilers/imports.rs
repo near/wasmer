@@ -323,20 +323,29 @@ fn dynamic_function_with_env_wasmer_env_init_works(config: crate::Config) -> Res
     #[allow(dead_code)]
     #[derive(WasmerEnv, Clone)]
     struct Env {
-        memory: LazyInit<Memory>,
+        memory: Memory,
     }
-
     let env: Env = Env {
-        memory: LazyInit::default(),
+        memory: Memory::new(
+            &store,
+            MemoryType {
+                minimum: 0.into(),
+                maximum: None,
+                shared: false,
+            },
+        )?,
     };
+    let function_fn = Function::new_with_env(
+        &store,
+        FunctionType::new(vec![], vec![]),
+        env.clone(),
+        |env, _values| Ok(vec![]),
+    );
     let instance = Instance::new(
         &module,
         &imports! {
             "host" => {
-                "fn" => Function::new_with_env(&store, FunctionType::new(vec![], vec![]), env.clone(), |env, _values| {
-                    assert!(env.memory.get_ref().is_some());
-                    Ok(vec![])
-                }),
+                "fn" => function_fn,
             },
         },
     )?;

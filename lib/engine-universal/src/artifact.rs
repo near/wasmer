@@ -23,24 +23,19 @@ pub struct UniversalArtifact {
     pub(crate) import_counts: ImportCounts,
     pub(crate) start_function: Option<FunctionIndex>,
     pub(crate) vmoffsets: VMOffsets,
-
     pub(crate) imports: Vec<VMImport>,
-
     pub(crate) dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
     pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
-    pub(crate) exported_functions: BTreeMap<String, FunctionIndex>,
+    pub(crate) exports: BTreeMap<String, wasmer_types::ExportIndex>,
     pub(crate) signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
-
     pub(crate) local_memories: Vec<(MemoryType, MemoryStyle)>,
     pub(crate) data_segments: Vec<OwnedDataInitializer>,
     pub(crate) passive_data: BTreeMap<DataIndex, Arc<[u8]>>,
-
     pub(crate) local_tables: Vec<(TableType, TableStyle)>,
     pub(crate) element_segments: Vec<OwnedTableInitializer>,
     // TODO: does this need to be a BTreeMap? Can it be a plain vector?
     pub(crate) passive_elements: BTreeMap<ElemIndex, Box<[FunctionIndex]>>,
-
     pub(crate) local_globals: Vec<(GlobalType, GlobalInit)>,
 }
 
@@ -168,8 +163,8 @@ impl Artifact for UniversalArtifact {
         self.start_function
     }
 
-    fn function_by_export_field(&self, name: &str) -> Option<FunctionIndex> {
-        self.exported_functions.get(name).copied()
+    fn export_field(&self, name: &str) -> Option<wasmer_types::ExportIndex> {
+        self.exports.get(name).cloned()
     }
 
     fn signatures(&self) -> &[wasmer_vm::VMSharedSignatureIndex] {
