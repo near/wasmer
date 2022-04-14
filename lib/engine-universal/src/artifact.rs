@@ -3,8 +3,8 @@
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
-use std::sync::{Arc, Mutex};
-use wasmer_engine::{GlobalFrameInfoRegistration, InstantiationError, RuntimeError};
+use std::sync::Arc;
+use wasmer_engine::{InstantiationError, RuntimeError};
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
     DataIndex, ElemIndex, FunctionIndex, GlobalInit, GlobalType, ImportCounts, LocalFunctionIndex,
@@ -25,7 +25,6 @@ pub struct UniversalArtifact {
     pub(crate) vmoffsets: VMOffsets,
     pub(crate) imports: Vec<VMImport>,
     pub(crate) dynamic_function_trampolines: BoxedSlice<FunctionIndex, FunctionBodyPtr>,
-    pub(crate) frame_info_registration: Mutex<Option<GlobalFrameInfoRegistration>>,
     pub(crate) functions: BoxedSlice<LocalFunctionIndex, VMLocalFunction>,
     pub(crate) exports: BTreeMap<String, wasmer_types::ExportIndex>,
     pub(crate) signatures: BoxedSlice<SignatureIndex, VMSharedSignatureIndex>,
