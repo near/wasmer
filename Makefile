@@ -344,16 +344,6 @@ endif
 #
 #####
 
-# Not really "all", just the default target that builds enough so make
-# install will go through.
-all: build-wasmer
-
-build-wasmer:
-	cargo build --release --manifest-path lib/cli/Cargo.toml $(compiler_features) --bin wasmer
-
-build-wasmer-debug:
-	cargo build --manifest-path lib/cli/Cargo.toml $(compiler_features) --features "debug"  --bin wasmer
-
 bench:
 	cargo bench $(compiler_features)
 
@@ -369,9 +359,6 @@ bench:
 # incremental = false
 # codegen-units = 1
 # rpath = false
-build-wasmer-headless-minimal: RUSTFLAGS += -C panic=abort
-build-wasmer-headless-minimal:
-	RUSTFLAGS="${RUSTFLAGS}" xargo build --target $(HOST_TARGET) --release --manifest-path=lib/cli/Cargo.toml --no-default-features --features headless-minimal --bin wasmer-headless
 ifeq ($(IS_DARWIN), 1)
 	strip -u target/$(HOST_TARGET)/release/wasmer-headless
 else ifeq ($(IS_WINDOWS), 1)
@@ -379,21 +366,6 @@ else ifeq ($(IS_WINDOWS), 1)
 else
 	strip --strip-unneeded target/$(HOST_TARGET)/release/wasmer-headless
 endif
-
-WAPM_VERSION = v0.5.1
-get-wapm:
-	[ -d "wapm-cli" ] || git clone --branch $(WAPM_VERSION) https://github.com/wasmerio/wapm-cli.git
-
-build-wapm: get-wapm
-ifeq ($(IS_DARWIN), 1)
-	# We build it without bundling sqlite, as is included by default in macos
-	cargo build --release --manifest-path wapm-cli/Cargo.toml --no-default-features --features "packagesigning telemetry update-notifications"
-else
-	cargo build --release --manifest-path wapm-cli/Cargo.toml --features "telemetry update-notifications"
-endif
-
-build-docs:
-	cargo doc --release $(compiler_features) --document-private-items --no-deps --workspace --exclude wasmer-c-api
 
 #####
 #
@@ -459,52 +431,11 @@ test-integration-ios:
 #
 #####
 
-package-wapm:
-	mkdir -p "package/bin"
-ifneq (, $(filter 1, $(IS_DARWIN) $(IS_LINUX)))
-	if [ -d "wapm-cli" ]; then \
-		cp wapm-cli/$(TARGET_DIR)/wapm package/bin/ ;\
-		echo -e "#!/bin/bash\nwapm execute \"\$$@\"" > package/bin/wax ;\
-		chmod +x package/bin/wax ;\
-	fi
-else
-	if [ -d "wapm-cli" ]; then \
-		cp wapm-cli/$(TARGET_DIR)/wapm package/bin/ ;\
-	fi
-ifeq ($(IS_DARWIN), 1)
-	codesign -s - package/bin/wapm || true
-endif
-endif
-
-package-minimal-headless-wasmer:
-ifeq ($(IS_WINDOWS), 1)
-	if [ -f "target/$(HOST_TARGET)/release/wasmer-headless.exe" ]; then \
-		cp target/$(HOST_TARGET)/release/wasmer-headless.exe package/bin ;\
-	fi
-else
-	if [ -f "target/$(HOST_TARGET)/release/wasmer-headless" ]; then \
-		cp target/$(HOST_TARGET)/release/wasmer-headless package/bin ;\
-	fi
-endif
-
-package-wasmer:
-	mkdir -p "package/bin"
-ifeq ($(IS_WINDOWS), 1)
-	cp $(TARGET_DIR)/wasmer.exe package/bin/
-else
-	cp $(TARGET_DIR)/wasmer package/bin/
-ifeq ($(IS_DARWIN), 1)
-	codesign -s - package/bin/wasmer || true
-endif
-endif
-
 package-docs: build-docs
 	mkdir -p "package/docs/crates"
 	cp -R target/doc/ package/docs/crates
 	echo '<meta http-equiv="refresh" content="0; url=crates/wasmer/index.html">' > package/docs/index.html
 	echo '<meta http-equiv="refresh" content="0; url=wasmer/index.html">' > package/docs/crates/index.html
-
-package: package-wapm package-wasmer package-minimal-headless-wasmer
 
 distribution: package
 	cp LICENSE package/LICENSE
@@ -558,7 +489,6 @@ update-testsuite:
 lint-packages: RUSTFLAGS += -D dead-code -D nonstandard-style -D unused-imports -D unused-mut -D unused-variables -D unused-unsafe -D unreachable-patterns -D bad-style -D improper-ctypes -D unused-allocation -D unused-comparisons -D while-true -D unconditional-recursion -D bare-trait-objects # TODO: add `-D missing-docs` # TODO: add `-D function_item_references` (not available on Rust 1.47, try when upgrading)
 lint-packages:
 	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --all $(exclude_tests)
-	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --manifest-path lib/cli/Cargo.toml $(compiler_features)
 	RUSTFLAGS="${RUSTFLAGS}" cargo clippy --manifest-path fuzz/Cargo.toml $(compiler_features)
 
 lint-formatting:
