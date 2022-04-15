@@ -39,7 +39,7 @@
 //! written with its WAT format (textual format):
 //!
 //! ```rust
-//! use wasmer::{Store, Module, Instance, Value, imports};
+//! use wasmer::{Store, Module, Instance, Value, Export, imports};
 //!
 //! fn main() -> anyhow::Result<()> {
 //!     let module_wat = r#"
@@ -57,7 +57,7 @@
 //!     let import_object = imports! {};
 //!     let instance = Instance::new(&module, &import_object)?;
 //!
-//!     let add_one = instance.exports.get_function("add_one")?;
+//!     let add_one = instance.lookup_function("add_one").unwrap();
 //!     let result = add_one.call(&[Value::I32(42)])?;
 //!     assert_eq!(result[0], Value::I32(43));
 //!
@@ -172,9 +172,9 @@
 //! ```
 //! # use wasmer::{imports, Instance, Function, Memory, NativeFunc};
 //! # fn exports_example(instance: &Instance) -> anyhow::Result<()> {
-//! let memory = instance.exports.get_memory("memory")?;
-//! let memory: &Memory = instance.exports.get("some_other_memory")?;
-//! let add: NativeFunc<(i32, i32), i32> = instance.exports.get_native_function("add")?;
+//! let memory = instance.lookup("memory").unwrap();
+//! let memory = instance.lookup("some_other_memory").unwrap();
+//! let add: NativeFunc<(i32, i32), i32> = instance.get_native_function("add").unwrap();
 //! let result = add.call(5, 37)?;
 //! assert_eq!(result, 42);
 //! # Ok(())

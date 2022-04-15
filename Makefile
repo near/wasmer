@@ -382,7 +382,6 @@ test-packages:
 	cargo test --all --release $(exclude_tests)
 	cargo test --manifest-path lib/compiler-cranelift/Cargo.toml --release --no-default-features --features=std
 	cargo test --manifest-path lib/compiler-singlepass/Cargo.toml --release --no-default-features --features=std
-	cargo test --manifest-path lib/cli/Cargo.toml $(compiler_features) --release
 
 #####
 #

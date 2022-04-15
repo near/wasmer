@@ -285,7 +285,7 @@ impl<'a> Exportable<'a> for Memory {
         self.vm_memory.clone().into()
     }
 
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
         match _extern {
             Extern::Memory(memory) => Ok(memory),
             _ => Err(ExportError::IncompatibleType),

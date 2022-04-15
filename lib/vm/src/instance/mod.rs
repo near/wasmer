@@ -1147,19 +1147,23 @@ impl InstanceHandle {
     pub fn get_local_table(&self, index: LocalTableIndex) -> &dyn Table {
         self.instance().as_ref().get_local_table(index)
     }
+}
 
-    /// Initializes the host environments.
-    ///
-    /// # Safety
-    /// - This function must be called with the correct `Err` type parameter: the error type is not
-    ///   visible to code in `wasmer_vm`, so it's the caller's responsibility to ensure these
-    ///   functions are called with the correct type.
-    /// - `instance_ptr` must point to a valid `wasmer::Instance`.
-    pub unsafe fn initialize_host_envs<Err: Sized>(
-        &mut self,
-        instance_ptr: *const ffi::c_void,
-    ) -> Result<(), Err> {
-        let instance_ref = self.instance.as_mut_unchecked();
+/// Initializes the host environments.
+///
+/// # Safety
+/// - This function must be called with the correct `Err` type parameter: the error type is not
+///   visible to code in `wasmer_vm`, so it's the caller's responsibility to ensure these
+///   functions are called with the correct type.
+/// - `instance_ptr` must point to a valid `wasmer::Instance`.
+pub unsafe fn initialize_host_envs<Err: Sized>(
+    handle: &std::sync::Mutex<InstanceHandle>,
+    instance_ptr: *const ffi::c_void,
+) -> Result<(), Err> {
+    let initializers = {
+        let mut instance_lock = handle.lock().unwrap();
+        let instance_ref = instance_lock.instance.as_mut_unchecked();
+        let mut initializers = vec![];
         for import_function_env in instance_ref.imported_function_envs.values_mut() {
             match import_function_env {
                 ImportFunctionEnv::Env {
@@ -1167,21 +1171,20 @@ impl InstanceHandle {
                     ref mut initializer,
                     ..
                 } => {
-                    if let Some(f) = initializer {
-                        // transmute our function pointer into one with the correct error type
-                        let f = mem::transmute::<
-                            &ImportInitializerFuncPtr,
-                            &ImportInitializerFuncPtr<Err>,
-                        >(f);
-                        f(*env, instance_ptr)?;
+                    if let Some(init) = initializer.take() {
+                        initializers.push((init, *env));
                     }
-                    *initializer = None;
                 }
                 ImportFunctionEnv::NoEnv => (),
             }
         }
-        Ok(())
+        initializers
+    };
+    for (init, env) in initializers {
+        let f = mem::transmute::<&ImportInitializerFuncPtr, &ImportInitializerFuncPtr<Err>>(&init);
+        f(env, instance_ptr)?;
     }
+    Ok(())
 }
 
 /// Compute the offset for a memory data initializer.

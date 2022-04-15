@@ -8,6 +8,8 @@ use thiserror::Error;
 use wasmer_types::InstanceConfig;
 use wasmer_vm::{InstanceHandle, Resolver, VMContext};
 
+use super::exports::ExportableWithGenerics;
+
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
 ///
@@ -154,11 +156,10 @@ impl Instance {
         // correct error type returned by `WasmerEnv::init_with_instance` as a generic
         // parameter.
         unsafe {
-            instance
-                .handle
-                .lock()
-                .unwrap()
-                .initialize_host_envs::<HostEnvInitError>(&instance as *const _ as *const _)?;
+            wasmer_vm::initialize_host_envs::<HostEnvInitError>(
+                &*instance.handle,
+                &instance as *const _ as *const _,
+            )?;
         }
 
         Ok(instance)
@@ -205,6 +206,33 @@ impl Instance {
             Some(_) => Err(ExportError::IncompatibleType),
             None => Err(ExportError::Missing("not found".into())),
         }
+    }
+
+    /// Hack to get this working with nativefunc too
+    pub fn get_with_generics<'a, T, Args, Rets>(&'a self, name: &str) -> Result<T, ExportError>
+    where
+        Args: WasmTypeList,
+        Rets: WasmTypeList,
+        T: ExportableWithGenerics<'a, Args, Rets>,
+    {
+        let export = self
+            .lookup(name)
+            .ok_or_else(|| ExportError::Missing(name.to_string()))?;
+        let ext = crate::Extern::from_vm_export(self.store(), export);
+        T::get_self_from_extern_with_generics(ext)
+    }
+
+    /// Like `get_with_generics` but with a WeakReference to the `InstanceRef` internally.
+    /// This is useful for passing data into `WasmerEnv`, for example.
+    pub fn get_with_generics_weak<'a, T, Args, Rets>(&'a self, name: &str) -> Result<T, ExportError>
+    where
+        Args: WasmTypeList,
+        Rets: WasmTypeList,
+        T: ExportableWithGenerics<'a, Args, Rets>,
+    {
+        let mut out: T = self.get_with_generics(name)?;
+        out.into_weak_instance_ref();
+        Ok(out)
     }
 
     #[doc(hidden)]

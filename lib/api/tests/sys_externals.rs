@@ -397,7 +397,7 @@ mod sys {
         let f = {
             let module = Module::new(&store, wat)?;
             let instance = Instance::new(&module, &imports! {})?;
-            let f: NativeFunc<(i32, i32), i32> = instance.exports.get_native_function("sum")?;
+            let f: NativeFunc<(i32, i32), i32> = instance.get_native_function("sum").unwrap();
 
             assert_eq!(f.call(4, 5)?, 9);
             f
@@ -424,8 +424,7 @@ mod sys {
         let f = {
             let module = Module::new(&store, wat)?;
             let instance = Instance::new(&module, &imports! {})?;
-            let f: NativeFunc<(i32, i32), i32> = instance.exports.get_with_generics_weak("sum")?;
-
+            let f: NativeFunc<(i32, i32), i32> = instance.get_native_function("sum").unwrap();
             assert_eq!(f.call(4, 5)?, 9);
             f
         };

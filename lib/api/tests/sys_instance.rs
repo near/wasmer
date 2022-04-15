@@ -25,7 +25,7 @@ mod sys {
         let instance3 = instance.clone();
 
         // The function is cloned to “break” the connection with `instance`.
-        let sum = instance.exports.get_function("sum")?.clone();
+        let sum = instance.lookup_function("sum").unwrap().clone();
 
         drop(instance);
         drop(instance2);

@@ -203,17 +203,19 @@ trait IntoParIterIfRayon {
     fn into_par_iter_if_rayon(self) -> Self::Output;
 }
 
+#[cfg(feature = "rayon")]
 impl<T: IntoParallelIterator + IntoIterator> IntoParIterIfRayon for T {
-    #[cfg(not(feature = "rayon"))]
-    type Output = <T as IntoIterator>::IntoIter;
-    #[cfg(feature = "rayon")]
     type Output = <T as IntoParallelIterator>::Iter;
-
     fn into_par_iter_if_rayon(self) -> Self::Output {
-        #[cfg(not(feature = "rayon"))]
-        return self.into_iter();
-        #[cfg(feature = "rayon")]
         return self.into_par_iter();
+    }
+}
+
+#[cfg(not(feature = "rayon"))]
+impl<T: IntoIterator> IntoParIterIfRayon for T {
+    type Output = <T as IntoIterator>::IntoIter;
+    fn into_par_iter_if_rayon(self) -> Self::Output {
+        return self.into_iter();
     }
 }
 

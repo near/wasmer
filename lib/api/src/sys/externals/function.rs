@@ -524,7 +524,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     ///
     /// assert_eq!(sum.call(&[Value::I32(1), Value::I32(2)]).unwrap().to_vec(), vec![Value::I32(3)]);
     /// ```
@@ -587,7 +587,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     /// let sum_native = sum.native::<(i32, i32), i32>().unwrap();
     ///
     /// assert_eq!(sum_native.call(1, 2).unwrap(), 3);
@@ -613,7 +613,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     ///
     /// // This results in an error: `RuntimeError`
     /// let sum_native = sum.native::<(i64, i64), i32>().unwrap();
@@ -637,7 +637,7 @@ impl Function {
     /// # let import_object = imports! {};
     /// # let instance = Instance::new(&module, &import_object).unwrap();
     /// #
-    /// let sum = instance.exports.get_function("sum").unwrap();
+    /// let sum = instance.lookup_function("sum").unwrap();
     ///
     /// // This results in an error: `RuntimeError`
     /// let sum_native = sum.native::<(i32, i32), i64>().unwrap();
@@ -696,7 +696,7 @@ impl<'a> Exportable<'a> for Function {
         self.exported.clone().into()
     }
 
-    fn get_self_from_extern(_extern: &'a Extern) -> Result<&'a Self, ExportError> {
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
         match _extern {
             Extern::Function(func) => Ok(func),
             _ => Err(ExportError::IncompatibleType),
