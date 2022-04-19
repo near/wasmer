@@ -29,7 +29,7 @@ impl Machine {
             stack_offset: MachineStackOffset(0),
             save_area_offset: None,
             state: new_machine_state(),
-            track_state: true,
+            track_state: false,
         }
     }
 
