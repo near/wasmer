@@ -10,7 +10,6 @@
 
 mod address_map;
 mod codegen_x64;
-mod common_decl;
 mod compiler;
 mod config;
 mod emitter_x64;

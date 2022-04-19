@@ -1,4 +1,4 @@
-pub use crate::x64_decl::{GPR, XMM};
+pub(crate) use crate::x64_decl::{GPR, XMM};
 use dynasm::dynasm;
 use dynasmrt::{
     x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi, VecAssembler,
@@ -21,7 +21,7 @@ macro_rules! dynasm {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum Location {
+pub(crate) enum Location {
     Imm8(u8),
     Imm32(u32),
     Imm64(u64),
@@ -33,7 +33,7 @@ pub enum Location {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Condition {
+pub(crate) enum Condition {
     None,
     Above,
     AboveEqual,
@@ -51,7 +51,7 @@ pub enum Condition {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub enum Size {
+pub(crate) enum Size {
     S8,
     S16,
     S32,
@@ -60,19 +60,19 @@ pub enum Size {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
-pub enum XMMOrMemory {
+pub(crate) enum XMMOrMemory {
     XMM(XMM),
     Memory(GPR, i32),
 }
 
 #[derive(Copy, Clone, Debug)]
 #[allow(dead_code)]
-pub enum GPROrMemory {
+pub(crate) enum GPROrMemory {
     GPR(GPR),
     Memory(GPR, i32),
 }
 
-pub trait Emitter {
+pub(crate) trait Emitter {
     type Label;
     type Offset;
 

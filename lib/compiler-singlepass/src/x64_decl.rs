@@ -1,14 +1,11 @@
 //! X64 structures.
-
-use crate::common_decl::{MachineState, MachineValue, RegisterIndex};
-use std::collections::BTreeMap;
 use wasmer_compiler::CallingConvention;
 use wasmer_types::Type;
 
 /// General-purpose registers.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum GPR {
+pub(crate) enum GPR {
     /// RAX register
     RAX,
     /// RCX register
@@ -47,7 +44,7 @@ pub enum GPR {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(dead_code)]
-pub enum XMM {
+pub(crate) enum XMM {
     /// XMM register 0
     XMM0,
     /// XMM register 1
@@ -84,7 +81,7 @@ pub enum XMM {
 
 /// A machine register under the x86-64 architecture.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum X64Register {
+pub(crate) enum X64Register {
     /// General-purpose registers.
     GPR(GPR),
     /// XMM (floating point/SIMD) registers.
@@ -92,16 +89,8 @@ pub enum X64Register {
 }
 
 impl X64Register {
-    /// Returns the index of the register.
-    pub fn to_index(&self) -> RegisterIndex {
-        match *self {
-            X64Register::GPR(x) => RegisterIndex(x as usize),
-            X64Register::XMM(x) => RegisterIndex(x as usize + 16),
-        }
-    }
-
     /// Converts a DWARF regnum to X64Register.
-    pub fn _from_dwarf_regnum(x: u16) -> Option<X64Register> {
+    pub(crate) fn _from_dwarf_regnum(x: u16) -> Option<X64Register> {
         Some(match x {
             0 => X64Register::GPR(GPR::RAX),
             1 => X64Register::GPR(GPR::RDX),
@@ -136,7 +125,7 @@ impl X64Register {
     ///
     /// To build an instruction, append the memory location as a 32-bit
     /// offset to the stack pointer to this prefix.
-    pub fn _prefix_mov_to_stack(&self) -> Option<&'static [u8]> {
+    pub(crate) fn _prefix_mov_to_stack(&self) -> Option<&'static [u8]> {
         Some(match *self {
             X64Register::GPR(gpr) => match gpr {
                 GPR::RDI => &[0x48, 0x89, 0xbc, 0x24],
@@ -164,14 +153,18 @@ impl X64Register {
 
 /// An allocator that allocates registers for function arguments according to the System V ABI.
 #[derive(Default)]
-pub struct ArgumentRegisterAllocator {
+pub(crate) struct ArgumentRegisterAllocator {
     n_gprs: usize,
     n_xmms: usize,
 }
 
 impl ArgumentRegisterAllocator {
     /// Allocates a register for argument type `ty`. Returns `None` if no register is available for this type.
-    pub fn next(&mut self, ty: Type, calling_convention: CallingConvention) -> Option<X64Register> {
+    pub(crate) fn next(
+        &mut self,
+        ty: Type,
+        calling_convention: CallingConvention,
+    ) -> Option<X64Register> {
         match calling_convention {
             CallingConvention::WindowsFastcall => {
                 static GPR_SEQ: &'static [GPR] = &[GPR::RCX, GPR::RDX, GPR::R8, GPR::R9];
@@ -241,16 +234,5 @@ impl ArgumentRegisterAllocator {
                 }
             }
         }
-    }
-}
-
-/// Create a new `MachineState` with default values.
-pub fn new_machine_state() -> MachineState {
-    MachineState {
-        stack_values: vec![],
-        register_values: vec![MachineValue::Undefined; 16 + 8],
-        prev_frame: BTreeMap::new(),
-        wasm_stack: vec![],
-        wasm_inst_offset: std::usize::MAX,
     }
 }
