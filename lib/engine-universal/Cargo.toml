@@ -1,6 +1,6 @@
 [package]
 name = "wasmer-engine-universal-near"
-version = "2.2.2"
+version = "2.3.0"
 description = "Wasmer Universal Engine"
 categories = ["wasm"]
 keywords = ["wasm", "webassembly", "engine", "universal"]
@@ -14,10 +14,10 @@ edition = "2018"
 name = "wasmer_engine_universal"
 
 [dependencies]
-wasmer-types = { path = "../types", version = "=2.2.2", package = "wasmer-types-near" }
-wasmer-compiler = { path = "../compiler", version = "=2.2.2", package = "wasmer-compiler-near", features = ["translator"] }
-wasmer-vm = { path = "../vm", version = "=2.2.2", package = "wasmer-vm-near" }
-wasmer-engine = { path = "../engine", package = "wasmer-engine-near", version = "=2.2.2" }
+wasmer-types = { path = "../types", version = "=2.3.0", package = "wasmer-types-near" }
+wasmer-compiler = { path = "../compiler", version = "=2.3.0", package = "wasmer-compiler-near", features = ["translator"] }
+wasmer-vm = { path = "../vm", version = "=2.3.0", package = "wasmer-vm-near" }
+wasmer-engine = { path = "../engine", package = "wasmer-engine-near", version = "=2.3.0" }
 # flexbuffers = { path = "../../../flatbuffers/rust/flexbuffers", version = "0.1.0" }
 region = "3.0"
 cfg-if = "1.0"

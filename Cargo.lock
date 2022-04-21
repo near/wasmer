@@ -358,9 +358,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.5"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d82cfc11ce7f2c3faef78d8a684447b40d503d9681acebed6cb728d45940c4db"
+checksum = "0bf124c720b7686e3c2663cf54062ab0f68a88af2fb6a030e87e30bf721fcb38"
 dependencies = [
  "cfg-if",
  "lazy_static",
@@ -1130,9 +1130,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.5.4"
+version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d07a8629359eb56f1e2fb1652bb04212c072a87ba68546a04065d525673ac461"
+checksum = "1a11647b6b25ff05a515cb92c365cec08801e83423a235b51e231e1808747286"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -1775,7 +1775,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-compiler-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "enumset",
  "hashbrown 0.11.2",
@@ -1792,7 +1792,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-compiler-singlepass-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "byteorder",
  "dynasm",
@@ -1811,7 +1811,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-derive-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "compiletest_rs",
  "proc-macro-error",
@@ -1823,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "backtrace",
  "enumset",
@@ -1842,7 +1842,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine-universal-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "cfg-if",
  "enumset",
@@ -1863,7 +1863,7 @@ version = "2.1.0"
 
 [[package]]
 name = "wasmer-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -1887,7 +1887,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-types-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "indexmap",
  "rkyv",
@@ -1897,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-vm-near"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "backtrace",
  "cc",
@@ -1928,7 +1928,7 @@ dependencies = [
 
 [[package]]
 name = "wasmer-workspace"
-version = "2.2.2"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "build-deps",
