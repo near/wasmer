@@ -40,7 +40,7 @@ mod vmoffsets;
 
 pub mod libcalls;
 
-pub use crate::artifact::Artifact;
+pub use crate::artifact::{Artifact, Instantiatable};
 pub use crate::export::*;
 pub use crate::func_data_registry::{FuncDataRegistry, VMFuncRef};
 pub use crate::global::*;

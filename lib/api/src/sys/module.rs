@@ -9,8 +9,9 @@ use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
 use wasmer_engine::RuntimeError;
+use wasmer_engine_universal::UniversalArtifact;
 use wasmer_types::InstanceConfig;
-use wasmer_vm::{Artifact, InstanceHandle, Resolver};
+use wasmer_vm::{InstanceHandle, Instantiatable, Resolver};
 
 #[derive(Error, Debug)]
 pub enum IoCompileError {
@@ -33,7 +34,7 @@ pub enum IoCompileError {
 #[derive(Clone)]
 pub struct Module {
     store: Store,
-    artifact: Arc<dyn Artifact>,
+    artifact: Arc<wasmer_engine_universal::UniversalArtifact>,
 }
 
 impl Module {
@@ -157,11 +158,20 @@ impl Module {
     fn compile(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
         let executable = store.engine().compile(binary, store.tunables())?;
         let artifact = store.engine().load(&*executable)?;
-        Ok(Self::from_artifact(store, artifact))
+        match artifact.downcast_arc::<UniversalArtifact>() {
+            Ok(universal) => Ok(Self::from_universal_artifact(store, universal)),
+            // We're are probably given an externally defined artifact type
+            // which I imagine we don't care about for now since this entire crate
+            // is only used for tests and this crate only defines universal engine.
+            Err(_) => panic!("unhandled artifact type"),
+        }
     }
 
     /// Make a Module from Artifact...
-    pub fn from_artifact(store: &Store, artifact: Arc<dyn Artifact>) -> Self {
+    pub fn from_universal_artifact(
+        store: &Store,
+        artifact: Arc<wasmer_engine_universal::UniversalArtifact>,
+    ) -> Self {
         Self {
             store: store.clone(),
             artifact,
@@ -174,14 +184,12 @@ impl Module {
         config: InstanceConfig,
     ) -> Result<InstanceHandle, InstantiationError> {
         unsafe {
-            let instance_handle = Arc::clone(&self.artifact)
-                .instantiate(
-                    self.store.tunables(),
-                    resolver,
-                    Box::new((self.store.clone(), Arc::clone(&self.artifact))),
-                    config,
-                )
-                .map_err(InstantiationError::Instantiation)?;
+            let instance_handle = Arc::clone(&self.artifact).instantiate(
+                self.store.tunables(),
+                resolver,
+                Box::new((self.store.clone(), Arc::clone(&self.artifact))),
+                config,
+            )?;
 
             // After the instance handle is created, we need to initialize
             // the data, call the start function and so. However, if any

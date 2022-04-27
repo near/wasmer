@@ -849,7 +849,7 @@ impl InstanceHandle {
         host_state: Box<dyn Any>,
         imported_function_envs: BoxedSlice<FunctionIndex, ImportFunctionEnv>,
         instance_config: InstanceConfig,
-    ) -> Result<Self, Trap> {
+    ) -> Self {
         let vmctx_globals = finished_globals
             .values()
             .map(|m| m.vmglobal())
@@ -941,8 +941,7 @@ impl InstanceHandle {
         // initialization is deferred to the `initialize` method.
         initialize_passive_elements(instance);
         initialize_globals(instance);
-
-        Ok(handle)
+        handle
     }
 
     /// Return a reference to the contained `Instance`.

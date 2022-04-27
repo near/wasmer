@@ -12,8 +12,9 @@ use wasmer_types::{
     TableType,
 };
 use wasmer_vm::{
-    Artifact, FunctionBodyPtr, FunctionExtent, InstanceHandle, MemoryStyle, Resolver, TableStyle,
-    Tunables, VMImport, VMImportType, VMLocalFunction, VMOffsets, VMSharedSignatureIndex,
+    Artifact, FunctionBodyPtr, FunctionExtent, InstanceHandle, Instantiatable, MemoryStyle,
+    Resolver, TableStyle, Tunables, VMImport, VMImportType, VMLocalFunction, VMOffsets,
+    VMSharedSignatureIndex,
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
@@ -54,14 +55,16 @@ impl UniversalArtifact {
     }
 }
 
-impl Artifact for UniversalArtifact {
+impl Instantiatable for UniversalArtifact {
+    type Error = InstantiationError;
+
     unsafe fn instantiate(
         self: Arc<Self>,
         tunables: &dyn Tunables,
         resolver: &dyn Resolver,
         host_state: Box<dyn std::any::Any>,
         config: wasmer_types::InstanceConfig,
-    ) -> Result<InstanceHandle, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<InstanceHandle, Self::Error> {
         let (imports, import_function_envs) = {
             let mut imports = wasmer_engine::resolve_imports(
                 &self.engine,
@@ -126,10 +129,11 @@ impl Artifact for UniversalArtifact {
             host_state,
             import_function_envs,
             config,
-        )
-        .map_err(|t| InstantiationError::CreateInstance(RuntimeError::from_trap(t)))?)
+        ))
     }
+}
 
+impl Artifact for UniversalArtifact {
     fn offsets(&self) -> &wasmer_vm::VMOffsets {
         &self.vmoffsets
     }
