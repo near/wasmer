@@ -9,12 +9,10 @@ use inkwell::targets::FileType;
 use inkwell::DLLStorageClass;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
-use std::sync::Arc;
 use wasmer_compiler::{
     Architecture, Compilation, CompileError, CompileModuleInfo, Compiler, CustomSection,
-    CustomSectionProtection, Dwarf, FunctionBodyData, ModuleMiddleware, ModuleTranslationState,
-    RelocationTarget, SectionBody, SectionIndex, Symbol, SymbolRegistry, Target,
-    TrampolinesSection,
+    CustomSectionProtection, Dwarf, FunctionBodyData, ModuleTranslationState, RelocationTarget,
+    SectionBody, SectionIndex, Symbol, SymbolRegistry, Target, TrampolinesSection,
 };
 use wasmer_types::entity::{EntityRef, PrimaryMap};
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
@@ -187,11 +185,6 @@ impl LLVMCompiler {
 }
 
 impl Compiler for LLVMCompiler {
-    /// Get the middlewares for this compiler
-    fn get_middlewares(&self) -> &[Arc<dyn ModuleMiddleware>] {
-        &self.config.middlewares
-    }
-
     fn experimental_native_compile_module<'data, 'module>(
         &self,
         target: &Target,

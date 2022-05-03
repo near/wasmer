@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use wasmer_compiler::Compiler;
 use wasmer_compiler::{
     CompileError, CustomSectionProtection, CustomSectionRef, FunctionBodyRef, JumpTable,
-    ModuleMiddlewareChain, SectionIndex, Target,
+    SectionIndex, Target,
 };
 use wasmer_engine::{Engine, EngineId};
 use wasmer_types::entity::{EntityRef, PrimaryMap};
@@ -100,29 +100,26 @@ impl UniversalEngine {
         let environ = wasmer_compiler::ModuleEnvironment::new();
         let translation = environ.translate(binary).map_err(CompileError::Wasm)?;
 
-        // Apply the middleware first
-        let mut module = translation.module;
-        let middlewares = compiler.get_middlewares();
-        middlewares.apply_on_module_info(&mut module);
-
-        let memory_styles: PrimaryMap<wasmer_types::MemoryIndex, _> = module
+        let memory_styles: PrimaryMap<wasmer_types::MemoryIndex, _> = translation
+            .module
             .memories
             .values()
             .map(|memory_type| tunables.memory_style(memory_type))
             .collect();
-        let table_styles: PrimaryMap<wasmer_types::TableIndex, _> = module
+        let table_styles: PrimaryMap<wasmer_types::TableIndex, _> = translation
+            .module
             .tables
             .values()
             .map(|table_type| tunables.table_style(table_type))
             .collect();
+
+        // Compile the Module
         let compile_info = wasmer_compiler::CompileModuleInfo {
-            module: Arc::new(module),
+            module: Arc::new(translation.module),
             features: features.clone(),
             memory_styles,
             table_styles,
         };
-
-        // Compile the Module
         let compilation = compiler.compile_module(
             &self.target(),
             &compile_info,

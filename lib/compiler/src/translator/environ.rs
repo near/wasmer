@@ -5,7 +5,6 @@ use crate::lib::std::borrow::ToOwned;
 use crate::lib::std::string::ToString;
 use crate::lib::std::{boxed::Box, string::String, vec::Vec};
 use crate::translate_module;
-use crate::wasmparser::{Operator, Range, Type};
 use crate::{WasmError, WasmResult};
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
@@ -17,6 +16,7 @@ use wasmer_types::{
     LocalFunctionIndex, MemoryIndex, MemoryType, ModuleInfo, OwnedTableInitializer, SignatureIndex,
     TableIndex, TableType,
 };
+pub use wasmparser::FunctionBody as FunctionReader;
 
 /// Contains function data: bytecode and its offset in the module.
 #[derive(Hash)]
@@ -26,33 +26,6 @@ pub struct FunctionBodyData<'a> {
 
     /// Body offset relative to the module file.
     pub module_offset: usize,
-}
-
-/// Trait for iterating over the operators of a Wasm Function
-pub trait FunctionBinaryReader<'a> {
-    /// Read a `count` indicating the number of times to call `read_local_decl`.
-    fn read_local_count(&mut self) -> WasmResult<u32>;
-
-    /// Read a `(count, value_type)` declaration of local variables of the same type.
-    fn read_local_decl(&mut self) -> WasmResult<(u32, Type)>;
-
-    /// Reads the next available `Operator`.
-    fn read_operator(&mut self) -> WasmResult<Operator<'a>>;
-
-    /// Returns the current position.
-    fn current_position(&self) -> usize;
-
-    /// Returns the original position (with the offset)
-    fn original_position(&self) -> usize;
-
-    /// Returns the number of bytes remaining.
-    fn bytes_remaining(&self) -> usize;
-
-    /// Returns whether the readers has reached the end of the file.
-    fn eof(&self) -> bool;
-
-    /// Return the range (original offset, original offset + data length)
-    fn range(&self) -> Range;
 }
 
 /// The result of translating via `ModuleEnvironment`. Function bodies are not

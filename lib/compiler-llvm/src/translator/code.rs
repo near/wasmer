@@ -27,8 +27,8 @@ use crate::object_file::{load_object_file, CompiledFunction};
 use std::convert::TryFrom;
 use wasmer_compiler::wasmparser::{MemoryImmediate, Operator};
 use wasmer_compiler::{
-    wptype_to_type, CompileError, FunctionBinaryReader, FunctionBodyData, MiddlewareBinaryReader,
-    ModuleMiddlewareChain, ModuleTranslationState, RelocationTarget, Symbol, SymbolRegistry,
+    wptype_to_type, CompileError, FunctionBodyData, ModuleTranslationState, RelocationTarget,
+    Symbol, SymbolRegistry,
 };
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{
@@ -133,15 +133,8 @@ impl FuncTranslator {
         state.push_block(return_, phis);
         builder.position_at_end(start_of_code);
 
-        let mut reader = MiddlewareBinaryReader::new_with_offset(
-            function_body.data,
-            function_body.module_offset,
-        );
-        reader.set_middleware_chain(
-            config
-                .middlewares
-                .generate_function_middleware_chain(*local_func_index),
-        );
+        let reader =
+            wasmer_compiler::FunctionReader::new(function_body.module_offset, function_body.data);
 
         let mut params = vec![];
         let first_param =
@@ -171,10 +164,11 @@ impl FuncTranslator {
             params.push(alloca);
         }
 
+        let mut local_reader = reader.get_locals_reader()?;
         let mut locals = vec![];
-        let num_locals = reader.read_local_count()?;
+        let num_locals = local_reader.get_count();
         for _ in 0..num_locals {
-            let (count, ty) = reader.read_local_decl()?;
+            let (count, ty) = local_reader.read()?;
             let ty = wptype_to_type(ty).map_err(to_compile_error)?;
             let ty = type_to_llvm(&intrinsics, ty)?;
             for _ in 0..count {
@@ -213,10 +207,10 @@ impl FuncTranslator {
             &func_attrs,
         );
 
+        let mut operator_reader = reader.get_operators_reader()?.into_iter_with_offsets();
         while fcg.state.has_control_frames() {
-            let pos = reader.current_position() as u32;
-            let op = reader.read_operator()?;
-            fcg.translate_operator(op, pos)?;
+            let (op, pos) = operator_reader.next().unwrap()?;
+            fcg.translate_operator(op, pos as u32)?;
         }
 
         fcg.finalize(wasm_fn_type)?;

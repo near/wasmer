@@ -5,7 +5,7 @@ use crate::compiler::SinglepassCompiler;
 use crate::emitter_x64::Location;
 use smallvec::SmallVec;
 use std::sync::Arc;
-use wasmer_compiler::{Compiler, CompilerConfig, CpuFeature, ModuleMiddleware, Target};
+use wasmer_compiler::{Compiler, CompilerConfig, CpuFeature, Target};
 use wasmer_types::{Features, FunctionType, Type};
 
 #[derive(Debug, Clone)]
@@ -24,8 +24,6 @@ pub(crate) struct Intrinsic {
 pub struct Singlepass {
     pub(crate) enable_nan_canonicalization: bool,
     pub(crate) enable_stack_check: bool,
-    /// The middleware chain.
-    pub(crate) middlewares: Vec<Arc<dyn ModuleMiddleware>>,
     /// Compiler intrinsics.
     pub(crate) intrinsics: Vec<Intrinsic>,
 }
@@ -37,7 +35,6 @@ impl Singlepass {
         Self {
             enable_nan_canonicalization: true,
             enable_stack_check: false,
-            middlewares: vec![],
             intrinsics: vec![Intrinsic {
                 kind: IntrinsicKind::Gas,
                 name: "gas".to_string(),
@@ -84,11 +81,6 @@ impl CompilerConfig for Singlepass {
         let mut features = Features::default();
         features.multi_value(false);
         features
-    }
-
-    /// Pushes a middleware onto the back of the middleware chain.
-    fn push_middleware(&mut self, middleware: Arc<dyn ModuleMiddleware>) {
-        self.middlewares.push(middleware);
     }
 }
 

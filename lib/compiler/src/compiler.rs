@@ -4,10 +4,8 @@
 use crate::error::CompileError;
 use crate::function::Compilation;
 use crate::lib::std::boxed::Box;
-use crate::lib::std::sync::Arc;
 use crate::module::CompileModuleInfo;
 use crate::target::Target;
-use crate::translator::ModuleMiddleware;
 use crate::FunctionBodyData;
 use crate::ModuleTranslationState;
 use crate::SectionIndex;
@@ -62,9 +60,6 @@ pub trait CompilerConfig {
     fn default_features_for_target(&self, _target: &Target) -> Features {
         Features::default()
     }
-
-    /// Pushes a middleware onto the back of the middleware chain.
-    fn push_middleware(&mut self, middleware: Arc<dyn ModuleMiddleware>);
 }
 
 impl<T> From<T> for Box<dyn CompilerConfig + 'static>
@@ -135,9 +130,6 @@ pub trait Compiler: Send {
     ) -> Option<Result<Vec<u8>, CompileError>> {
         None
     }
-
-    /// Get the middlewares for this compiler
-    fn get_middlewares(&self) -> &[Arc<dyn ModuleMiddleware>];
 }
 
 /// The kinds of wasmer_types objects that might be found in a native object file.

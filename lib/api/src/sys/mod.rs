@@ -48,10 +48,7 @@ pub use crate::sys::types::{Val as Value, ValType as Type};
 pub use crate::sys::utils::is_wasm;
 pub use target_lexicon::{Architecture, CallingConvention, OperatingSystem, Triple, HOST};
 #[cfg(feature = "compiler")]
-pub use wasmer_compiler::{
-    wasmparser, CompilerConfig, FunctionMiddleware, MiddlewareError, MiddlewareReaderState,
-    ModuleMiddleware,
-};
+pub use wasmer_compiler::{wasmparser, CompilerConfig};
 pub use wasmer_compiler::{
     CompileError, CpuFeature, Features, ParseCpuFeatureError, Target, WasmError, WasmResult,
 };

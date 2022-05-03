@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use wasmer::{CompilerConfig, Engine as WasmerEngine, Features, ModuleMiddleware, Store};
+use wasmer::{CompilerConfig, Engine as WasmerEngine, Features, Store};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Compiler {
@@ -19,7 +18,6 @@ pub struct Config {
     pub compiler: Compiler,
     pub engine: Engine,
     pub features: Option<Features>,
-    pub middlewares: Vec<Arc<dyn ModuleMiddleware>>,
     pub canonicalize_nans: bool,
 }
 
@@ -30,12 +28,7 @@ impl Config {
             engine,
             features: None,
             canonicalize_nans: false,
-            middlewares: vec![],
         }
-    }
-
-    pub fn set_middlewares(&mut self, middlewares: Vec<Arc<dyn ModuleMiddleware>>) {
-        self.middlewares = middlewares;
     }
 
     pub fn set_features(&mut self, features: Features) {
@@ -106,7 +99,6 @@ impl Config {
                 let mut compiler = wasmer_compiler_cranelift::Cranelift::new();
                 compiler.canonicalize_nans(canonicalize_nans);
                 compiler.enable_verifier();
-                self.add_middlewares(&mut compiler);
                 Box::new(compiler)
             }
             #[cfg(feature = "llvm")]
@@ -114,7 +106,6 @@ impl Config {
                 let mut compiler = wasmer_compiler_llvm::LLVM::new();
                 compiler.canonicalize_nans(canonicalize_nans);
                 compiler.enable_verifier();
-                self.add_middlewares(&mut compiler);
                 Box::new(compiler)
             }
             #[cfg(feature = "singlepass")]
@@ -122,7 +113,6 @@ impl Config {
                 let mut compiler = wasmer_compiler_singlepass::Singlepass::new();
                 compiler.canonicalize_nans(canonicalize_nans);
                 compiler.enable_verifier();
-                self.add_middlewares(&mut compiler);
                 Box::new(compiler)
             }
             #[allow(unreachable_patterns)]
@@ -132,12 +122,6 @@ impl Config {
                     compiler
                 )
             }
-        }
-    }
-
-    fn add_middlewares(&self, config: &mut dyn CompilerConfig) {
-        for middleware in self.middlewares.iter() {
-            config.push_middleware(middleware.clone());
         }
     }
 }

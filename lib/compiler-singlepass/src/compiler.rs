@@ -12,8 +12,7 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::sync::Arc;
 use wasmer_compiler::{
     Architecture, CallingConvention, Compilation, CompileError, CompileModuleInfo,
-    CompiledFunction, Compiler, CompilerConfig, CpuFeature, FunctionBinaryReader, FunctionBody,
-    FunctionBodyData, MiddlewareBinaryReader, ModuleMiddleware, ModuleMiddlewareChain,
+    CompiledFunction, Compiler, CompilerConfig, CpuFeature, FunctionBody, FunctionBodyData,
     ModuleTranslationState, OperatingSystem, SectionIndex, Target, TrapInformation,
 };
 use wasmer_types::entity::{EntityRef, PrimaryMap};
@@ -41,11 +40,6 @@ impl SinglepassCompiler {
 }
 
 impl Compiler for SinglepassCompiler {
-    /// Get the middlewares for this compiler
-    fn get_middlewares(&self) -> &[Arc<dyn ModuleMiddleware>] {
-        &self.config.middlewares
-    }
-
     /// Compile the module using Singlepass, producing a compilation result with
     /// associated relocations.
     fn compile_module(
@@ -110,19 +104,14 @@ impl Compiler for SinglepassCompiler {
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
             .into_par_iter_if_rayon()
             .map(|(i, input)| {
-                let middleware_chain = self
-                    .config
-                    .middlewares
-                    .generate_function_middleware_chain(i);
-                let mut reader =
-                    MiddlewareBinaryReader::new_with_offset(input.data, input.module_offset);
-                reader.set_middleware_chain(middleware_chain);
+                let reader = wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
 
+                let mut local_reader = reader.get_locals_reader()?;
                 // This local list excludes arguments.
                 let mut locals = vec![];
-                let num_locals = reader.read_local_count()?;
+                let num_locals = local_reader.get_count();
                 for _ in 0..num_locals {
-                    let (count, ty) = reader.read_local_decl()?;
+                    let (count, ty) = local_reader.read()?;
                     for _ in 0..count {
                         locals.push(ty);
                     }
@@ -140,9 +129,10 @@ impl Compiler for SinglepassCompiler {
                 )
                 .map_err(to_compile_error)?;
 
+                let mut operator_reader = reader.get_operators_reader()?.into_iter_with_offsets();
                 while generator.has_control_frames() {
-                    generator.set_srcloc(reader.original_position() as u32);
-                    let op = reader.read_operator()?;
+                    let (op, pos) = operator_reader.next().unwrap()?;
+                    generator.set_srcloc(pos as u32);
                     generator.feed_operator(op).map_err(to_compile_error)?;
                 }
 

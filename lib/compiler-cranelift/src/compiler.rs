@@ -19,15 +19,12 @@ use cranelift_codegen::{binemit, Context};
 #[cfg(feature = "unwind")]
 use gimli::write::{Address, EhFrame, FrameTable};
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
-use std::sync::Arc;
 use target_lexicon::{Architecture, OperatingSystem};
 use wasmer_compiler::CompileError;
 use wasmer_compiler::{CallingConvention, ModuleTranslationState, Target};
 use wasmer_compiler::{
     Compilation, CompileModuleInfo, CompiledFunction, CompiledFunctionFrameInfo,
-    CompiledFunctionUnwindInfo, Compiler, Dwarf, FunctionBinaryReader, FunctionBody,
-    FunctionBodyData, MiddlewareBinaryReader, ModuleMiddleware, ModuleMiddlewareChain,
-    SectionIndex,
+    CompiledFunctionUnwindInfo, Compiler, Dwarf, FunctionBody, FunctionBodyData, SectionIndex,
 };
 use wasmer_compiler::{
     CustomSection, CustomSectionProtection, Relocation, RelocationKind, RelocationTarget,
@@ -56,11 +53,6 @@ impl CraneliftCompiler {
 }
 
 impl Compiler for CraneliftCompiler {
-    /// Get the middlewares for this compiler
-    fn get_middlewares(&self) -> &[Arc<dyn ModuleMiddleware>] {
-        &self.config.middlewares
-    }
-
     /// Compile the module using Cranelift, producing a compilation result with
     /// associated relocations.
     fn compile_module(
@@ -156,13 +148,7 @@ impl Compiler for CraneliftCompiler {
                 //     context.func.collect_debug_info();
                 // }
                 let mut reader =
-                    MiddlewareBinaryReader::new_with_offset(input.data, input.module_offset);
-                reader.set_middleware_chain(
-                    self.config
-                        .middlewares
-                        .generate_function_middleware_chain(*i),
-                );
-
+                    wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
                 func_translator.translate(
                     module_translation_state,
                     &mut reader,

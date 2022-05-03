@@ -15,11 +15,8 @@ use cranelift_codegen::entity::EntityRef;
 use cranelift_codegen::ir::{self, Block, InstBuilder, ValueLabel};
 use cranelift_codegen::timing;
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
-use tracing::info;
 use wasmer_compiler::wasmparser;
-use wasmer_compiler::{
-    wasm_unsupported, wptype_to_type, FunctionBinaryReader, ModuleTranslationState, WasmResult,
-};
+use wasmer_compiler::{wasm_unsupported, wptype_to_type, ModuleTranslationState, WasmResult};
 use wasmer_types::LocalFunctionIndex;
 
 /// WebAssembly to Cranelift IR function translator.
@@ -62,7 +59,7 @@ impl FuncTranslator {
     pub fn translate<FE: FuncEnvironment + ?Sized>(
         &mut self,
         module_translation_state: &ModuleTranslationState,
-        reader: &mut dyn FunctionBinaryReader,
+        reader: &mut wasmer_compiler::FunctionReader,
         func: &mut ir::Function,
         environ: &mut FE,
         local_function_index: LocalFunctionIndex,
@@ -75,23 +72,26 @@ impl FuncTranslator {
     pub fn translate_from_reader<FE: FuncEnvironment + ?Sized>(
         &mut self,
         module_translation_state: &ModuleTranslationState,
-        reader: &mut dyn FunctionBinaryReader,
+        reader: &mut wasmer_compiler::FunctionReader,
         func: &mut ir::Function,
         environ: &mut FE,
     ) -> WasmResult<()> {
         let _tt = timing::wasm_translate_function();
-        info!(
-            "translate({} bytes, {}{})",
-            reader.bytes_remaining(),
-            func.name,
-            func.signature
-        );
+        let _span = tracing::info_span!(
+            "translate_from_reader",
+            bytes = reader.get_binary_reader().bytes_remaining(),
+            name = %func.name,
+            signature = %func.signature,
+        )
+        .entered();
         debug_assert_eq!(func.dfg.num_blocks(), 0, "Function must be empty");
         debug_assert_eq!(func.dfg.num_insts(), 0, "Function must be empty");
 
         // This clears the `FunctionBuilderContext`.
         let mut builder = FunctionBuilder::new(func, &mut self.func_ctx);
-        builder.set_srcloc(cur_srcloc(reader));
+        builder.set_srcloc(ir::SourceLoc::new(
+            reader.get_binary_reader().original_position() as u32,
+        ));
         let entry_block = builder.create_block();
         builder.append_block_params_for_function_params(entry_block);
         builder.switch_to_block(entry_block); // This also creates values for the arguments.
@@ -159,17 +159,17 @@ fn declare_wasm_parameters<FE: FuncEnvironment + ?Sized>(
 ///
 /// Declare local variables, starting from `num_params`.
 fn parse_local_decls<FE: FuncEnvironment + ?Sized>(
-    reader: &mut dyn FunctionBinaryReader,
+    reader: &wasmer_compiler::FunctionReader,
     builder: &mut FunctionBuilder,
     num_params: usize,
     environ: &mut FE,
 ) -> WasmResult<()> {
     let mut next_local = num_params;
-    let local_count = reader.read_local_count()?;
-
+    let mut local_reader = reader.get_locals_reader()?;
+    let local_count = local_reader.get_count();
     for _ in 0..local_count {
-        builder.set_srcloc(cur_srcloc(reader));
-        let (count, ty) = reader.read_local_decl()?;
+        builder.set_srcloc(ir::SourceLoc::new(local_reader.original_position() as u32));
+        let (count, ty) = local_reader.read()?;
         declare_locals(builder, count, ty, &mut next_local, environ)?;
     }
 
@@ -221,18 +221,19 @@ fn declare_locals<FE: FuncEnvironment + ?Sized>(
 /// arguments and locals are declared in the builder.
 fn parse_function_body<FE: FuncEnvironment + ?Sized>(
     module_translation_state: &ModuleTranslationState,
-    reader: &mut dyn FunctionBinaryReader,
+    reader: &wasmer_compiler::FunctionReader,
     builder: &mut FunctionBuilder,
     state: &mut FuncTranslationState,
     environ: &mut FE,
 ) -> WasmResult<()> {
     // The control stack is initialized with a single block representing the whole function.
     debug_assert_eq!(state.control_stack.len(), 1, "State not initialized");
+    let mut reader = reader.get_operators_reader()?.into_iter_with_offsets();
 
     // Keep going until the final `End` operator which pops the outermost block.
     while !state.control_stack.is_empty() {
-        builder.set_srcloc(cur_srcloc(reader));
-        let op = reader.read_operator()?;
+        let (op, pos) = reader.next().unwrap()?;
+        builder.set_srcloc(ir::SourceLoc::new(pos as u32));
         environ.before_translate_operator(&op, builder, state)?;
         translate_operator(module_translation_state, &op, builder, state, environ)?;
         environ.after_translate_operator(&op, builder, state)?;
@@ -283,14 +284,5 @@ fn parse_function_body<FE: FuncEnvironment + ?Sized>(
     state.stack.clear();
     //state.metadata_stack.clear();
 
-    debug_assert!(reader.eof());
-
     Ok(())
-}
-
-/// Get the current source location from a reader.
-fn cur_srcloc(reader: &dyn FunctionBinaryReader) -> ir::SourceLoc {
-    // We record source locations as byte code offsets relative to the beginning of the file.
-    // This will wrap around if byte code is larger than 4 GB.
-    ir::SourceLoc::new(reader.original_position() as u32)
 }

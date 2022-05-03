@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::sync::Arc;
-use wasmer_engine::{InstantiationError, RuntimeError};
+use wasmer_engine::InstantiationError;
 use wasmer_types::entity::{BoxedSlice, EntityRef, PrimaryMap};
 use wasmer_types::{
     DataIndex, ElemIndex, FunctionIndex, GlobalInit, GlobalType, ImportCounts, LocalFunctionIndex,

@@ -10,7 +10,6 @@ mod deterministic;
 mod fast_gas_metering;
 mod imports;
 mod issues;
-mod middlewares;
 // mod multi_value_imports;
 mod compilation;
 mod native_functions;

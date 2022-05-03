@@ -1,10 +1,7 @@
 use crate::compiler::CraneliftCompiler;
 use cranelift_codegen::isa::{lookup, TargetIsa};
 use cranelift_codegen::settings::{self, Configurable};
-use std::sync::Arc;
-use wasmer_compiler::{
-    Architecture, Compiler, CompilerConfig, CpuFeature, ModuleMiddleware, Target,
-};
+use wasmer_compiler::{Architecture, Compiler, CompilerConfig, CpuFeature, Target};
 
 // Runtime Environment
 
@@ -33,8 +30,6 @@ pub struct Cranelift {
     enable_verifier: bool,
     enable_pic: bool,
     opt_level: CraneliftOptLevel,
-    /// The middleware chain.
-    pub(crate) middlewares: Vec<Arc<dyn ModuleMiddleware>>,
 }
 
 impl Cranelift {
@@ -46,7 +41,6 @@ impl Cranelift {
             enable_verifier: false,
             opt_level: CraneliftOptLevel::Speed,
             enable_pic: false,
-            middlewares: vec![],
         }
     }
 
@@ -195,11 +189,6 @@ impl CompilerConfig for Cranelift {
     /// Transform it into the compiler
     fn compiler(self: Box<Self>) -> Box<dyn Compiler> {
         Box::new(CraneliftCompiler::new(*self))
-    }
-
-    /// Pushes a middleware onto the back of the middleware chain.
-    fn push_middleware(&mut self, middleware: Arc<dyn ModuleMiddleware>) {
-        self.middlewares.push(middleware);
     }
 }
 
