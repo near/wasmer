@@ -1,12 +1,12 @@
 #[cfg(feature = "core")]
 use core::hash::Hash;
 use indexmap::IndexMap;
-use rkyv::{Archive, Deserialize, Serialize};
+use rkyv::Archive;
 #[cfg(feature = "std")]
 use std::hash::Hash;
 
-#[derive(Serialize, Deserialize, Archive)]
-/// Rkyv Archivable IndexMap
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
+/// See [`IndexMap`]
 pub struct ArchivableIndexMap<K: Hash + Ord + Archive, V: Archive> {
     entries: Vec<(K, V)>,
 }

@@ -7,11 +7,10 @@
 
 use crate::lib::std::vec::Vec;
 use crate::Relocation;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use wasmer_types::entity::entity_impl;
 
 /// Index type of a Section defined inside a WebAssembly `Compilation`.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive_attr(derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug))]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct SectionIndex(u32);
@@ -23,7 +22,7 @@ entity_impl!(ArchivedSectionIndex);
 /// Custom section Protection.
 ///
 /// Determines how a custom section may be used.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CustomSectionProtection {
     /// A custom section with read permission.
     Read,
@@ -36,7 +35,7 @@ pub enum CustomSectionProtection {
 ///
 /// This is used so compilers can store arbitrary information
 /// in the emitted module.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq)]
 pub struct CustomSection {
     /// Memory protection that applies to this section.
     pub protection: CustomSectionProtection,
@@ -86,7 +85,9 @@ impl<'a> From<&'a ArchivedCustomSection> for CustomSectionRef<'a> {
 }
 
 /// The bytes in the section.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(
+    rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq, Default,
+)]
 pub struct SectionBody(Vec<u8>);
 
 impl SectionBody {

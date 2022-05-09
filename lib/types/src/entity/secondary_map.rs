@@ -11,7 +11,7 @@ use crate::lib::std::marker::PhantomData;
 use crate::lib::std::ops::{Index, IndexMut};
 use crate::lib::std::slice;
 use crate::lib::std::vec::Vec;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
+use rkyv::Archive;
 
 /// A mapping `K -> V` for densely indexed entity references.
 ///
@@ -21,7 +21,7 @@ use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 ///
 /// The map does not track if an entry for a key has been inserted or not. Instead it behaves as if
 /// all keys have a default entry from the beginning.
-#[derive(Debug, Clone, RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Debug, Clone, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct SecondaryMap<K, V>
 where
     K: EntityRef,

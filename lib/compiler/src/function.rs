@@ -11,7 +11,6 @@ use crate::{
     CompiledFunctionUnwindInfo, CompiledFunctionUnwindInfoRef, FunctionAddressMap,
     JumpTableOffsets, Relocation,
 };
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
 
@@ -19,7 +18,9 @@ use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
 ///
 /// This structure is only used for reconstructing
 /// the frame information after a `Trap`.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(
+    rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq, Default,
+)]
 pub struct CompiledFunctionFrameInfo {
     /// The traps (in the function body).
     ///
@@ -31,7 +32,7 @@ pub struct CompiledFunctionFrameInfo {
 }
 
 /// The function body.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq)]
 pub struct FunctionBody {
     /// The function body bytes.
     pub body: Vec<u8>,
@@ -72,7 +73,7 @@ impl<'a> From<&'a ArchivedFunctionBody> for FunctionBodyRef<'a> {
 /// This structure only have the compiled information data
 /// (function bytecode body, relocations, traps, jump tables
 /// and unwind information).
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq)]
 pub struct CompiledFunction {
     /// The function body.
     pub body: FunctionBody,
@@ -99,7 +100,7 @@ pub type CustomSections = PrimaryMap<SectionIndex, CustomSection>;
 /// happens.
 /// In the future this structure may also hold other information useful
 /// for debugging.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, PartialEq, Eq, Clone)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, PartialEq, Eq, Clone)]
 pub struct Dwarf {
     /// The section index in the [`Compilation`] that corresponds to the exception frames.
     /// [Learn
@@ -115,7 +116,7 @@ impl Dwarf {
 }
 
 /// Trampolines section used by ARM short jump (26bits)
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, PartialEq, Eq, Clone)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, PartialEq, Eq, Clone)]
 pub struct TrampolinesSection {
     /// SectionIndex for the actual Trampolines code
     pub section_index: SectionIndex,

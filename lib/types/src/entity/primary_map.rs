@@ -2,6 +2,8 @@
 // Attributions: https://github.com/wasmerio/wasmer/blob/master/ATTRIBUTIONS.md
 
 //! Densely numbered entity references as mapping keys.
+use rkyv::Archive;
+
 use crate::entity::boxed_slice::BoxedSlice;
 use crate::entity::iter::{IntoIter, Iter, IterMut};
 use crate::entity::keys::Keys;
@@ -12,7 +14,6 @@ use crate::lib::std::marker::PhantomData;
 use crate::lib::std::ops::{Index, IndexMut};
 use crate::lib::std::slice;
 use crate::lib::std::vec::Vec;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 
 /// A primary mapping `K -> V` allocating dense entity references.
 ///
@@ -29,8 +30,7 @@ use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 /// that it only allows indexing with the distinct `EntityRef` key type, so converting to a
 /// plain slice would make it easier to use incorrectly. To make a slice of a `PrimaryMap`, use
 /// `into_boxed_slice`.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct PrimaryMap<K, V>
 where
     K: EntityRef,

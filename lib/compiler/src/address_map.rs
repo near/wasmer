@@ -3,10 +3,9 @@
 
 use crate::lib::std::vec::Vec;
 use crate::sourceloc::SourceLoc;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 
 /// Single source location to generated address mapping.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq)]
 pub struct InstructionAddressMap {
     /// Original source location.
     pub srcloc: SourceLoc,
@@ -19,7 +18,9 @@ pub struct InstructionAddressMap {
 }
 
 /// Function and its instructions addresses mappings.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(
+    rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq, Default,
+)]
 pub struct FunctionAddressMap {
     /// Instructions maps.
     /// The array is sorted by the InstructionAddressMap::code_offset field.

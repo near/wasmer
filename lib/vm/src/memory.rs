@@ -8,7 +8,6 @@
 use crate::mmap::Mmap;
 use crate::vmcontext::VMMemoryDefinition;
 use more_asserts::assert_ge;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use std::borrow::BorrowMut;
 use std::cell::UnsafeCell;
 use std::convert::TryInto;
@@ -61,16 +60,7 @@ pub enum MemoryError {
 }
 
 /// Implementation styles for WebAssembly linear memory.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    RkyvSerialize,
-    RkyvDeserialize,
-    Archive,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub enum MemoryStyle {
     /// The actual memory can be resized and moved.
     Dynamic {

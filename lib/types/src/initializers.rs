@@ -1,10 +1,8 @@
 use crate::indexes::{FunctionIndex, GlobalIndex, MemoryIndex, TableIndex};
 use crate::lib::std::boxed::Box;
 
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-
 /// A WebAssembly table initializer.
-#[derive(Clone, Debug, Hash, PartialEq, Eq, RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct OwnedTableInitializer {
     /// The index of a table to initialize.
     pub table_index: TableIndex,
@@ -18,8 +16,7 @@ pub struct OwnedTableInitializer {
 
 /// A memory index and offset within that memory where a data initialization
 /// should be performed.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Clone, Debug, PartialEq, Eq, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct DataInitializerLocation {
     /// The index of the memory to initialize.
     pub memory_index: MemoryIndex,
@@ -43,8 +40,7 @@ pub struct DataInitializer<'data> {
 
 /// As `DataInitializer` but owning the data rather than
 /// holding a reference to it
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Debug, Clone, PartialEq, Eq, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct OwnedDataInitializer {
     /// The location where the initialization is to be performed.
     pub location: DataInitializerLocation,

@@ -5,7 +5,6 @@
 
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use thiserror::Error;
 
 /// A trap code describing the reason for a trap.
@@ -19,9 +18,9 @@ use thiserror::Error;
     Debug,
     Hash,
     Error,
-    RkyvSerialize,
-    RkyvDeserialize,
-    Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    rkyv::Archive,
 )]
 #[repr(u32)]
 pub enum TrapCode {

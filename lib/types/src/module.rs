@@ -15,8 +15,7 @@ use crate::{
 use indexmap::IndexMap;
 use rkyv::{
     de::SharedDeserializeRegistry, ser::ScratchSpace, ser::Serializer,
-    ser::SharedSerializeRegistry, Archive, Archived, Deserialize as RkyvDeserialize, Fallible,
-    Serialize as RkyvSerialize,
+    ser::SharedSerializeRegistry, Archive, Archived, Fallible,
 };
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -24,7 +23,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 
-#[derive(Debug, Clone, RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Debug, Clone, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct ModuleId {
     id: usize,
 }
@@ -191,7 +190,7 @@ pub struct ModuleInfo {
 }
 
 /// Mirror version of ModuleInfo that can derive rkyv traits
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct ArchivableModuleInfo {
     pub name: Option<String>,
     pub imports: ArchivableIndexMap<(String, String, u32), ImportIndex>,
@@ -276,7 +275,7 @@ impl Archive for ModuleInfo {
     }
 }
 
-impl<S: Serializer + SharedSerializeRegistry + ScratchSpace + ?Sized> RkyvSerialize<S>
+impl<S: Serializer + SharedSerializeRegistry + ScratchSpace + ?Sized> rkyv::Serialize<S>
     for ModuleInfo
 {
     fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
@@ -284,12 +283,12 @@ impl<S: Serializer + SharedSerializeRegistry + ScratchSpace + ?Sized> RkyvSerial
     }
 }
 
-impl<D: Fallible + ?Sized + SharedDeserializeRegistry> RkyvDeserialize<ModuleInfo, D>
+impl<D: Fallible + ?Sized + SharedDeserializeRegistry> rkyv::Deserialize<ModuleInfo, D>
     for Archived<ModuleInfo>
 {
     fn deserialize(&self, deserializer: &mut D) -> Result<ModuleInfo, D::Error> {
         let r: ArchivableModuleInfo =
-            RkyvDeserialize::<ArchivableModuleInfo, D>::deserialize(self, deserializer)?;
+            rkyv::Deserialize::<ArchivableModuleInfo, D>::deserialize(self, deserializer)?;
         Ok(ModuleInfo::from(r))
     }
 }

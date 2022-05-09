@@ -1,11 +1,8 @@
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-
 /// Controls which experimental features will be enabled.
 /// Features usually have a corresponding [WebAssembly proposal].
 ///
 /// [WebAssembly proposal]: https://github.com/WebAssembly/proposals
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(Clone, Debug, Eq, PartialEq, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct Features {
     /// Threads proposal should be enabled
     pub threads: bool,

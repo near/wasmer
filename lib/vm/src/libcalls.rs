@@ -43,7 +43,6 @@ use crate::table::{RawTableElement, TableElement};
 use crate::trap::{raise_lib_trap, Trap, TrapCode};
 use crate::vmcontext::VMContext;
 use crate::VMExternRef;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use std::fmt;
 use wasmer_types::{
     DataIndex, ElemIndex, FunctionIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex,
@@ -679,15 +678,7 @@ pub static wasmer_vm_probestack: unsafe extern "C" fn() = PROBESTACK;
 ///
 /// This list is likely to grow over time.
 #[derive(
-    RkyvSerialize,
-    RkyvDeserialize,
-    Archive,
-    Copy,
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
+    rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Copy, Clone, Debug, PartialEq, Eq, Hash,
 )]
 pub enum LibCall {
     /// ceil.f32

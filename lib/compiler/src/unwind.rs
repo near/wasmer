@@ -6,7 +6,6 @@
 //!
 //! [Learn more](https://en.wikipedia.org/wiki/Call_stack).
 use crate::lib::std::vec::Vec;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 
 /// Compiled function unwind information.
 ///
@@ -15,7 +14,7 @@ use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 /// > fields.
 ///
 /// [unwind info]: https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64?view=vs-2019
-#[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive, Debug, Clone, PartialEq, Eq)]
 pub enum CompiledFunctionUnwindInfo {
     /// Windows UNWIND_INFO.
     WindowsX64(Vec<u8>),

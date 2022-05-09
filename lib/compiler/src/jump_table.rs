@@ -5,14 +5,13 @@
 //! [Learn more](https://en.wikipedia.org/wiki/Branch_table).
 
 use super::CodeOffset;
-use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use wasmer_types::entity::{entity_impl, SecondaryMap};
 
 /// An opaque reference to a [jump table](https://en.wikipedia.org/wiki/Branch_table).
 ///
 /// `JumpTable`s are used for indirect branching and are specialized for dense,
 /// 0-based jump offsets.
-#[derive(RkyvSerialize, RkyvDeserialize, Archive)]
+#[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive_attr(derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord))]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct JumpTable(u32);
