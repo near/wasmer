@@ -4,11 +4,8 @@
 use crate::lib::std::vec::Vec;
 use crate::sourceloc::SourceLoc;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 
 /// Single source location to generated address mapping.
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
 pub struct InstructionAddressMap {
     /// Original source location.
@@ -22,7 +19,6 @@ pub struct InstructionAddressMap {
 }
 
 /// Function and its instructions addresses mappings.
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, Default)]
 pub struct FunctionAddressMap {
     /// Instructions maps.

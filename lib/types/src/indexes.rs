@@ -4,7 +4,6 @@ use core::u32;
 
 /// Index type of a function defined locally inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -13,19 +12,16 @@ entity_impl!(LocalFunctionIndex);
 
 /// Index type of a table defined locally inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LocalTableIndex(u32);
 entity_impl!(LocalTableIndex);
 
 /// Index type of a memory defined locally inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LocalMemoryIndex(u32);
 entity_impl!(LocalMemoryIndex);
 
 /// Index type of a global defined locally inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -34,7 +30,6 @@ entity_impl!(LocalGlobalIndex);
 
 /// Index type of a function (imported or local) inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -43,7 +38,6 @@ entity_impl!(FunctionIndex);
 
 /// Index type of a table (imported or local) inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -52,7 +46,6 @@ entity_impl!(TableIndex);
 
 /// Index type of a global variable (imported or local) inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -61,7 +54,6 @@ entity_impl!(GlobalIndex);
 
 /// Index type of a linear memory (imported or local) inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -70,7 +62,6 @@ entity_impl!(MemoryIndex);
 
 /// Index type of a signature (imported or local) inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -79,7 +70,6 @@ entity_impl!(SignatureIndex);
 
 /// Index type of a passive data segment inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -88,7 +78,6 @@ entity_impl!(DataIndex);
 
 /// Index type of a passive element segment inside the WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -97,7 +86,6 @@ entity_impl!(ElemIndex);
 
 /// Index type of a custom section inside a WebAssembly module.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -106,7 +94,6 @@ entity_impl!(CustomSectionIndex);
 
 /// An entity to export.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(u8)]
@@ -123,7 +110,6 @@ pub enum ExportIndex {
 
 /// An entity to import.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "enable-serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(u8)]

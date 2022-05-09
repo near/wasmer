@@ -12,8 +12,6 @@ use crate::{
     JumpTableOffsets, Relocation,
 };
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
 
@@ -21,7 +19,6 @@ use wasmer_types::{FunctionIndex, LocalFunctionIndex, SignatureIndex};
 ///
 /// This structure is only used for reconstructing
 /// the frame information after a `Trap`.
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompiledFunctionFrameInfo {
     /// The traps (in the function body).
@@ -34,11 +31,9 @@ pub struct CompiledFunctionFrameInfo {
 }
 
 /// The function body.
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
 pub struct FunctionBody {
     /// The function body bytes.
-    #[cfg_attr(feature = "enable-serde", serde(with = "serde_bytes"))]
     pub body: Vec<u8>,
 
     /// The function unwind info
@@ -77,7 +72,6 @@ impl<'a> From<&'a ArchivedFunctionBody> for FunctionBodyRef<'a> {
 /// This structure only have the compiled information data
 /// (function bytecode body, relocations, traps, jump tables
 /// and unwind information).
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, Clone, PartialEq, Eq)]
 pub struct CompiledFunction {
     /// The function body.
@@ -105,7 +99,6 @@ pub type CustomSections = PrimaryMap<SectionIndex, CustomSection>;
 /// happens.
 /// In the future this structure may also hold other information useful
 /// for debugging.
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, PartialEq, Eq, Clone)]
 pub struct Dwarf {
     /// The section index in the [`Compilation`] that corresponds to the exception frames.
@@ -122,7 +115,6 @@ impl Dwarf {
 }
 
 /// Trampolines section used by ARM short jump (26bits)
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive, Debug, PartialEq, Eq, Clone)]
 pub struct TrampolinesSection {
     /// SectionIndex for the actual Trampolines code
@@ -145,7 +137,6 @@ impl TrampolinesSection {
 }
 
 /// The result of compiling a WebAssembly module's functions.
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(Debug, PartialEq, Eq)]
 pub struct Compilation {
     /// Compiled code for the function bodies.

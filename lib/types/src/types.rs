@@ -5,8 +5,6 @@ use crate::lib::std::string::{String, ToString};
 use crate::lib::std::vec::Vec;
 use crate::units::Pages;
 use crate::values::{Value, WasmValueType};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 use std::cell::UnsafeCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -17,7 +15,6 @@ use std::sync::Arc;
 
 /// A list of all possible value types in WebAssembly.
 #[derive(Copy, Debug, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub enum Type {
@@ -60,7 +57,6 @@ impl fmt::Display for Type {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 /// The WebAssembly V128 type
@@ -110,7 +106,6 @@ impl From<&[u8]> for V128 {
 /// This list can be found in [`ImportType`] or [`ExportType`], so these types
 /// can either be imported or exported.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 pub enum ExternType {
     /// This external type is the type of a WebAssembly function.
     Function(FunctionType),
@@ -162,7 +157,6 @@ impl ExternType {
 ///
 /// WebAssembly functions can have 0 or more parameters and results.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct FunctionType {
     /// The parameters of the function
@@ -288,7 +282,6 @@ impl<'a> From<&'a ArchivedFunctionType> for FunctionTypeRef<'a> {
 
 /// Indicator of whether a global is mutable or not
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub enum Mutability {
@@ -310,7 +303,6 @@ impl Mutability {
 
 /// WebAssembly global.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub struct GlobalType {
@@ -355,7 +347,6 @@ impl fmt::Display for GlobalType {
 
 /// Globals are initialized via the `const` operators or by referring to another import.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 pub enum GlobalInit {
@@ -413,7 +404,6 @@ impl GlobalInit {
 /// an `externref`. The most common use for tables is a function table through
 /// which `call_indirect` can invoke other functions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct TableType {
     /// The type of data stored in elements of the table.
@@ -453,7 +443,6 @@ impl fmt::Display for TableType {
 /// Memories are described in units of pages (64KB) and represent contiguous
 /// chunks of addressable memory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct MemoryType {
     /// The minimum number of pages in the memory.
@@ -552,7 +541,6 @@ impl<S: AsRef<str>, T> Import<S, T> {
 /// `MemoryType`, `TableType`, `FunctionType` and `GlobalType` for ease of
 /// use.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 pub struct ExportType<T = ExternType> {
     name: String,
     ty: T,

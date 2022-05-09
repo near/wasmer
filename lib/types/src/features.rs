@@ -1,13 +1,10 @@
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 
 /// Controls which experimental features will be enabled.
 /// Features usually have a corresponding [WebAssembly proposal].
 ///
 /// [WebAssembly proposal]: https://github.com/WebAssembly/proposals
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct Features {
     /// Threads proposal should be enabled

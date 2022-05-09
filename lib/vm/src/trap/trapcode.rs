@@ -6,7 +6,6 @@
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// A trap code describing the reason for a trap.
@@ -19,8 +18,6 @@ use thiserror::Error;
     Eq,
     Debug,
     Hash,
-    Serialize,
-    Deserialize,
     Error,
     RkyvSerialize,
     RkyvDeserialize,

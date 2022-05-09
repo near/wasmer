@@ -1,8 +1,6 @@
 use crate::lib::std::convert::TryFrom;
 use crate::lib::std::fmt;
 use crate::lib::std::ops::{Add, Sub};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use thiserror::Error;
 
@@ -20,7 +18,6 @@ pub const WASM_MIN_PAGES: u32 = 0x100;
 
 /// Units of WebAssembly pages (as specified to be 65,536 bytes).
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 #[archive(as = "Self")]
 #[repr(transparent)]
@@ -66,7 +63,6 @@ impl From<u32> for Pages {
 
 /// Units of WebAssembly memory in terms of 8-bit bytes.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 pub struct Bytes(pub usize);
 
 impl fmt::Debug for Bytes {

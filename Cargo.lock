@@ -647,7 +647,6 @@ checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
  "hashbrown 0.11.2",
- "serde",
 ]
 
 [[package]]
@@ -1309,15 +1308,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_bytes"
-version = "0.11.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16ae07dd2f88a366f15bd0632ba725227018c69a1c8550a927324f8eb8368bb9"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_cbor"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1780,8 +1770,6 @@ dependencies = [
  "enumset",
  "hashbrown 0.11.2",
  "rkyv",
- "serde",
- "serde_bytes",
  "smallvec",
  "target-lexicon",
  "thiserror",
@@ -1831,8 +1819,6 @@ dependencies = [
  "memmap2",
  "more-asserts",
  "rustc-demangle",
- "serde",
- "serde_bytes",
  "target-lexicon",
  "thiserror",
  "wasmer-compiler-near",
@@ -1891,7 +1877,6 @@ version = "2.3.0"
 dependencies = [
  "indexmap",
  "rkyv",
- "serde",
  "thiserror",
 ]
 
@@ -1908,7 +1893,6 @@ dependencies = [
  "more-asserts",
  "region",
  "rkyv",
- "serde",
  "thiserror",
  "wasmer-types-near",
  "winapi",
@@ -1919,7 +1903,6 @@ name = "wasmer-wast"
 version = "2.1.0"
 dependencies = [
  "anyhow",
- "serde",
  "tempfile",
  "thiserror",
  "wasmer-near",

@@ -6,15 +6,12 @@
 
 use super::CodeOffset;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 use wasmer_types::entity::{entity_impl, SecondaryMap};
 
 /// An opaque reference to a [jump table](https://en.wikipedia.org/wiki/Branch_table).
 ///
 /// `JumpTable`s are used for indirect branching and are specialized for dense,
 /// 0-based jump offsets.
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 #[archive_attr(derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord))]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

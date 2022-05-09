@@ -9,7 +9,6 @@ use crate::mmap::Mmap;
 use crate::vmcontext::VMMemoryDefinition;
 use more_asserts::assert_ge;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-use serde::{Deserialize, Serialize};
 use std::borrow::BorrowMut;
 use std::cell::UnsafeCell;
 use std::convert::TryInto;
@@ -68,8 +67,6 @@ pub enum MemoryError {
     PartialEq,
     Eq,
     Hash,
-    Serialize,
-    Deserialize,
     RkyvSerialize,
     RkyvDeserialize,
     Archive,

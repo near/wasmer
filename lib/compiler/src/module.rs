@@ -1,7 +1,5 @@
 use crate::lib::std::sync::Arc;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{Features, MemoryIndex, ModuleInfo, TableIndex};
 use wasmer_vm::{MemoryStyle, TableStyle};
@@ -12,7 +10,6 @@ use wasmer_vm::{MemoryStyle, TableStyle};
 /// possible after translation (such as the features used for compiling,
 /// or the `MemoryStyle` and `TableStyle`).
 #[derive(Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "enable-serde", derive(Deserialize, Serialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct CompileModuleInfo {
     /// The features used for compiling the module

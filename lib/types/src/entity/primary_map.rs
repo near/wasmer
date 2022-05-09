@@ -13,8 +13,6 @@ use crate::lib::std::ops::{Index, IndexMut};
 use crate::lib::std::slice;
 use crate::lib::std::vec::Vec;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-#[cfg(feature = "enable-serde")]
-use serde::{Deserialize, Serialize};
 
 /// A primary mapping `K -> V` allocating dense entity references.
 ///
@@ -32,7 +30,6 @@ use serde::{Deserialize, Serialize};
 /// plain slice would make it easier to use incorrectly. To make a slice of a `PrimaryMap`, use
 /// `into_boxed_slice`.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-#[cfg_attr(feature = "enable-serde", derive(Serialize, Deserialize))]
 #[derive(RkyvSerialize, RkyvDeserialize, Archive)]
 pub struct PrimaryMap<K, V>
 where

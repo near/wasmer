@@ -10,7 +10,6 @@ use crate::trap::{Trap, TrapCode};
 use crate::vmcontext::VMTableDefinition;
 use crate::VMExternRef;
 use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
-use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::UnsafeCell;
 use std::convert::TryFrom;
@@ -26,8 +25,6 @@ use wasmer_types::{ExternRef, TableType, Type as ValType};
     Hash,
     PartialEq,
     Eq,
-    Serialize,
-    Deserialize,
     RkyvSerialize,
     RkyvDeserialize,
     Archive,

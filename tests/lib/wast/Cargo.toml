@@ -14,7 +14,6 @@ edition = "2018"
 anyhow = "1.0"
 wasmer = { path = "../../../lib/api", version = "=2.3.0", package = "wasmer-near", default-features = false, features = ["experimental-reference-types-extern-ref"] }
 wast = "38.0"
-serde = "1"
 tempfile = "3"
 thiserror = "1.0"
 
