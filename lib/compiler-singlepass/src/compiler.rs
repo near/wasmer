@@ -106,17 +106,6 @@ impl Compiler for SinglepassCompiler {
             .map(|(i, input)| {
                 let reader = wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
 
-                let mut local_reader = reader.get_locals_reader()?;
-                // This local list excludes arguments.
-                let mut locals = vec![];
-                let num_locals = local_reader.get_count();
-                for _ in 0..num_locals {
-                    let (count, ty) = local_reader.read()?;
-                    for _ in 0..count {
-                        locals.push(ty);
-                    }
-                }
-
                 let mut generator = FuncGen::new(
                     module,
                     module_translation,
@@ -124,10 +113,20 @@ impl Compiler for SinglepassCompiler {
                     &vmoffsets,
                     &table_styles,
                     i,
-                    &locals,
                     calling_convention,
                 )
                 .map_err(to_compile_error)?;
+
+                let mut local_reader = reader.get_locals_reader()?;
+                for _ in 0..local_reader.get_count() {
+                    let (count, ty) = local_reader.read()?;
+                    // Overflows feeding a local here have most likely already been caught by the
+                    // validator, but it is possible that the validator hasn't been run at all, or
+                    // that the validator does not impose any limits on the number of locals.
+                    generator.feed_local(count, ty);
+                }
+
+                generator.emit_head().map_err(to_compile_error)?;
 
                 let mut operator_reader = reader.get_operators_reader()?.into_iter_with_offsets();
                 while generator.has_control_frames() {
