@@ -61,6 +61,7 @@ test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tracing = { version = "0.1", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 wat = "1.0"
+wasm-encoder = "0.12"
 
 
 [features]
@@ -123,7 +124,7 @@ name = "static_and_dynamic_functions"
 harness = false
 
 [[bench]]
-name = "many_functions"
+name = "limits"
 harness = false
 
 [[example]]
@@ -214,4 +215,9 @@ required-features = ["singlepass"]
 [[example]]
 name = "features"
 path = "examples/features.rs"
+required-features = ["singlepass"]
+
+[[example]]
+name = "coremark"
+path = "examples/coremark.rs"
 required-features = ["singlepass"]
