@@ -55,9 +55,12 @@ pub fn resolve_imports(
             &VMImportType::Table(t) => ExternType::Table(t),
             &VMImportType::Memory(t, _) => ExternType::Memory(t),
             &VMImportType::Global(t) => ExternType::Global(t),
-            &VMImportType::Function(sig_idx) => ExternType::Function(
+            &VMImportType::Function {
+                sig,
+                static_trampoline: _,
+            } => ExternType::Function(
                 engine
-                    .lookup_signature(sig_idx)
+                    .lookup_signature(sig)
                     .expect("VMSharedSignatureIndex is not valid?"),
             ),
         };
@@ -86,9 +89,13 @@ pub fn resolve_imports(
             }
         };
         match (&resolved, ty) {
-            (Export::Function(ex), VMImportType::Function(im))
-                if ex.vm_function.signature == *im =>
-            {
+            (
+                Export::Function(ex),
+                VMImportType::Function {
+                    sig,
+                    static_trampoline,
+                },
+            ) if ex.vm_function.signature == *sig => {
                 let address = match ex.vm_function.kind {
                     VMFunctionKind::Dynamic => {
                         // If this is a dynamic imported function,
@@ -123,11 +130,21 @@ pub fn resolve_imports(
                     unsafe { ex.vm_function.vmctx.host_env }
                 };
 
+                let trampoline = if let Some(t) = ex.vm_function.call_trampoline {
+                    Some(t)
+                } else if let VMFunctionKind::Static = ex.vm_function.kind {
+                    // Look up a trampoline by finding one by the signature and fill it in.
+                    Some(*static_trampoline)
+                } else {
+                    // FIXME: remove this possibility entirely.
+                    None
+                };
+
                 function_imports.push(VMFunctionImport {
                     body: FunctionBodyPtr(address),
-                    signature: *im,
+                    signature: *sig,
                     environment: VMFunctionEnvironment { host_env: env },
-                    trampoline: ex.vm_function.call_trampoline,
+                    trampoline,
                 });
 
                 let initializer = ex

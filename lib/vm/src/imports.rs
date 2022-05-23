@@ -3,14 +3,19 @@
 
 use crate::instance::ImportFunctionEnv;
 use crate::vmcontext::{VMFunctionImport, VMGlobalImport, VMMemoryImport, VMTableImport};
-use crate::VMSharedSignatureIndex;
+use crate::{VMSharedSignatureIndex, VMTrampoline};
 use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{FunctionIndex, GlobalIndex, MemoryIndex, TableIndex};
 
 /// Type of the import.
 pub enum VMImportType {
-    /// A function signature.
-    Function(VMSharedSignatureIndex),
+    /// A function import.
+    Function {
+        /// Signature for the function import.
+        sig: VMSharedSignatureIndex,
+        /// Trampoline to use for functions that use [`VMFunctionKind::Static`].
+        static_trampoline: VMTrampoline,
+    },
     /// A global.
     Global(wasmer_types::GlobalType),
     /// A table.

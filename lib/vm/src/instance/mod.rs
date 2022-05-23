@@ -26,7 +26,7 @@ use crate::vmcontext::{
     VMFunctionEnvironment, VMFunctionImport, VMFunctionKind, VMGlobalDefinition, VMGlobalImport,
     VMLocalFunction, VMMemoryDefinition, VMMemoryImport, VMTableDefinition, VMTableImport,
 };
-use crate::{Artifact, VMOffsets};
+use crate::{wasmer_call_trampoline, Artifact, VMOffsets, VMTrampoline};
 use crate::{VMExtern, VMFunction, VMGlobal};
 use memoffset::offset_of;
 use more_asserts::assert_lt;
@@ -375,17 +375,19 @@ impl Instance {
         };
         let start_funcref = self.funcrefs[start_index];
         // Make the call.
-        self.on_call();
-        unsafe {
+        self.reset_stack_meter();
+        let result = unsafe {
             catch_traps(|| {
                 mem::transmute::<*const VMFunctionBody, unsafe extern "C" fn(VMFunctionEnvironment)>(
                     start_funcref.func_ptr,
                 )(start_funcref.vmctx)
             })
-        }
+        };
+        self.reset_stack_meter();
+        result
     }
 
-    pub fn on_call(&self) {
+    fn reset_stack_meter(&self) {
         unsafe {
             *(self.stack_limit_ptr()) = *(self.stack_limit_initial_ptr());
         }
@@ -970,6 +972,22 @@ impl InstanceHandle {
         Ok(())
     }
 
+    /// See [`traphandlers::wasmer_call_trampoline`].
+    pub unsafe fn invoke_function(
+        &self,
+        vmctx: VMFunctionEnvironment,
+        trampoline: VMTrampoline,
+        callee: *const VMFunctionBody,
+        values_vec: *mut u8,
+    ) -> Result<(), Trap> {
+        // `vmctx` is always `*mut VMContext` here, as we call to WASM.
+        {
+            let instance = self.instance().as_ref();
+            instance.reset_stack_meter();
+        }
+        wasmer_call_trampoline(vmctx, trampoline, callee, values_vec)
+    }
+
     /// Return a reference to the vmctx used by compiled wasm code.
     pub fn vmctx(&self) -> &VMContext {
         self.instance().as_ref().vmctx()
@@ -991,7 +1009,7 @@ impl InstanceHandle {
     pub fn function_by_index(&self, idx: FunctionIndex) -> Option<VMFunction> {
         let instance = self.instance.as_ref();
 
-        let (address, signature, vmctx, trampoline) =
+        let (address, signature, vmctx, call_trampoline) =
             match instance.artifact.import_counts().local_function_index(idx) {
                 Ok(local) => {
                     let func = instance.artifact.functions().get(local)?;
@@ -1023,7 +1041,7 @@ impl InstanceHandle {
             address,
             signature,
             vmctx,
-            call_trampoline: trampoline,
+            call_trampoline,
             instance_ref: Some(WeakOrStrongInstanceRef::Strong(self.instance().clone())),
         })
     }

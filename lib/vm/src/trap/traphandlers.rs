@@ -146,6 +146,8 @@ impl Trap {
 /// * `values_vec` - points to a buffer which holds the incoming arguments, and to
 ///   which the outgoing return values will be written.
 ///
+/// Prefer invoking this via `Instance::invoke_trampoline`.
+///
 /// # Safety
 ///
 /// Wildly unsafe because it calls raw function pointers and reads/writes raw
@@ -156,9 +158,6 @@ pub unsafe fn wasmer_call_trampoline(
     callee: *const VMFunctionBody,
     values_vec: *mut u8,
 ) -> Result<(), Trap> {
-    // `vmctx` is always `*mut VMContext` here, as we call to WASM.
-    let ctx = vmctx.vmctx;
-    (*ctx).instance().on_call();
     catch_traps(|| {
         mem::transmute::<_, extern "C" fn(VMFunctionEnvironment, *const VMFunctionBody, *mut u8)>(
             trampoline,

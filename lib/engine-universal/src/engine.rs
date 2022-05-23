@@ -195,17 +195,18 @@ impl UniversalEngine {
             .map(|(_, sig)| inner_engine.signatures.register(sig.into()))
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
-        let (functions, _, dynamic_trampolines, custom_sections) = inner_engine.allocate(
-            local_functions,
-            function_call_trampolines.iter().map(|(_, b)| b.into()),
-            dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
-            executable.custom_sections.iter().map(|(_, s)| s.into()),
-            |idx: LocalFunctionIndex| {
-                let func_idx = module.import_counts.function_index(idx);
-                let sig_idx = module.functions[func_idx];
-                (sig_idx, signatures[sig_idx])
-            },
-        )?;
+        let (functions, trampolines, dynamic_trampolines, custom_sections) = inner_engine
+            .allocate(
+                local_functions,
+                function_call_trampolines.iter().map(|(_, b)| b.into()),
+                dynamic_function_trampolines.iter().map(|(_, b)| b.into()),
+                executable.custom_sections.iter().map(|(_, s)| s.into()),
+                |idx: LocalFunctionIndex| {
+                    let func_idx = module.import_counts.function_index(idx);
+                    let sig_idx = module.functions[func_idx];
+                    (sig_idx, signatures[sig_idx])
+                },
+            )?;
         let imports = module
             .imports
             .iter()
@@ -216,7 +217,10 @@ impl UniversalEngine {
                 ty: match entity {
                     ImportIndex::Function(i) => {
                         let sig_idx = module.functions[*i];
-                        VMImportType::Function(signatures[sig_idx])
+                        VMImportType::Function {
+                            sig: signatures[sig_idx],
+                            static_trampoline: trampolines[sig_idx],
+                        }
                     }
                     ImportIndex::Table(i) => VMImportType::Table(module.tables[*i]),
                     &ImportIndex::Memory(i) => {
@@ -332,17 +336,18 @@ impl UniversalEngine {
             .map(|sig| inner_engine.signatures.register(sig.into()))
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
-        let (functions, _, dynamic_trampolines, custom_sections) = inner_engine.allocate(
-            local_functions,
-            call_trampolines.map(|(_, b)| b.into()),
-            dynamic_trampolines.map(|(_, b)| b.into()),
-            executable.custom_sections.iter().map(|(_, s)| s.into()),
-            |idx: LocalFunctionIndex| {
-                let func_idx = import_counts.function_index(idx);
-                let sig_idx = module.functions[&func_idx];
-                (sig_idx, signatures[sig_idx])
-            },
-        )?;
+        let (functions, trampolines, dynamic_trampolines, custom_sections) = inner_engine
+            .allocate(
+                local_functions,
+                call_trampolines.map(|(_, b)| b.into()),
+                dynamic_trampolines.map(|(_, b)| b.into()),
+                executable.custom_sections.iter().map(|(_, s)| s.into()),
+                |idx: LocalFunctionIndex| {
+                    let func_idx = import_counts.function_index(idx);
+                    let sig_idx = module.functions[&func_idx];
+                    (sig_idx, signatures[sig_idx])
+                },
+            )?;
         let imports = {
             module
                 .imports
@@ -354,7 +359,10 @@ impl UniversalEngine {
                     ty: match entity {
                         ImportIndex::Function(i) => {
                             let sig_idx = module.functions[i];
-                            VMImportType::Function(signatures[sig_idx])
+                            VMImportType::Function {
+                                sig: signatures[sig_idx],
+                                static_trampoline: trampolines[sig_idx],
+                            }
                         }
                         ImportIndex::Table(i) => VMImportType::Table(unrkyv(&module.tables[i])),
                         ImportIndex::Memory(i) => {

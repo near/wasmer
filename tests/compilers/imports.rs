@@ -354,6 +354,28 @@ fn dynamic_function_with_env_wasmer_env_init_works(config: crate::Config) -> Res
     Ok(())
 }
 
+static REGRESSION_IMPORT_TRAMPOLINES: &str = r#"(module
+  (type (;1;) (func))
+  (import "env" "panic" (func (;1;) (type 0)))
+  (export "n" (func 0))
+)"#;
+
+#[compiler_test(imports)]
+fn regression_import_trampolines(config: crate::Config) -> Result<()> {
+    let store = config.store();
+    let module = Module::new(&store, &REGRESSION_IMPORT_TRAMPOLINES)?;
+    let panic = Function::new_native(&store, || ());
+    let imports = imports! {
+        "env" => { "panic" => panic }
+    };
+    let instance = Instance::new(&module, &imports)?;
+    let n = instance.lookup_function("n").unwrap();
+    let result = n.call(&[])?;
+    println!("{:?}", result);
+
+    Ok(())
+}
+
 // TODO(0-copy): no longer possible to get references to exported entities other than functions
 //               (we don't need that functionality)
 // #[compiler_test(imports)]

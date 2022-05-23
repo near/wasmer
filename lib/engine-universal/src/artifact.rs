@@ -181,8 +181,8 @@ impl Artifact for UniversalArtifact {
                 .imports
                 .iter()
                 .filter_map(|im| {
-                    if let VMImportType::Function(idx) = im.ty {
-                        Some(idx)
+                    if let VMImportType::Function { sig, .. } = im.ty {
+                        Some(sig)
                     } else {
                         None
                     }
