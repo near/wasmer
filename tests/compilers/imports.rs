@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use std::convert::Infallible;
+use std::sync::atomic::AtomicBool;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
@@ -355,9 +356,12 @@ fn dynamic_function_with_env_wasmer_env_init_works(config: crate::Config) -> Res
 }
 
 static REGRESSION_IMPORT_TRAMPOLINES: &str = r#"(module
-  (type (;1;) (func))
-  (import "env" "panic" (func (;1;) (type 0)))
-  (export "n" (func 0))
+  (type (;0;) (func))
+  (type (;1;) (func (param i32)))
+  (import "env" "panic" (func (;0;) (type 0)))
+  (import "env" "gas" (func (;1;) (type 1)))
+  (export "panic" (func 0))
+  (export "gas" (func 1))
 )"#;
 
 #[compiler_test(imports)]
@@ -365,14 +369,23 @@ fn regression_import_trampolines(config: crate::Config) -> Result<()> {
     let store = config.store();
     let module = Module::new(&store, &REGRESSION_IMPORT_TRAMPOLINES)?;
     let panic = Function::new_native(&store, || ());
+    static GAS_CALLED: AtomicBool = AtomicBool::new(false);
+    let gas = Function::new_native(&store, |p: i32| {
+        GAS_CALLED.store(true, SeqCst);
+        assert_eq!(p, 42)
+    });
     let imports = imports! {
-        "env" => { "panic" => panic }
+        "env" => {
+            "panic" => panic,
+            "gas" => gas,
+        }
     };
     let instance = Instance::new(&module, &imports)?;
-    let n = instance.lookup_function("n").unwrap();
-    let result = n.call(&[])?;
-    println!("{:?}", result);
-
+    let panic = instance.lookup_function("panic").unwrap();
+    panic.call(&[])?;
+    let gas = instance.lookup_function("gas").unwrap();
+    gas.call(&[Value::I32(42)])?;
+    assert_eq!(GAS_CALLED.load(SeqCst), true);
     Ok(())
 }
 
