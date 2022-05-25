@@ -20,6 +20,7 @@ wasmer-types = { version = "=2.4.0", path = "lib/types", package = "wasmer-types
 wasmer-vm = { version = "=2.4.0", path = "lib/vm", package = "wasmer-vm-near" }
 
 cfg-if = "1.0"
+tracing = "0.1"
 
 [workspace]
 members = [
@@ -54,9 +55,10 @@ tempfile = "3.1"
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tracing = { version = "0.1", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+tracing-tracy = "0.9"
+tracy-client = "0.13"
 wat = "1.0"
 wasm-encoder = "0.12"
-
 
 [features]
 # Don't add the compiler features in default, please add them on the Makefile
@@ -97,6 +99,11 @@ harness = false
 [[bench]]
 name = "limits"
 harness = false
+
+[[example]]
+name = "tracy-exec"
+path = "examples/tracy_exec.rs"
+required-features = ["singlepass"]
 
 [[example]]
 name = "early-exit"

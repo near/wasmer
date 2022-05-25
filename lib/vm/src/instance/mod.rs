@@ -1172,6 +1172,7 @@ impl InstanceHandle {
 ///   visible to code in `wasmer_vm`, so it's the caller's responsibility to ensure these
 ///   functions are called with the correct type.
 /// - `instance_ptr` must point to a valid `wasmer::Instance`.
+#[tracing::instrument(skip_all)]
 pub unsafe fn initialize_host_envs<Err: Sized>(
     handle: &std::sync::Mutex<InstanceHandle>,
     instance_ptr: *const ffi::c_void,

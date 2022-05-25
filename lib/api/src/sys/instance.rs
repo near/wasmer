@@ -117,6 +117,7 @@ impl Instance {
     }
 
     /// New instance with config.
+    #[tracing::instrument(skip_all)]
     pub fn new_with_config(
         module: &Module,
         config: InstanceConfig,

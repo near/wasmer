@@ -1895,6 +1895,7 @@ impl<'a> FuncGen<'a> {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     pub(crate) fn new(
         module: &'a ModuleInfo,
         module_translation_state: &'a ModuleTranslationState,
@@ -1984,6 +1985,7 @@ impl<'a> FuncGen<'a> {
             .expect("local index out of bounds")
     }
 
+    #[tracing::instrument(skip(self))]
     pub(crate) fn feed_operator(&mut self, op: Operator) -> Result<(), CodegenError> {
         assert!(self.fp_stack.len() <= self.value_stack.len());
 
@@ -8377,6 +8379,7 @@ impl<'a> FuncGen<'a> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
         // Generate actual code for special labels.
         self.assembler
@@ -8499,6 +8502,7 @@ fn sort_call_movs(movs: &mut [(Location, GPR)]) {
 }
 
 // Standard entry trampoline.
+#[tracing::instrument]
 pub(crate) fn gen_std_trampoline(
     sig: &FunctionType,
     calling_convention: CallingConvention,
@@ -8608,6 +8612,7 @@ pub(crate) fn gen_std_trampoline(
 }
 
 /// Generates dynamic import function call trampoline for a function type.
+#[tracing::instrument(skip(vmoffsets))]
 pub(crate) fn gen_std_dynamic_import_trampoline(
     vmoffsets: &VMOffsets,
     sig: &FunctionType,
@@ -8729,6 +8734,7 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
 }
 
 // Singlepass calls import functions through a trampoline.
+#[tracing::instrument(skip(vmoffsets))]
 pub(crate) fn gen_import_call_trampoline(
     vmoffsets: &VMOffsets,
     index: FunctionIndex,
