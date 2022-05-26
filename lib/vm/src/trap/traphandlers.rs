@@ -526,12 +526,10 @@ impl Trap {
 
 /// Call the wasm function pointed to by `callee`.
 ///
-/// * `vmctx` - the callee vmctx argument
-/// * `caller_vmctx` - the caller vmctx argument
-/// * `trampoline` - the jit-generated trampoline whose ABI takes 4 values, the
-///   callee vmctx, the caller vmctx, the `callee` argument below, and then the
-///   `values_vec` argument.
-/// * `callee` - the third argument to the `trampoline` function
+/// * `callee_env` - the callee's environment
+/// * `trampoline` - the jit-generated trampoline whose ABI takes 3 values, the
+///   callee env, the `callee` argument below, and then the `values_vec` argument.
+/// * `callee` - the 2nd argument to the `trampoline` function
 /// * `values_vec` - points to a buffer which holds the incoming arguments, and to
 ///   which the outgoing return values will be written.
 ///
@@ -541,18 +539,15 @@ impl Trap {
 /// function pointers.
 pub unsafe fn wasmer_call_trampoline(
     trap_handler: &impl TrapHandler,
-    vmctx: VMFunctionEnvironment,
+    callee_env: VMFunctionEnvironment,
     trampoline: VMTrampoline,
     callee: *const VMFunctionBody,
     values_vec: *mut u8,
 ) -> Result<(), Trap> {
-    // `vmctx` is always `*mut VMContext` here, as we call to WASM.
-    let ctx = vmctx.vmctx;
-    (*ctx).instance().on_call();
     catch_traps(trap_handler, || {
         mem::transmute::<_, extern "C" fn(VMFunctionEnvironment, *const VMFunctionBody, *mut u8)>(
             trampoline,
-        )(vmctx, callee, values_vec);
+        )(callee_env, callee, values_vec);
     })
 }
 
