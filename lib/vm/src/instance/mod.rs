@@ -383,7 +383,6 @@ impl Instance {
                 )(start_funcref.vmctx)
             })
         };
-        self.reset_stack_meter();
         result
     }
 
