@@ -1,5 +1,5 @@
 use crate::address_map::get_function_address_map;
-use crate::config::{Intrinsic, IntrinsicKind};
+use crate::config::IntrinsicKind;
 use crate::{config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
 use dynasmrt::{x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, VecAssembler};
 use memoffset::offset_of;
@@ -297,14 +297,8 @@ impl<'a> FuncGen<'a> {
         I2O1 { loc_a, loc_b, ret }
     }
 
-    fn emit_call(&mut self, function_index: u32) -> Result<(), CodegenError> {
-        let function_index = function_index as usize;
-
-        let sig_index = *self
-            .module
-            .functions
-            .get(FunctionIndex::new(function_index))
-            .unwrap();
+    fn emit_call(&mut self, function: FunctionIndex) -> Result<(), CodegenError> {
+        let sig_index = *self.module.functions.get(function).unwrap();
         let sig = self.module.signatures.get(sig_index).unwrap();
         let param_types: SmallVec<[WpType; 8]> =
             sig.params().iter().cloned().map(type_to_wp_type).collect();
@@ -338,165 +332,143 @@ impl<'a> FuncGen<'a> {
             }
         }
 
-        if let Some(intrinsic) = self.check_intrinsic(function_index, &params) {
-            self.emit_intrinsic(intrinsic, &params)?
-        } else {
-            let reloc_at = self.assembler.get_offset().0 + self.assembler.arch_mov64_imm_offset();
-            // Imported functions are called through trampolines placed as custom sections.
-            let imports = self.module.import_counts.functions as usize;
-            let reloc_target = if function_index < imports {
-                RelocationTarget::CustomSection(SectionIndex::new(function_index))
-            } else {
-                RelocationTarget::LocalFunc(LocalFunctionIndex::new(function_index - imports))
-            };
-            self.relocations.push(Relocation {
-                kind: RelocationKind::Abs8,
-                reloc_target,
-                offset: reloc_at as u32,
-                addend: 0,
-            });
-
-            // RAX is preserved on entry to `emit_call_sysv` callback.
-            // The Imm64 value is relocated by the JIT linker.
-            self.assembler.emit_mov(
-                Size::S64,
-                Location::Imm64(std::u64::MAX),
-                Location::GPR(GPR::RAX),
-            );
-
-            self.emit_call_native(
-                |this| {
-                    this.assembler.emit_call_location(Location::GPR(GPR::RAX));
-                },
-                params.iter().copied(),
-            )?;
-
-            self.machine
-                .release_locations_only_stack(&mut self.assembler, &params);
-
-            if !return_types.is_empty() {
-                let ret = self.machine.acquire_locations(
-                    &mut self.assembler,
-                    &[(return_types[0])],
-                    false,
-                )[0];
-                self.value_stack.push(ret);
-                if return_types[0].is_float() {
-                    self.assembler
-                        .emit_mov(Size::S64, Location::XMM(XMM::XMM0), ret);
-                    self.fp_stack
-                        .push(FloatValue::new(self.value_stack.len() - 1));
-                } else {
-                    self.assembler
-                        .emit_mov(Size::S64, Location::GPR(GPR::RAX), ret);
-                }
-            }
+        if self.try_intrinsic(function, &params) {
+            // This was genereated as an intrinsic, we're done.
+            return Ok(());
         }
 
-        Ok(())
-    }
+        let reloc_at = self.assembler.get_offset().0 + self.assembler.arch_mov64_imm_offset();
+        // Imported functions are called through trampolines placed as custom sections.
+        let reloc_target = match self.module.import_counts.local_function_index(function) {
+            Ok(local) => RelocationTarget::LocalFunc(local),
+            Err(imp) => RelocationTarget::CustomSection(SectionIndex::from_u32(imp.as_u32())),
+        };
+        self.relocations.push(Relocation {
+            kind: RelocationKind::Abs8,
+            reloc_target,
+            offset: reloc_at as u32,
+            addend: 0,
+        });
 
-    fn check_intrinsic(
-        &mut self,
-        index: usize,
-        params: &SmallVec<[Location; 8]>,
-    ) -> Option<Intrinsic> {
-        let function_index = FunctionIndex::new(index);
-        let signature_index = self.module.functions[function_index];
-        let signature = &self.module.signatures[signature_index];
-        // Returns None if not imported.
-        let import_name = self
-            .module_translation_state
-            .import_map
-            .get(&function_index)?;
-        // TODO: can keep intrinsics in above map, but not sure if we'll have
-        //   significant amount of them to make it important.
-        for intrinsic in &self.config.intrinsics {
-            if intrinsic.name == *import_name
-                && intrinsic.signature == *signature
-                && intrinsic.is_params_ok(params)
-            {
-                return Some(intrinsic.clone());
-            }
-        }
-        None
-    }
+        // RAX is preserved on entry to `emit_call_sysv` callback.
+        // The Imm64 value is relocated by the JIT linker.
+        self.assembler.emit_mov(
+            Size::S64,
+            Location::Imm64(std::u64::MAX),
+            Location::GPR(GPR::RAX),
+        );
 
-    fn emit_intrinsic(
-        &mut self,
-        intrinsic: Intrinsic,
-        params: &SmallVec<[Location; 8]>,
-    ) -> Result<(), CodegenError> {
-        match intrinsic.kind {
-            IntrinsicKind::Gas => {
-                let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
-                let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
-                let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
-                // Recheck offsets, to make sure offsets will never change.
-                assert_eq!(counter_offset, 0);
-                assert_eq!(gas_limit_offset, 8);
-                assert_eq!(opcode_cost_offset, 16);
-                assert_eq!(params.len(), 1);
-                let count_location = params[0];
-                let base_reg = self.machine.acquire_temp_gpr().unwrap();
-                // Load gas counter base.
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(
-                        Machine::get_vmctx_reg(),
-                        self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
-                    ),
-                    Location::GPR(base_reg),
-                );
-                let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
-                // Read current gas counter.
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(base_reg, counter_offset),
-                    Location::GPR(current_burnt_reg),
-                );
-                // Read opcode cost.
-                let count_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Memory(base_reg, opcode_cost_offset),
-                    Location::GPR(count_reg),
-                );
-                // Multiply instruction count by opcode cost.
-                match count_location {
-                    Location::Imm32(imm) => self.assembler.emit_imul_imm32_gpr64(imm, count_reg),
-                    _ => assert!(false),
-                }
-                // Compute new cost.
-                self.assembler.emit_add(
-                    Size::S64,
-                    Location::GPR(count_reg),
-                    Location::GPR(current_burnt_reg),
-                );
+        self.emit_call_native(
+            |this| {
+                this.assembler.emit_call_location(Location::GPR(GPR::RAX));
+            },
+            params.iter().copied(),
+        )?;
+
+        self.machine
+            .release_locations_only_stack(&mut self.assembler, &params);
+
+        if !return_types.is_empty() {
+            let ret =
+                self.machine
+                    .acquire_locations(&mut self.assembler, &[(return_types[0])], false)[0];
+            self.value_stack.push(ret);
+            if return_types[0].is_float() {
                 self.assembler
-                    .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
-                // Compare with the limit.
-                self.assembler.emit_cmp(
-                    Size::S64,
-                    Location::GPR(current_burnt_reg),
-                    Location::Memory(base_reg, gas_limit_offset),
-                );
-                // Write new gas counter unconditionally, so that runtime can sort out limits case.
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::GPR(current_burnt_reg),
-                    Location::Memory(base_reg, counter_offset),
-                );
-                self.assembler.emit_jmp(
-                    Condition::BelowEqual,
-                    self.special_labels.gas_limit_exceeded,
-                );
-                self.machine.release_temp_gpr(base_reg);
-                self.machine.release_temp_gpr(current_burnt_reg);
-                self.machine.release_temp_gpr(count_reg);
+                    .emit_mov(Size::S64, Location::XMM(XMM::XMM0), ret);
+                self.fp_stack
+                    .push(FloatValue::new(self.value_stack.len() - 1));
+            } else {
+                self.assembler
+                    .emit_mov(Size::S64, Location::GPR(GPR::RAX), ret);
             }
         }
         Ok(())
+    }
+
+    /// Try emitting an intrinsic for a function call of function at index.
+    fn try_intrinsic(&mut self, function: FunctionIndex, params: &SmallVec<[Location; 8]>) -> bool {
+        let signature_index = self.module.functions[function];
+        let signature = &self.module.signatures[signature_index];
+        let import_name = self.module_translation_state.import_map.get(&function);
+        let intrinsic = import_name.and_then(|import_name| {
+            self.config.intrinsics.iter().find(|intrinsic| {
+                intrinsic.name == *import_name
+                    && intrinsic.signature == *signature
+                    && intrinsic.is_params_ok(params)
+            })
+        });
+        match intrinsic.map(|i| &i.kind) {
+            Some(IntrinsicKind::Gas) => self.emit_gas(params[0]),
+            None => return false,
+        }
+        return true;
+    }
+
+    fn emit_gas(&mut self, count_location: Location) {
+        let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
+        let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
+        let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
+        // Recheck offsets, to make sure offsets will never change.
+        assert_eq!(counter_offset, 0);
+        assert_eq!(gas_limit_offset, 8);
+        assert_eq!(opcode_cost_offset, 16);
+        let base_reg = self.machine.acquire_temp_gpr().unwrap();
+        // Load gas counter base.
+        self.assembler.emit_mov(
+            Size::S64,
+            Location::Memory(
+                Machine::get_vmctx_reg(),
+                self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
+            ),
+            Location::GPR(base_reg),
+        );
+        let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
+        // Read current gas counter.
+        self.assembler.emit_mov(
+            Size::S64,
+            Location::Memory(base_reg, counter_offset),
+            Location::GPR(current_burnt_reg),
+        );
+        // Read opcode cost.
+        let count_reg = self.machine.acquire_temp_gpr().unwrap();
+        self.assembler.emit_mov(
+            Size::S64,
+            Location::Memory(base_reg, opcode_cost_offset),
+            Location::GPR(count_reg),
+        );
+        // Multiply instruction count by opcode cost.
+        match count_location {
+            Location::Imm32(imm) => self.assembler.emit_imul_imm32_gpr64(imm, count_reg),
+            _ => assert!(false),
+        }
+        // Compute new cost.
+        self.assembler.emit_add(
+            Size::S64,
+            Location::GPR(count_reg),
+            Location::GPR(current_burnt_reg),
+        );
+        self.assembler
+            .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
+        // Compare with the limit.
+        self.assembler.emit_cmp(
+            Size::S64,
+            Location::GPR(current_burnt_reg),
+            Location::Memory(base_reg, gas_limit_offset),
+        );
+        // Write new gas counter unconditionally, so that runtime can sort out limits case.
+        self.assembler.emit_mov(
+            Size::S64,
+            Location::GPR(current_burnt_reg),
+            Location::Memory(base_reg, counter_offset),
+        );
+        self.assembler.emit_jmp(
+            Condition::BelowEqual,
+            self.special_labels.gas_limit_exceeded,
+        );
+        self.machine.release_temp_gpr(base_reg);
+        self.machine.release_temp_gpr(current_burnt_reg);
+        self.machine.release_temp_gpr(count_reg);
     }
 
     fn emit_trap(&mut self, code: TrapCode) {
@@ -5139,7 +5111,9 @@ impl<'a> FuncGen<'a> {
                 }
             }
 
-            Operator::Call { function_index } => self.emit_call(function_index)?,
+            Operator::Call { function_index } => {
+                self.emit_call(FunctionIndex::from_u32(function_index))?
+            }
             Operator::CallIndirect { index, table_index } => {
                 // TODO: removed restriction on always being table idx 0;
                 // does any code depend on this?
