@@ -58,6 +58,14 @@ impl Memory {
         })
     }
 
+    /// Create a `Memory` from `VMMemory`.
+    pub fn from_vmmemory(store: &Store, vm_memory: VMMemory) -> Self {
+        Self {
+            store: store.clone(),
+            vm_memory,
+        }
+    }
+
     /// Returns the [`MemoryType`] of the `Memory`.
     ///
     /// # Example

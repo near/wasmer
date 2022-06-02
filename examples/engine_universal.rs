@@ -19,7 +19,7 @@
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Instance, Module, Store, Value};
-use wasmer_compiler_cranelift::Cranelift;
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // In this situation, the compiler is
     // `wasmer_compiler_cranelift`. The compiler is responsible to
     // compile the Wasm module into executable code.
-    let compiler_config = Cranelift::default();
+    let compiler_config = Singlepass::default();
 
     println!("Creating Universal engine...");
     // Define the engine that will drive everything.
@@ -76,7 +76,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Calling `sum` function...");
     // The Wasm module exports a function called `sum`.
-    let sum = instance.exports.get_function("sum")?;
+    let sum = instance
+        .lookup_function("sum")
+        .ok_or("could not find `sum` export")?;
     let results = sum.call(&[Value::I32(1), Value::I32(2)])?;
 
     println!("Results: {:?}", results);

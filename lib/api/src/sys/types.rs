@@ -59,31 +59,7 @@ impl ValFuncRef for Val {
     }
 
     fn from_vm_funcref(func_ref: VMFuncRef, store: &Store) -> Self {
-        if func_ref.is_null() {
-            return Self::FuncRef(None);
-        }
-        let item: &wasmer_vm::VMCallerCheckedAnyfunc = unsafe {
-            let anyfunc: *const wasmer_vm::VMCallerCheckedAnyfunc = *func_ref;
-            &*anyfunc
-        };
-        let export = wasmer_vm::ExportFunction {
-            // TODO:
-            // figure out if we ever need a value here: need testing with complicated import patterns
-            metadata: None,
-            vm_function: wasmer_vm::VMFunction {
-                address: item.func_ptr,
-                signature: item.type_index,
-                // TODO: review this comment (unclear if it's still correct):
-                // All functions in tables are already Static (as dynamic functions
-                // are converted to use the trampolines with static signatures).
-                kind: wasmer_vm::VMFunctionKind::Static,
-                vmctx: item.vmctx,
-                call_trampoline: None,
-                instance_ref: None,
-            },
-        };
-        let f = Function::from_vm_export(store, export);
-        Self::FuncRef(Some(f))
+        Self::FuncRef(Function::from_vm_funcref(store, func_ref))
     }
 
     fn into_table_reference(&self, store: &Store) -> Result<wasmer_vm::TableElement, RuntimeError> {

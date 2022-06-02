@@ -7,7 +7,7 @@
 //! ```
 
 use wasmer::{imports, wat2wasm, Function, Instance, Module, NativeFunc, Store};
-use wasmer_compiler_cranelift::Cranelift;
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 
 fn main() -> anyhow::Result<()> {
@@ -42,9 +42,9 @@ fn main() -> anyhow::Result<()> {
     // You can use `Store::default()` for that.
     //
     // However for the purposes of showing what's happening, we create a compiler
-    // (`Cranelift`) and pass it to an engine (`Universal`). We then pass the engine to
+    // (`Singlepass`) and pass it to an engine (`Universal`). We then pass the engine to
     // the store and are now ready to compile and run WebAssembly!
-    let store = Store::new(&Universal::new(Cranelift::default()).engine());
+    let store = Store::new(&Universal::new(Singlepass::default()).engine());
 
     // We then use our store and Wasm bytes to compile a `Module`.
     // A `Module` is a compiled WebAssembly module that isn't ready to execute yet.
@@ -77,7 +77,10 @@ fn main() -> anyhow::Result<()> {
     //
     // Recall that the Wasm module exported a function named "run", this is getting
     // that exported function from the `Instance`.
-    let run_func: NativeFunc<(), ()> = instance.exports.get_native_function("run")?;
+    let run_func: NativeFunc<(), ()> = instance
+        .lookup_function("run")
+        .ok_or(anyhow::anyhow!("could not find `run` export"))?
+        .native()?;
 
     // Finally, we call our exported Wasm function which will call our "say_hello"
     // function and return.

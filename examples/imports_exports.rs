@@ -16,10 +16,9 @@
 //! Ready?
 
 use wasmer::{
-    imports, wat2wasm, Function, FunctionType, Global, Instance, Memory, Module, Store, Table,
-    Type, Value,
+    imports, wat2wasm, Function, FunctionType, Global, Instance, Module, Store, Type, Value,
 };
-use wasmer_compiler_cranelift::Cranelift;
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -44,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Cranelift::default()).engine());
+    let store = Store::new(&Universal::new(Singlepass::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -101,20 +100,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Let's get them.
     println!("Getting the exported function...");
-    let function = instance.exports.get::<Function>("guest_function")?;
-    println!("Got exported function of type: {:?}", function.ty());
+    let function = instance.lookup("guest_function");
+    println!("Got exported function: {:?}", function);
 
     println!("Getting the exported global...");
-    let global = instance.exports.get::<Global>("guest_global")?;
-    println!("Got exported global of type: {:?}", global.ty());
+    let global = instance.lookup("guest_global");
+    println!("Got exported global: {:?}", global);
 
     println!("Getting the exported memory...");
-    let memory = instance.exports.get::<Memory>("guest_memory")?;
-    println!("Got exported memory of type: {:?}", memory.ty());
+    let memory = instance.lookup("guest_memory");
+    println!("Got exported memory: {:?}", memory);
 
     println!("Getting the exported table...");
-    let table = instance.exports.get::<Table>("guest_table")?;
-    println!("Got exported table of type: {:?}", table.ty());
+    let table = instance.lookup("guest_table");
+    println!("Got exported table: {:?}", table);
 
     Ok(())
 }

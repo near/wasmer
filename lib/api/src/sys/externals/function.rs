@@ -14,7 +14,7 @@ use std::fmt;
 use std::sync::Arc;
 use wasmer_vm::{
     raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
-    ExportFunctionMetadata, ImportInitializerFuncPtr, VMCallerCheckedAnyfunc,
+    ExportFunctionMetadata, ImportInitializerFuncPtr, TableElement, VMCallerCheckedAnyfunc,
     VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody, VMFunctionEnvironment,
     VMFunctionKind, VMTrampoline,
 };
@@ -63,6 +63,44 @@ impl wasmer_types::WasmValueType for Function {
             Val::FuncRef(None) => panic!("Null funcref found in `Function::read_value_from`!"),
             other => panic!("Invalid value in `Function::read_value_from`: {:?}", other),
         }
+    }
+}
+
+impl Function {
+    /// Convert a `VMFuncRef` into a `Function`.
+    ///
+    /// Returns `None` if the funcref is null.
+    pub fn from_vm_funcref(store: &Store, func_ref: VMFuncRef) -> Option<Self> {
+        if func_ref.is_null() {
+            return None;
+        }
+        let item: &wasmer_vm::VMCallerCheckedAnyfunc = unsafe {
+            let anyfunc: *const wasmer_vm::VMCallerCheckedAnyfunc = *func_ref;
+            &*anyfunc
+        };
+        let export = wasmer_vm::ExportFunction {
+            // TODO:
+            // figure out if we ever need a value here: need testing with complicated import patterns
+            metadata: None,
+            vm_function: wasmer_vm::VMFunction {
+                address: item.func_ptr,
+                signature: item.type_index,
+                // TODO: review this comment (unclear if it's still correct):
+                // All functions in tables are already Static (as dynamic functions
+                // are converted to use the trampolines with static signatures).
+                kind: wasmer_vm::VMFunctionKind::Static,
+                vmctx: item.vmctx,
+                call_trampoline: None,
+                instance_ref: None,
+            },
+        };
+        Some(Function::from_vm_export(store, export))
+    }
+}
+
+impl From<Function> for TableElement {
+    fn from(f: Function) -> Self {
+        TableElement::FuncRef(f.vm_funcref())
     }
 }
 
