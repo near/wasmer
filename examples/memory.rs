@@ -16,7 +16,7 @@
 
 use std::mem;
 use wasmer::{imports, wat2wasm, Bytes, Instance, Module, NativeFunc, Pages, Store};
-use wasmer_compiler_cranelift::Cranelift;
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 
 // this example is a work in progress:
@@ -57,7 +57,7 @@ fn main() -> anyhow::Result<()> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Cranelift::default()).engine());
+    let store = Store::new(&Universal::new(Singlepass::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -73,10 +73,22 @@ fn main() -> anyhow::Result<()> {
     // The module exports some utility functions, let's get them.
     //
     // These function will be used later in this example.
-    let mem_size: NativeFunc<(), i32> = instance.exports.get_native_function("mem_size")?;
-    let get_at: NativeFunc<i32, i32> = instance.exports.get_native_function("get_at")?;
-    let set_at: NativeFunc<(i32, i32), ()> = instance.exports.get_native_function("set_at")?;
-    let memory = instance.exports.get_memory("memory")?;
+    let mem_size: NativeFunc<(), i32> = instance
+        .lookup_function("mem_size")
+        .ok_or(anyhow::anyhow!("could not find `mem_size` export"))?
+        .native()?;
+    let get_at: NativeFunc<i32, i32> = instance
+        .lookup_function("get_at")
+        .ok_or(anyhow::anyhow!("could not find `get_at` export"))?
+        .native()?;
+    let set_at: NativeFunc<(i32, i32), ()> = instance
+        .lookup_function("set_at")
+        .ok_or(anyhow::anyhow!("could not find `set_at` export"))?
+        .native()?;
+    let memory = match instance.lookup("memory") {
+        Some(wasmer::Export::Memory(m)) => m,
+        _ => anyhow::bail!("could not find `memory` as an exported memory"),
+    };
 
     // We now have an instance ready to be used.
     //
@@ -89,15 +101,17 @@ fn main() -> anyhow::Result<()> {
     // The size in bytes can be found either by querying its pages or by
     // querying the memory directly.
     println!("Querying memory size...");
-    assert_eq!(memory.size(), Pages::from(1));
-    assert_eq!(memory.size().bytes(), Bytes::from(65536 as usize));
-    assert_eq!(memory.data_size(), 65536);
+    assert_eq!(memory.from.size(), Pages::from(1));
+    assert_eq!(memory.from.size().bytes(), Bytes::from(65536 as usize));
+    unsafe {
+        assert_eq!(memory.from.vmmemory().as_ref().current_length, 65536);
+    }
 
     // Sometimes, the guest module may also export a function to let you
     // query the memory. Here we have a `mem_size` function, let's try it:
     let result = mem_size.call()?;
     println!("Memory size: {:?}", result);
-    assert_eq!(Pages::from(result as u32), memory.size());
+    assert_eq!(Pages::from(result as u32), memory.from.size());
 
     // Now that we know the size of our memory, it's time to see how wa
     // can change this.
@@ -106,9 +120,11 @@ fn main() -> anyhow::Result<()> {
     // see how we can do that:
     println!("Growing memory...");
     // Here we are requesting two more pages for our memory.
-    memory.grow(2)?;
-    assert_eq!(memory.size(), Pages::from(3));
-    assert_eq!(memory.data_size(), 65536 * 3);
+    memory.from.grow(Pages::from(2))?;
+    assert_eq!(memory.from.size(), Pages::from(3));
+    unsafe {
+        assert_eq!(memory.from.vmmemory().as_ref().current_length, 65536 * 3);
+    }
 
     // Now that we know how to query and adjust the size of the memory,
     // let's see how wa can write to it or read from it.

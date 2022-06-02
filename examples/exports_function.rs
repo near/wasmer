@@ -18,7 +18,7 @@
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Instance, Module, Store, Value};
-use wasmer_compiler_cranelift::Cranelift;
+use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Cranelift::default()).engine());
+    let store = Store::new(&Universal::new(Singlepass::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -67,7 +67,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     ```
     //     get::<Function>(name)`.
     //     ```
-    let sum = instance.exports.get_function("sum")?;
+    let sum = instance
+        .lookup_function("sum")
+        .ok_or("could not find `sum` export")?;
 
     println!("Calling `sum` function...");
     // Let's call the `sum` exported function. The parameters are a
