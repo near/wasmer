@@ -69,7 +69,11 @@ impl Table {
     }
 
     /// Retrieves an element of the table at the provided `index`.
-    pub fn get(&self, index: u32) -> Option<Val> {
+    ///
+    /// # Safety
+    ///
+    /// The returned `Val` must not outlive the containing Instance.
+    pub unsafe fn get(&self, index: u32) -> Option<Val> {
         let item = self.vm_table.from.get(index)?;
         Some(ValFuncRef::from_table_reference(item, &self.store))
     }

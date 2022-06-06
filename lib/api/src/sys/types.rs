@@ -39,11 +39,11 @@ impl From<Function> for Val {
 pub trait ValFuncRef {
     fn into_vm_funcref(&self, store: &Store) -> Result<VMFuncRef, RuntimeError>;
 
-    fn from_vm_funcref(item: VMFuncRef, store: &Store) -> Self;
+    unsafe fn from_vm_funcref(item: VMFuncRef, store: &Store) -> Self;
 
     fn into_table_reference(&self, store: &Store) -> Result<wasmer_vm::TableElement, RuntimeError>;
 
-    fn from_table_reference(item: wasmer_vm::TableElement, store: &Store) -> Self;
+    unsafe fn from_table_reference(item: wasmer_vm::TableElement, store: &Store) -> Self;
 }
 
 impl ValFuncRef for Val {
@@ -58,7 +58,10 @@ impl ValFuncRef for Val {
         })
     }
 
-    fn from_vm_funcref(func_ref: VMFuncRef, store: &Store) -> Self {
+    /// # Safety
+    ///
+    /// The returned `Val` must outlive the containing instance.
+    unsafe fn from_vm_funcref(func_ref: VMFuncRef, store: &Store) -> Self {
         Self::FuncRef(Function::from_vm_funcref(store, func_ref))
     }
 
@@ -77,7 +80,10 @@ impl ValFuncRef for Val {
         })
     }
 
-    fn from_table_reference(item: wasmer_vm::TableElement, store: &Store) -> Self {
+    /// # Safety
+    ///
+    /// The returned `Val` may not outlive the containing instance.
+    unsafe fn from_table_reference(item: wasmer_vm::TableElement, store: &Store) -> Self {
         match item {
             wasmer_vm::TableElement::FuncRef(f) => Self::from_vm_funcref(f, store),
             wasmer_vm::TableElement::ExternRef(extern_ref) => Self::ExternRef(extern_ref.into()),

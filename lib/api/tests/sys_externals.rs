@@ -96,8 +96,10 @@ mod sys {
         let f = Function::new_native(&store, |num: i32| num + 1);
         let table = Table::new(&store, table_type, Value::FuncRef(Some(f.clone())))?;
         assert_eq!(*table.ty(), table_type);
-        let _elem = table.get(0).unwrap();
-        // assert_eq!(elem.funcref().unwrap(), f);
+        unsafe {
+            let elem = table.get(0).unwrap();
+            // assert_eq!(elem.funcref().unwrap().as_ref().unwrap()., f);
+        }
         Ok(())
     }
 
