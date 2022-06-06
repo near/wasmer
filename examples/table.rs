@@ -137,10 +137,12 @@ fn main() -> anyhow::Result<()> {
     // Now demonstrate that the function we grew the table with is actually in the table.
     for table_index in 3..6 {
         if let Some(TableElement::FuncRef(f)) = guest_table.from.get(table_index as _) {
-            let result = Function::from_vm_funcref(&store, f)
-                .expect("funcref should not be null")
-                .call(&[Value::I32(1), Value::I32(9)])?;
-            assert_eq!(result[0], Value::I32(10));
+            unsafe {
+                let result = Function::from_vm_funcref(&store, f)
+                    .expect("funcref should not be null")
+                    .call(&[Value::I32(1), Value::I32(9)])?;
+                assert_eq!(result[0], Value::I32(10));
+            }
         } else {
             panic!("expected to find funcref in table!");
         }
@@ -164,10 +166,12 @@ fn main() -> anyhow::Result<()> {
     // get the same result.
     for table_index in 3..6 {
         if let Some(TableElement::FuncRef(f)) = guest_table.from.get(table_index as _) {
-            let result = Function::from_vm_funcref(&store, f)
-                .expect("funcref should not be null")
-                .call(&[Value::I32(1), Value::I32(9)])?;
-            assert_eq!(result[0], Value::I32(10));
+            unsafe {
+                let result = Function::from_vm_funcref(&store, f)
+                    .expect("funcref should not be null")
+                    .call(&[Value::I32(1), Value::I32(9)])?;
+                assert_eq!(result[0], Value::I32(10));
+            }
         } else {
             panic!("expected to find funcref in table!");
         }
