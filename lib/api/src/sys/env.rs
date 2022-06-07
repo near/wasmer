@@ -27,43 +27,6 @@ impl From<ExportError> for HostEnvInitError {
 ///
 /// # Examples
 ///
-/// This trait can be derived like so:
-///
-/// ```
-/// use wasmer::{WasmerEnv, LazyInit, Memory, NativeFunc};
-///
-/// #[derive(WasmerEnv, Clone)]
-/// pub struct MyEnvWithNoInstanceData {
-///     non_instance_data: u8,
-/// }
-///
-/// #[derive(WasmerEnv, Clone)]
-/// pub struct MyEnvWithInstanceData {
-///     non_instance_data: u8,
-///     #[wasmer(export)]
-///     memory: LazyInit<Memory>,
-///     #[wasmer(export(name = "real_name"))]
-///     func: LazyInit<NativeFunc<(i32, i32), i32>>,
-///     #[wasmer(export(optional = true, alias = "memory2", alias = "_memory2"))]
-///     optional_memory: LazyInit<Memory>,
-/// }
-///
-/// ```
-///
-/// When deriving `WasmerEnv`, you must wrap your types to be initialized in
-/// [`LazyInit`]. The derive macro will also generate helper methods of the form
-/// `<field_name>_ref` and `<field_name>_ref_unchecked` for easy access to the
-/// data.
-///
-/// The valid arguments to `export` are:
-/// - `name = "string"`: specify the name of this item in the Wasm module. If this is not specified, it will default to the name of the field.
-/// - `optional = true`: specify whether this export is optional. Defaults to
-/// `false`. Being optional means that if the export can't be found, the
-/// [`LazyInit`] will be left uninitialized.
-/// - `alias = "string"`: specify additional names to look for in the Wasm module.
-/// `alias` may be specified multiple times to search for multiple aliases.
-/// -------
-///
 /// This trait may also be implemented manually:
 /// ```
 /// # use wasmer::{WasmerEnv, LazyInit, Memory, Instance, HostEnvInitError};
@@ -74,9 +37,7 @@ impl From<ExportError> for HostEnvInitError {
 ///
 /// impl WasmerEnv for MyEnv {
 ///     fn init_with_instance(&mut self, instance: &Instance) -> Result<(), HostEnvInitError> {
-///         let memory: Memory = instance.get_with_generics_weak("memory").unwrap();
-///         self.memory.initialize(memory.clone());
-///         Ok(())
+///         todo!()
 ///     }
 /// }
 /// ```

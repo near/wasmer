@@ -89,10 +89,11 @@ fn dynamic_function_with_env(config: crate::Config) -> Result<()> {
     let store = config.store();
     let module = get_module(&store)?;
 
-    #[derive(WasmerEnv, Clone)]
+    #[derive(Clone)]
     struct Env {
         counter: Arc<AtomicUsize>,
     }
+    impl WasmerEnv for Env {}
 
     impl std::ops::Deref for Env {
         type Target = Arc<AtomicUsize>;
@@ -222,8 +223,9 @@ fn static_function_with_env(config: crate::Config) -> Result<()> {
     let store = config.store();
     let module = get_module(&store)?;
 
-    #[derive(WasmerEnv, Clone)]
+    #[derive(Clone)]
     struct Env(Arc<AtomicUsize>);
+    impl WasmerEnv for Env {}
 
     impl std::ops::Deref for Env {
         type Target = Arc<AtomicUsize>;
@@ -322,10 +324,12 @@ fn dynamic_function_with_env_wasmer_env_init_works(config: crate::Config) -> Res
     let module = get_module2(&store)?;
 
     #[allow(dead_code)]
-    #[derive(WasmerEnv, Clone)]
+    #[derive(Clone)]
     struct Env {
         memory: Memory,
     }
+    impl WasmerEnv for Env {}
+
     let env: Env = Env {
         memory: Memory::new(
             &store,

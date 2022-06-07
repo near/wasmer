@@ -1,5 +1,4 @@
-use crate::sys::exports::{ExportError, Exportable};
-use crate::sys::externals::Extern;
+use crate::sys::exports::Exportable;
 use crate::sys::store::Store;
 use crate::sys::types::{Val, ValFuncRef};
 use crate::sys::FunctionType;
@@ -208,10 +207,11 @@ impl Function {
     /// # use wasmer::{Function, FunctionType, Type, Store, Value, WasmerEnv};
     /// # let store = Store::default();
     /// #
-    /// #[derive(WasmerEnv, Clone)]
+    /// #[derive(Clone)]
     /// struct Env {
     ///   multiplier: i32,
     /// };
+    /// impl WasmerEnv for Env {}
     /// let env = Env { multiplier: 2 };
     ///
     /// let signature = FunctionType::new(vec![Type::I32, Type::I32], vec![Type::I32]);
@@ -229,10 +229,11 @@ impl Function {
     /// # let store = Store::default();
     /// const I32_I32_TO_I32: ([Type; 2], [Type; 1]) = ([Type::I32, Type::I32], [Type::I32]);
     ///
-    /// #[derive(WasmerEnv, Clone)]
+    /// #[derive(Clone)]
     /// struct Env {
     ///   multiplier: i32,
     /// };
+    /// impl WasmerEnv for Env {}
     /// let env = Env { multiplier: 2 };
     ///
     /// let f = Function::new_with_env(&store, I32_I32_TO_I32, env, |env, args| {
@@ -358,10 +359,11 @@ impl Function {
     /// # use wasmer::{Store, Function, WasmerEnv};
     /// # let store = Store::default();
     /// #
-    /// #[derive(WasmerEnv, Clone)]
+    /// #[derive(Clone)]
     /// struct Env {
     ///     multiplier: i32,
     /// };
+    /// impl WasmerEnv for Env {}
     /// let env = Env { multiplier: 2 };
     ///
     /// fn sum_and_multiply(env: &Env, a: i32, b: i32) -> i32 {
@@ -738,21 +740,6 @@ impl<'a> Exportable<'a> for Function {
     fn to_export(&self) -> Export {
         self.exported.clone().into()
     }
-
-    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
-        match _extern {
-            Extern::Function(func) => Ok(func),
-            _ => Err(ExportError::IncompatibleType),
-        }
-    }
-
-    fn into_weak_instance_ref(&mut self) {
-        self.exported
-            .vm_function
-            .instance_ref
-            .as_mut()
-            .map(|v| *v = v.downgrade());
-    }
 }
 
 impl Clone for Function {
@@ -890,9 +877,6 @@ mod inner {
     use std::error::Error;
     use std::marker::PhantomData;
     use std::panic::{self, AssertUnwindSafe};
-
-    #[cfg(feature = "experimental-reference-types-extern-ref")]
-    pub use wasmer_types::{ExternRef, VMExternRef};
     use wasmer_types::{FunctionType, NativeWasmType, Type};
     use wasmer_vm::{raise_user_trap, resume_panic, VMFunctionBody};
 
@@ -984,18 +968,6 @@ mod inner {
         f32 => f32,
         f64 => f64
     );
-
-    #[cfg(feature = "experimental-reference-types-extern-ref")]
-    unsafe impl FromToNativeWasmType for ExternRef {
-        type Native = VMExternRef;
-
-        fn to_native(self) -> Self::Native {
-            self.into()
-        }
-        fn from_native(n: Self::Native) -> Self {
-            n.into()
-        }
-    }
 
     #[cfg(test)]
     mod test_from_to_native_wasm_type {

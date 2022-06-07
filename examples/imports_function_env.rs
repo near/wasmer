@@ -69,10 +69,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // possible to know the size of the `Env` at compile time (i.e it has to
     // implement the `Sized` trait) and that it implement the `WasmerEnv` trait.
     // We derive a default implementation of `WasmerEnv` here.
-    #[derive(WasmerEnv, Clone)]
+    #[derive(Clone)]
     struct Env {
         counter: Arc<Mutex<i32>>,
     }
+    impl WasmerEnv for Env {}
 
     // Create the functions
     fn get_counter(env: &Env) -> i32 {

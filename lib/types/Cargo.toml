@@ -22,6 +22,3 @@ rkyv = { version = "0.7.20" }
 default = ["std"]
 std = []
 core = []
-
-# experimental / in-development features
-experimental-reference-types-extern-ref = []

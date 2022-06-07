@@ -28,7 +28,6 @@ wat = { version = "1.0", optional = true }
 # - Mandatory dependencies for `sys`.
 wasmer-vm = { path = "../vm", version = "=2.4.0", package = "wasmer-vm-near" }
 wasmer-compiler = { path = "../compiler", version = "=2.4.0", package = "wasmer-compiler-near" }
-wasmer-derive = { path = "../derive", version = "=2.4.0", package = "wasmer-derive-near" }
 wasmer-engine = { path = "../engine", version = "=2.4.0", package = "wasmer-engine-near" }
 wasmer-types = { path = "../types", version = "=2.4.0", package = "wasmer-types-near" }
 target-lexicon = { version = "0.12.2", default-features = false }
@@ -99,11 +98,6 @@ default-engine = []
         "default-engine",
         "universal",
     ]
-# - Experimental / in-development features
-experimental-reference-types-extern-ref = [
-    "sys",
-    "wasmer-types/experimental-reference-types-extern-ref",
-]
 
 [package.metadata.docs.rs]
 features = ["compiler", "core", "cranelift", "default-compiler", "default-engine", "engine", "jit", "llvm", "native", "singlepass", "sys", "sys-default", "universal"]

@@ -1,5 +1,4 @@
-use crate::sys::exports::{ExportError, Exportable};
-use crate::sys::externals::Extern;
+use crate::sys::exports::Exportable;
 use crate::sys::store::{Store, StoreObject};
 use crate::sys::types::Val;
 use crate::sys::GlobalType;
@@ -189,34 +188,6 @@ impl Global {
             vm_global,
         }
     }
-
-    /// Returns whether or not these two globals refer to the same data.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use wasmer::{Global, Store, Value};
-    /// # let store = Store::default();
-    /// #
-    /// let g = Global::new(&store, Value::I32(1));
-    ///
-    /// assert!(g.same(&g));
-    /// ```
-    pub fn same(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.vm_global.from, &other.vm_global.from)
-    }
-
-    /// Get access to the backing VM value for this extern. This function is for
-    /// tests it should not be called by users of the Wasmer API.
-    ///
-    /// # Safety
-    /// This function is unsafe to call outside of tests for the wasmer crate
-    /// because there is no stability guarantee for the returned type and we may
-    /// make breaking changes to it at any time or remove this method.
-    #[doc(hidden)]
-    pub unsafe fn get_vm_global(&self) -> &VMGlobal {
-        &self.vm_global
-    }
 }
 
 impl Clone for Global {
@@ -244,19 +215,5 @@ impl fmt::Debug for Global {
 impl<'a> Exportable<'a> for Global {
     fn to_export(&self) -> Export {
         self.vm_global.clone().into()
-    }
-
-    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
-        match _extern {
-            Extern::Global(global) => Ok(global),
-            _ => Err(ExportError::IncompatibleType),
-        }
-    }
-
-    fn into_weak_instance_ref(&mut self) {
-        self.vm_global
-            .instance_ref
-            .as_mut()
-            .map(|v| *v = v.downgrade());
     }
 }

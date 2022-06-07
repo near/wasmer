@@ -30,7 +30,6 @@ members = [
     "lib/compiler-cranelift",
     "lib/compiler-singlepass",
     "lib/compiler-llvm",
-    "lib/derive",
     "lib/engine",
     "lib/engine-universal",
     "lib/vm",

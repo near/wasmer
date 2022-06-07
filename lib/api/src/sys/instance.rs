@@ -1,14 +1,10 @@
 use crate::sys::module::Module;
-use crate::sys::store::Store;
 use crate::sys::{HostEnvInitError, LinkError, RuntimeError};
 use crate::{ExportError, NativeFunc, WasmTypeList};
-use std::fmt;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use wasmer_types::InstanceConfig;
-use wasmer_vm::{InstanceHandle, Resolver, VMContext};
-
-use super::exports::ExportableWithGenerics;
+use wasmer_vm::{InstanceHandle, Resolver};
 
 /// A WebAssembly Instance is a stateful, executable
 /// instance of a WebAssembly [`Module`].
@@ -158,16 +154,6 @@ impl Instance {
         Ok(instance)
     }
 
-    /// Gets the [`Module`] associated with this instance.
-    pub fn module(&self) -> &Module {
-        &self.module
-    }
-
-    /// Returns the [`Store`] where the `Instance` belongs.
-    pub fn store(&self) -> &Store {
-        self.module.store()
-    }
-
     /// Lookup an exported entity by its name.
     pub fn lookup(&self, field: &str) -> Option<crate::Export> {
         let vmextern = self.handle.lock().unwrap().lookup(field)?;
@@ -177,7 +163,7 @@ impl Instance {
     /// Lookup an exported function by its name.
     pub fn lookup_function(&self, field: &str) -> Option<crate::Function> {
         if let crate::Export::Function(f) = self.lookup(field)? {
-            Some(crate::Function::from_vm_export(self.store(), f))
+            Some(crate::Function::from_vm_export(self.module.store(), f))
         } else {
             None
         }
@@ -193,49 +179,13 @@ impl Instance {
         Rets: WasmTypeList,
     {
         match self.lookup(name) {
-            Some(crate::Export::Function(f)) => crate::Function::from_vm_export(self.store(), f)
-                .native()
-                .map_err(|_| ExportError::IncompatibleType),
+            Some(crate::Export::Function(f)) => {
+                crate::Function::from_vm_export(self.module.store(), f)
+                    .native()
+                    .map_err(|_| ExportError::IncompatibleType)
+            }
             Some(_) => Err(ExportError::IncompatibleType),
             None => Err(ExportError::Missing("not found".into())),
         }
-    }
-
-    /// Hack to get this working with nativefunc too
-    pub fn get_with_generics<'a, T, Args, Rets>(&'a self, name: &str) -> Result<T, ExportError>
-    where
-        Args: WasmTypeList,
-        Rets: WasmTypeList,
-        T: ExportableWithGenerics<'a, Args, Rets>,
-    {
-        let export = self
-            .lookup(name)
-            .ok_or_else(|| ExportError::Missing(name.to_string()))?;
-        let ext = crate::Extern::from_vm_export(self.store(), export);
-        T::get_self_from_extern_with_generics(ext)
-    }
-
-    /// Like `get_with_generics` but with a WeakReference to the `InstanceRef` internally.
-    /// This is useful for passing data into `WasmerEnv`, for example.
-    pub fn get_with_generics_weak<'a, T, Args, Rets>(&'a self, name: &str) -> Result<T, ExportError>
-    where
-        Args: WasmTypeList,
-        Rets: WasmTypeList,
-        T: ExportableWithGenerics<'a, Args, Rets>,
-    {
-        let mut out: T = self.get_with_generics(name)?;
-        out.into_weak_instance_ref();
-        Ok(out)
-    }
-
-    #[doc(hidden)]
-    pub fn vmctx_ptr(&self) -> *mut VMContext {
-        self.handle.lock().unwrap().vmctx_ptr()
-    }
-}
-
-impl fmt::Debug for Instance {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Instance").finish()
     }
 }

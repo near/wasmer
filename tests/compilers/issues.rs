@@ -2,6 +2,13 @@
 use anyhow::Result;
 use wasmer::*;
 
+#[derive(Clone)]
+struct Env {
+    memory: LazyInit<Memory>,
+}
+
+impl WasmerEnv for Env {}
+
 /// Corruption of WasmerEnv when using call indirect.
 ///
 /// Note: this one is specific to Singlepass, but we want to test in all
@@ -12,20 +19,7 @@ use wasmer::*;
 fn issue_2329(mut config: crate::Config) -> Result<()> {
     let store = config.store();
 
-    #[derive(Clone, Default, WasmerEnv)]
-    pub struct Env {
-        memory: LazyInit<Memory>,
-    }
-
-    impl Env {
-        pub fn new() -> Self {
-            Self {
-                memory: LazyInit::new(),
-            }
-        }
-    }
-
-    pub fn read_memory(env: &Env, guest_ptr: u32) -> u32 {
+    fn read_memory(env: &Env, guest_ptr: u32) -> u32 {
         dbg!(env.memory.get_ref());
         dbg!(guest_ptr);
         0
@@ -61,12 +55,14 @@ fn issue_2329(mut config: crate::Config) -> Result<()> {
         (elem (;0;) (i32.const 1) func $__read_memory))
     "#;
     let module = Module::new(&store, wat)?;
-    let env = Env::new();
+    let env = Env {
+        memory: LazyInit::new(),
+    };
     let imports: ImportObject = imports! {
         "env" => {
             "__read_memory" => Function::new_native_with_env(
                 &store,
-                env.clone(),
+                env,
                 read_memory
             ),
         }
