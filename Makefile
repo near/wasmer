@@ -373,56 +373,8 @@ endif
 #
 #####
 
-test: test-compilers test-packages test-examples
-
-test-compilers:
-	cargo test --release --tests $(compiler_features)
-
-test-packages:
-	cargo test --all --release $(exclude_tests)
-	cargo test --manifest-path lib/compiler-cranelift/Cargo.toml --release --no-default-features --features=std
-	cargo test --manifest-path lib/compiler-singlepass/Cargo.toml --release --no-default-features --features=std
-
-#####
-#
-# Testing compilers.
-#
-#####
-
-test-compilers-compat: $(foreach compiler,$(compilers),test-$(compiler))
-
-test-singlepass-dylib:
-	cargo test --release --tests $(compiler_features) -- singlepass::dylib
-
-test-singlepass-universal:
-	cargo test --release --tests $(compiler_features) -- singlepass::universal
-
-test-cranelift-dylib:
-	cargo test --release --tests $(compiler_features) -- cranelift::dylib
-
-test-cranelift-universal:
-	cargo test --release --tests $(compiler_features) -- cranelift::universal
-
-test-llvm-dylib:
-	cargo test --release --tests $(compiler_features) -- llvm::dylib
-
-test-llvm-universal:
-	cargo test --release --tests $(compiler_features) -- llvm::universal
-
-test-singlepass: $(foreach singlepass_engine,$(filter singlepass-%,$(compilers_engines)),test-$(singlepass_engine))
-
-test-cranelift: $(foreach cranelift_engine,$(filter cranelift-%,$(compilers_engines)),test-$(cranelift_engine))
-
-test-llvm: $(foreach llvm_engine,$(filter llvm-%,$(compilers_engines)),test-$(llvm_engine))
-
-test-examples:
-	cargo test --release $(compiler_features) --examples
-
-test-integration:
-	cargo test -p wasmer-integration-tests-cli
-
-test-integration-ios:
-	cargo test -p wasmer-integration-tests-ios
+test:
+	cargo test --release --all $(compiler_features)
 
 #####
 #

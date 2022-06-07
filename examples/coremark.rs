@@ -4,7 +4,7 @@
 //! cargo run --example coremark --release --features "singlepass"
 //! ```
 
-use wasmer::{imports, wat2wasm, Function, FunctionType, Instance, Module, Store, Type, Value};
+use wasmer::{imports, Function, FunctionType, Instance, Module, Store, Type, Value};
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
 

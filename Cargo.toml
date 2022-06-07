@@ -96,21 +96,6 @@ llvm = [
     "compiler",
 ]
 
-# Testing features
-test-singlepass = [
-    "singlepass",
-]
-test-cranelift = [
-    "cranelift",
-]
-test-llvm = [
-    "llvm",
-]
-test-universal = [
-    "universal",
-    "test-generator/test-universal",
-]
-
 # Specifies that we're running in coverage testing mode. This disables tests
 # that raise signals because that interferes with tarpaulin.
 coverage = []
