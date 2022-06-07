@@ -36,7 +36,6 @@ members = [
     "lib/types",
     "tests/lib/wast",
     "tests/lib/compiler-test-derive",
-    "tests/integration/ios",
     "fuzz",
 ]
 resolver = "2"

@@ -1716,10 +1716,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasmer-integration-tests-ios"
-version = "2.1.0"
-
-[[package]]
 name = "wasmer-near"
 version = "2.4.0"
 dependencies = [
