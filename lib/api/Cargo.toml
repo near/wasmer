@@ -34,7 +34,6 @@ target-lexicon = { version = "0.12.2", default-features = false }
 # - Optional dependencies for `sys`.
 wasmer-compiler-singlepass = { path = "../compiler-singlepass", package = "wasmer-compiler-singlepass-near", version = "=2.4.0", optional = true}
 wasmer-compiler-cranelift = { path = "../compiler-cranelift", version = "2.1.0", optional = true }
-wasmer-compiler-llvm = { path = "../compiler-llvm", version = "2.1.0", optional = true }
 wasmer-engine-universal = { path = "../engine-universal", package = "wasmer-engine-universal-near", version = "=2.4.0", optional = true }
 # - Mandatory dependencies for `sys` on Windows.
 [target.'cfg(all(not(target_arch = "wasm32"), target_os = "windows"))'.dependencies]
@@ -70,10 +69,6 @@ compiler = [
         "compiler",
         "wasmer-compiler-cranelift",
     ]
-    llvm = [
-        "compiler",
-        "wasmer-compiler-llvm",
-    ]
 default-compiler = []
     default-singlepass = [
         "default-compiler",
@@ -82,10 +77,6 @@ default-compiler = []
     default-cranelift = [
         "default-compiler",
         "cranelift",
-    ]
-    default-llvm = [
-        "default-compiler",
-        "llvm",
     ]
 # - Engines.
 engine = ["sys"]
@@ -100,4 +91,4 @@ default-engine = []
     ]
 
 [package.metadata.docs.rs]
-features = ["compiler", "core", "cranelift", "default-compiler", "default-engine", "engine", "jit", "llvm", "native", "singlepass", "sys", "sys-default", "universal"]
+features = ["compiler", "core", "cranelift", "default-compiler", "default-engine", "engine", "jit", "native", "singlepass", "sys", "sys-default", "universal"]

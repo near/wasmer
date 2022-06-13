@@ -19,7 +19,6 @@ echo "manually check changes to wasmer.iss"
 ## win-exception-handler
 ## compiler
 ## compiler-cranelift
-## compiler-llvm
 ## compiler-singlepass
 ## emscripten
 ## wasi

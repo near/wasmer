@@ -147,12 +147,6 @@ pub fn run_basic_dynamic_function(store: &Store, compiler_name: &str, c: &mut Cr
 }
 
 fn run_static_benchmarks(_c: &mut Criterion) {
-    #[cfg(feature = "llvm")]
-    {
-        let store = Store::new(&Universal::new(wasmer_compiler_llvm::LLVM::new()).engine());
-        run_basic_static_function(&store, "llvm", _c);
-    }
-
     #[cfg(feature = "cranelift")]
     {
         let store =
@@ -169,12 +163,6 @@ fn run_static_benchmarks(_c: &mut Criterion) {
 }
 
 fn run_dynamic_benchmarks(_c: &mut Criterion) {
-    #[cfg(feature = "llvm")]
-    {
-        let store = Store::new(&Universal::new(wasmer_compiler_llvm::LLVM::new()).engine());
-        run_basic_dynamic_function(&store, "llvm", _c);
-    }
-
     #[cfg(feature = "cranelift")]
     {
         let store =

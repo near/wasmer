@@ -2,7 +2,6 @@ use wasmer::{CompilerConfig, Engine as WasmerEngine, Features, Store};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Compiler {
-    LLVM,
     Cranelift,
     Singlepass,
 }
@@ -97,13 +96,6 @@ impl Config {
             #[cfg(feature = "cranelift")]
             Compiler::Cranelift => {
                 let mut compiler = wasmer_compiler_cranelift::Cranelift::new();
-                compiler.canonicalize_nans(canonicalize_nans);
-                compiler.enable_verifier();
-                Box::new(compiler)
-            }
-            #[cfg(feature = "llvm")]
-            Compiler::LLVM => {
-                let mut compiler = wasmer_compiler_llvm::LLVM::new();
                 compiler.canonicalize_nans(canonicalize_nans);
                 compiler.enable_verifier();
                 Box::new(compiler)

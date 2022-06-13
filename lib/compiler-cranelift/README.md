@@ -19,8 +19,7 @@ here][example].*
 ## When to use Cranelift
 
 We recommend using this compiler crate **only for development
-proposes**. For production we recommend using [`wasmer-compiler-llvm`]
-as it offers a much better runtime speed (50% faster on average).
+proposes**.
 
 ### Acknowledgments
 
@@ -32,6 +31,5 @@ attributions of the project.
 
 
 [example]: https://github.com/wasmerio/wasmer/blob/master/examples/compiler_cranelift.rs
-[`wasmer-compiler-llvm`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-llvm
 [`cranelift-wasm`]: https://crates.io/crates/cranelift-wasm
 [Wasmer `ATTRIBUTIONS`]: https://github.com/wasmerio/wasmer/blob/master/ATTRIBUTIONS.md

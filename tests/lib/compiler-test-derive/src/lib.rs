@@ -128,7 +128,6 @@ pub fn compiler_test(attrs: TokenStream, input: TokenStream) -> TokenStream {
 
     let singlepass_compiler_test = construct_compiler_test(&my_fn, "Singlepass");
     let cranelift_compiler_test = construct_compiler_test(&my_fn, "Cranelift");
-    let llvm_compiler_test = construct_compiler_test(&my_fn, "LLVM");
 
     // We remove the method decorators
     my_fn.attrs = vec![];
@@ -143,7 +142,6 @@ pub fn compiler_test(attrs: TokenStream, input: TokenStream) -> TokenStream {
 
             #singlepass_compiler_test
             #cranelift_compiler_test
-            #llvm_compiler_test
         }
     };
     x.into()

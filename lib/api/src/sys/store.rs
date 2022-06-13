@@ -81,8 +81,6 @@ impl Default for Store {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "default-cranelift")] {
                     wasmer_compiler_cranelift::Cranelift::default()
-                } else if #[cfg(feature = "default-llvm")] {
-                    wasmer_compiler_llvm::LLVM::default()
                 } else if #[cfg(feature = "default-singlepass")] {
                     wasmer_compiler_singlepass::Singlepass::default()
                 } else {

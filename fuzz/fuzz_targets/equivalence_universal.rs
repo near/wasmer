@@ -7,8 +7,6 @@ use wasm_smith::{Config, ConfiguredModule};
 use wasmer::{imports, CompilerConfig, Instance, Module, Store, Val};
 #[cfg(feature = "cranelift")]
 use wasmer_compiler_cranelift::Cranelift;
-#[cfg(feature = "llvm")]
-use wasmer_compiler_llvm::LLVM;
 #[cfg(feature = "singlepass")]
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
@@ -67,17 +65,6 @@ fn maybe_instantiate_singlepass(wasm_bytes: &[u8]) -> Result<Option<Instance>> {
 #[cfg(feature = "cranelift")]
 fn maybe_instantiate_cranelift(wasm_bytes: &[u8]) -> Result<Option<Instance>> {
     let mut compiler = Cranelift::default();
-    compiler.canonicalize_nans(true);
-    compiler.enable_verifier();
-    let store = Store::new(&Universal::new(compiler).engine());
-    let module = Module::new(&store, &wasm_bytes)?;
-    let instance = Instance::new(&module, &imports! {})?;
-    Ok(Some(instance))
-}
-
-#[cfg(feature = "llvm")]
-fn maybe_instantiate_llvm(wasm_bytes: &[u8]) -> Result<Option<Instance>> {
-    let mut compiler = LLVM::default();
     compiler.canonicalize_nans(true);
     compiler.enable_verifier();
     let store = Store::new(&Universal::new(compiler).engine());
@@ -187,21 +174,9 @@ fuzz_target!(|module: WasmSmithModule| {
     let cranelift = maybe_instantiate_cranelift(&wasm_bytes)
         .transpose()
         .map(evaluate_instance);
-    #[cfg(feature = "llvm")]
-    let llvm = maybe_instantiate_llvm(&wasm_bytes)
-        .transpose()
-        .map(evaluate_instance);
 
     #[cfg(all(feature = "singlepass", feature = "cranelift"))]
     if singlepass.is_some() && cranelift.is_some() {
         assert_eq!(singlepass.as_ref().unwrap(), cranelift.as_ref().unwrap());
-    }
-    #[cfg(all(feature = "singlepass", feature = "llvm"))]
-    if singlepass.is_some() && llvm.is_some() {
-        assert_eq!(singlepass.as_ref().unwrap(), llvm.as_ref().unwrap());
-    }
-    #[cfg(all(feature = "cranelift", feature = "llvm"))]
-    if cranelift.is_some() && llvm.is_some() {
-        assert_eq!(cranelift.as_ref().unwrap(), llvm.as_ref().unwrap());
     }
 });

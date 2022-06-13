@@ -17,19 +17,15 @@ singlepass traps::test_trap_stack_overflow # Need to investigate
 dylib     traps::test_trap_stack_overflow # Need to investigate
 aarch64    traps::test_trap_stack_overflow # Need to investigate
 singlepass traps::trap_display_pretty
-llvm       traps::trap_display_pretty
 dylib     traps::trap_display_pretty
 aarch64    traps::trap_display_pretty
 singlepass traps::trap_display_multi_module
-llvm       traps::trap_display_multi_module
 dylib     traps::trap_display_multi_module
 aarch64    traps::trap_display_multi_module
 singlepass traps::call_signature_mismatch
-llvm       traps::call_signature_mismatch
 dylib     traps::call_signature_mismatch
 macos+aarch64    traps::call_signature_mismatch
 singlepass traps::start_trap_pretty
-llvm       traps::start_trap_pretty
 dylib     traps::start_trap_pretty
 aarch64    traps::start_trap_pretty
 
@@ -37,20 +33,13 @@ cranelift  multi_value_imports::dylib # Needs investigation
 singlepass multi_value_imports::dylib # Singlepass doesn't support multivalue
 singlepass multi_value_imports::dynamic # Singlepass doesn't support multivalue
 
-# LLVM doesn't fully work in macOS M1
-llvm+universal+macos+aarch64 * # We are using the object crate, it was not fully supporting aarch64 relocations emitted by LLVM. Needs reassesment
-llvm+dylib+macos+aarch64 * # Tests seem to be randomly failing
-
 # TODO: We need to fix this in ARM. The issue is caused by libunwind overflowing
 # the stack while creating the stacktrace.
 # https://github.com/rust-lang/backtrace-rs/issues/356
 cranelift+aarch64 spec::skip_stack_guard_page # This is skipped for ARM, not fully fixed yet
-llvm+aarch64      spec::skip_stack_guard_page # This is skipped for ARM, not fully fixed yet
 singlepass+windows spec::skip_stack_guard_page # Needs investigation.
 cranelift+windows spec::skip_stack_guard_page # Needs investigation. Issue: `STATUS_ACCESS_VIOLATION` trap happened
 cranelift+macos   spec::skip_stack_guard_page # Needs investigation. process didn't exit successfully: (signal: 6, SIGABRT: process abort signal)
-llvm+macos        spec::skip_stack_guard_page # Needs investigation. process didn't exit successfully: (signal: 6, SIGABRT: process abort signal)
-
 
 # TODO(https://github.com/wasmerio/wasmer/issues/1727): Traps in dylib engine
 cranelift+dylib spec::linking # Needs investigation

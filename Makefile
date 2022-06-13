@@ -13,8 +13,8 @@ SHELL=/usr/bin/env bash
 # | Compiler   ⨯ Engine    ⨯ Platform ⨯ Architecture ⨯ libc  |
 # |------------|-----------|----------|--------------|-------|
 # | Cranelift  | Universal | Linux    | amd64        | glibc |
-# | LLVM       | Dylib     | Darwin   | aarch64      | musl  |
-# | Singlepass | Staticlib | Windows  |              |       |
+# | Singlepass |           | Darwin   | aarch64      | musl  |
+# |            |           | Windows  |              |       |
 # |------------|-----------|----------|--------------|-------|
 #
 # Here is what works and what doesn't:
@@ -23,12 +23,6 @@ SHELL=/usr/bin/env bash
 #
 # * Cranelift with the Dylib engine works on Linux+Darwin/`amd64`, but
 #   it doesn't work on */`aarch64` or Windows/*.
-#
-# * LLVM with the Universal engine works on Linux+Darwin/`amd64`,
-#   but it doesn't work on */`aarch64` or Windows/*.
-#
-# * LLVM with the Dylib engine works on
-#   Linux+Darwin/`amd64`+`aarch64`, but it doesn't work on Windows/*.
 #
 # * Singlepass with the Universal engine works on Linux+Darwin/`amd64`, but
 #   it doesn't work on */`aarch64` or Windows/*.
@@ -102,7 +96,6 @@ endif
 # Variables that can be overriden by the users to force to enable or
 # to disable a specific compiler.
 ENABLE_CRANELIFT ?=
-ENABLE_LLVM ?=
 ENABLE_SINGLEPASS ?=
 
 # Which compilers we build. These have dependencies that may not be on the system.
@@ -119,49 +112,10 @@ ifneq ($(ENABLE_CRANELIFT), 0)
 	ENABLE_CRANELIFT := 1
 endif
 
-##
-# LLVM
-##
-
-# If the user didn't disable the LLVM compiler…
-ifneq ($(ENABLE_LLVM), 0)
-	# … then maybe the user forced to enable the LLVM compiler.
-	ifeq ($(ENABLE_LLVM), 1)
-		LLVM_VERSION := $(shell llvm-config --version)
-		compilers += llvm
-	# … otherwise, we try to autodetect LLVM from `llvm-config`
-	else ifneq (, $(shell which llvm-config 2>/dev/null))
-		LLVM_VERSION := $(shell llvm-config --version)
-
-		# If findstring is not empty, then it have found the value
-		ifneq (, $(findstring 13,$(LLVM_VERSION)))
-			compilers += llvm
-		else ifneq (, $(findstring 12,$(LLVM_VERSION)))
-			compilers += llvm
-		endif
-	# … or try to autodetect LLVM from `llvm-config-<version>`.
-	else
-		ifneq (, $(shell which llvm-config-13 2>/dev/null))
-			LLVM_VERSION := $(shell llvm-config-13 --version)
-			compilers += llvm
-		else ifneq (, $(shell which llvm-config-12 2>/dev/null))
-			LLVM_VERSION := $(shell llvm-config-12 --version)
-			compilers += llvm
-		endif
-	endif
-endif
-
 exclude_tests := --exclude wasmer-cli
 # We run integration tests separately (it requires building the c-api)
 exclude_tests += --exclude wasmer-integration-tests-cli
 exclude_tests += --exclude wasmer-integration-tests-ios
-
-ifneq (, $(findstring llvm,$(compilers)))
-	ENABLE_LLVM := 1
-else
-	# We exclude LLVM from our package testing
-	exclude_tests += --exclude wasmer-compiler-llvm
-endif
 
 ##
 # Singlepass
@@ -219,22 +173,6 @@ ifeq ($(ENABLE_CRANELIFT), 1)
 			ifneq ($(IS_DARWIN), 1)
 				compilers_engines += cranelift-dylib
 			endif
-		endif
-	endif
-endif
-
-##
-# The LLVM case.
-##
-
-ifeq ($(ENABLE_LLVM), 1)
-	ifneq (, $(filter 1, $(IS_DARWIN) $(IS_LINUX)))
-		ifeq ($(IS_AMD64), 1)
-			compilers_engines += llvm-universal
-			compilers_engines += llvm-dylib
-		else ifeq ($(IS_AARCH64), 1)
-			compilers_engines += llvm-universal
-			compilers_engines += llvm-dylib
 		endif
 	endif
 endif
@@ -313,9 +251,6 @@ $(info Cargo features:)
 $(info   * Compilers: `$(bold)$(green)${compiler_features}$(reset)`.)
 $(info Rust version: $(bold)$(green)$(shell rustc --version)$(reset).)
 $(info NodeJS version: $(bold)$(green)$(shell node --version)$(reset).)
-ifeq ($(ENABLE_LLVM), 1)
-        $(info LLVM version: $(bold)$(green)${LLVM_VERSION}$(reset).)
-endif
 $(info )
 $(info )
 $(info --------------)

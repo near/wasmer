@@ -4,7 +4,6 @@ use libfuzzer_sys::{arbitrary, arbitrary::Arbitrary, fuzz_target};
 use wasm_smith::{Config, ConfiguredModule};
 use wasmer::{CompilerConfig, Engine, Module, Store};
 use wasmer_compiler_cranelift::Cranelift;
-use wasmer_compiler_llvm::LLVM;
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_dylib::Dylib;
 use wasmer_engine_universal::Universal;
@@ -56,16 +55,6 @@ fuzz_target!(|module: ConfiguredModule<NoImportsConfig>| {
     //    Dylib::new(compiler).engine(),
     //    &wasm_bytes,
     //);
-
-    let mut compiler = LLVM::default();
-    compiler.canonicalize_nans(true);
-    compiler.enable_verifier();
-    compile_and_compare(
-        "universal-llvm",
-        Universal::new(compiler.clone()).engine(),
-        &wasm_bytes,
-    );
-    //compile_and_compare("dylib-llvm", Dylib::new(compiler).engine(), &wasm_bytes);
 
     let compiler = Singlepass::default();
     compile_and_compare(
