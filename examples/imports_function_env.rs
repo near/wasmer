@@ -14,7 +14,7 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example imported-function-env --release --features "cranelift"
+//! cargo run --example imported-function-env --release --features "singlepass"
 //! ```
 //!
 //! Ready?

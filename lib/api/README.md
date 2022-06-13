@@ -60,8 +60,6 @@ Wasmer is not only fast, but also designed to be *highly customizable*:
   transform WebAssembly into executable code:
   * [`wasmer-compiler-singlepass`] provides a fast compilation-time
     but an unoptimized runtime speed,
-  * [`wasmer-compiler-cranelift`] provides the right balance between
-    compilation-time and runtime performance, useful for development,
 
 * **Headless mode** — Once a WebAssembly module has been compiled, it
   is possible to serialize it in a file for example, and later execute
@@ -102,4 +100,3 @@ Made with ❤️ by the Wasmer team, for the community
 [`wasmer-engine-dylib`]: https://github.com/wasmerio/wasmer/tree/master/lib/engine-dylib
 [`wasmer-engine-staticlib`]: https://github.com/wasmerio/wasmer/tree/master/lib/engine-staticlib
 [`wasmer-compiler-singlepass`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-singlepass
-[`wasmer-compiler-cranelift`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-cranelift

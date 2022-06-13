@@ -5,8 +5,6 @@ use anyhow::Result;
 use libfuzzer_sys::{arbitrary, arbitrary::Arbitrary, fuzz_target};
 use wasm_smith::{Config, ConfiguredModule};
 use wasmer::{imports, CompilerConfig, Instance, Module, Store, Val};
-#[cfg(feature = "cranelift")]
-use wasmer_compiler_cranelift::Cranelift;
 #[cfg(feature = "singlepass")]
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine_universal::Universal;
@@ -58,17 +56,6 @@ fn maybe_instantiate_singlepass(wasm_bytes: &[u8]) -> Result<Option<Instance>> {
             return Err(e.into());
         }
     };
-    let instance = Instance::new(&module, &imports! {})?;
-    Ok(Some(instance))
-}
-
-#[cfg(feature = "cranelift")]
-fn maybe_instantiate_cranelift(wasm_bytes: &[u8]) -> Result<Option<Instance>> {
-    let mut compiler = Cranelift::default();
-    compiler.canonicalize_nans(true);
-    compiler.enable_verifier();
-    let store = Store::new(&Universal::new(compiler).engine());
-    let module = Module::new(&store, &wasm_bytes)?;
     let instance = Instance::new(&module, &imports! {})?;
     Ok(Some(instance))
 }
@@ -170,13 +157,4 @@ fuzz_target!(|module: WasmSmithModule| {
     let singlepass = maybe_instantiate_singlepass(&wasm_bytes)
         .transpose()
         .map(evaluate_instance);
-    #[cfg(feature = "cranelift")]
-    let cranelift = maybe_instantiate_cranelift(&wasm_bytes)
-        .transpose()
-        .map(evaluate_instance);
-
-    #[cfg(all(feature = "singlepass", feature = "cranelift"))]
-    if singlepass.is_some() && cranelift.is_some() {
-        assert_eq!(singlepass.as_ref().unwrap(), cranelift.as_ref().unwrap());
-    }
 });

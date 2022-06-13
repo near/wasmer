@@ -31,9 +31,8 @@ dep_graph = {
     "wasmer-object": set(["wasmer-types", "wasmer-compiler"]),
     "wasmer-engine": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
     "wasmer-compiler-singlepass": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
-    "wasmer-compiler-cranelift": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
     "wasmer-engine-universal": set(["wasmer-types", "wasmer-vm", "wasmer-compiler", "wasmer-engine"]),
-    "wasmer": set(["wasmer-vm", "wasmer-compiler-singlepass", "wasmer-compiler-cranelift",
+    "wasmer": set(["wasmer-vm", "wasmer-compiler-singlepass",
                    "wasmer-compiler", "wasmer-engine", "wasmer-engine-universal",
                    "wasmer-types"]),
 }
@@ -47,7 +46,6 @@ location = {
     "wasmer-object": "object",
     "wasmer-engine": "engine",
     "wasmer-compiler-singlepass": "compiler-singlepass",
-    "wasmer-compiler-cranelift": "compiler-cranelift",
     "wasmer-engine": "engine",
     "wasmer-engine-universal": "engine-universal",
     "wasmer": "api",

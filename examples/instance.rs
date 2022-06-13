@@ -9,7 +9,7 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example instance --release --features "cranelift"
+//! cargo run --example instance --release --features "singlepass"
 //! ```
 //!
 //! Ready?

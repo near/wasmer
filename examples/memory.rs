@@ -9,7 +9,7 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example memory --release --features "cranelift"
+//! cargo run --example memory --release --features "singlepass"
 //! ```
 //!
 //! Ready?

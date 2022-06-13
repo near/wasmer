@@ -12,7 +12,7 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example imported-function --release --features "cranelift"
+//! cargo run --example imported-function --release --features "singlepass"
 //! ```
 //!
 //! Ready?

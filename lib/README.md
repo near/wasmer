@@ -9,7 +9,6 @@ composed of a set of crates. We can group them as follows:
 * `cli` — The Wasmer CLI itself,
 * `compiler` — The base for the compiler implementations, it defines
   the framework for the compilers and provides everything they need:
-  * `compiler-cranelift` — A WebAssembly compiler based on the Cranelift compiler infrastructure,
   * `compiler-singlepass` — A WebAssembly compiler based on our own compilation infrastructure;
     recommended for compilation-time speed performance.
 * `derive` — A set of procedural macros used inside Wasmer,

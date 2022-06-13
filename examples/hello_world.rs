@@ -3,7 +3,7 @@
 //! You can run the example directly by executing the following in the Wasmer root:
 //!
 //! ```shell
-//! cargo run --example hello-world --release --features "cranelift"
+//! cargo run --example hello-world --release --features "singlepass"
 //! ```
 
 use wasmer::{imports, wat2wasm, Function, Instance, Module, NativeFunc, Store};

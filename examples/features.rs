@@ -5,7 +5,7 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example features --release --features "cranelift"
+//! cargo run --example features --release --features "singlepass"
 //! ```
 //!
 //! Ready?

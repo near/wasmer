@@ -9,7 +9,6 @@ compiler implementor.
 Here are some of the Compilers provided by Wasmer:
 
 * [Singlepass](https://github.com/wasmerio/wasmer/tree/master/lib/compiler-singlepass),
-* [Cranelift](https://github.com/wasmerio/wasmer/tree/master/lib/compiler-cranelift),
 
 ## How to create a compiler
 

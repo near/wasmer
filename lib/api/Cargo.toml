@@ -33,7 +33,6 @@ wasmer-types = { path = "../types", version = "=2.4.0", package = "wasmer-types-
 target-lexicon = { version = "0.12.2", default-features = false }
 # - Optional dependencies for `sys`.
 wasmer-compiler-singlepass = { path = "../compiler-singlepass", package = "wasmer-compiler-singlepass-near", version = "=2.4.0", optional = true}
-wasmer-compiler-cranelift = { path = "../compiler-cranelift", version = "2.1.0", optional = true }
 wasmer-engine-universal = { path = "../engine-universal", package = "wasmer-engine-universal-near", version = "=2.4.0", optional = true }
 # - Mandatory dependencies for `sys` on Windows.
 [target.'cfg(all(not(target_arch = "wasm32"), target_os = "windows"))'.dependencies]
@@ -65,18 +64,10 @@ compiler = [
         "compiler",
         "wasmer-compiler-singlepass",
     ]
-    cranelift = [
-        "compiler",
-        "wasmer-compiler-cranelift",
-    ]
 default-compiler = []
     default-singlepass = [
         "default-compiler",
         "singlepass",
-    ]
-    default-cranelift = [
-        "default-compiler",
-        "cranelift",
     ]
 # - Engines.
 engine = ["sys"]
@@ -91,4 +82,4 @@ default-engine = []
     ]
 
 [package.metadata.docs.rs]
-features = ["compiler", "core", "cranelift", "default-compiler", "default-engine", "engine", "jit", "native", "singlepass", "sys", "sys-default", "universal"]
+features = ["compiler", "core", "default-compiler", "default-engine", "engine", "jit", "native", "singlepass", "sys", "sys-default", "universal"]

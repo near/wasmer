@@ -12,17 +12,12 @@ SHELL=/usr/bin/env bash
 # |------------|-----------|----------|--------------|-------|
 # | Compiler   ⨯ Engine    ⨯ Platform ⨯ Architecture ⨯ libc  |
 # |------------|-----------|----------|--------------|-------|
-# | Cranelift  | Universal | Linux    | amd64        | glibc |
-# | Singlepass |           | Darwin   | aarch64      | musl  |
+# | Singlepass | Universal | Linux    | amd64        | glibc |
+# |            |           | Darwin   | aarch64      | musl  |
 # |            |           | Windows  |              |       |
 # |------------|-----------|----------|--------------|-------|
 #
 # Here is what works and what doesn't:
-#
-# * Cranelift with the Universal engine works everywhere,
-#
-# * Cranelift with the Dylib engine works on Linux+Darwin/`amd64`, but
-#   it doesn't work on */`aarch64` or Windows/*.
 #
 # * Singlepass with the Universal engine works on Linux+Darwin/`amd64`, but
 #   it doesn't work on */`aarch64` or Windows/*.
@@ -95,27 +90,11 @@ endif
 
 # Variables that can be overriden by the users to force to enable or
 # to disable a specific compiler.
-ENABLE_CRANELIFT ?=
 ENABLE_SINGLEPASS ?=
 
 # Which compilers we build. These have dependencies that may not be on the system.
 compilers :=
-
-##
-# Cranelift
-##
-
-# If the user didn't disable the Cranelift compiler…
-ifneq ($(ENABLE_CRANELIFT), 0)
-	# … then it can always be enabled.
-	compilers += cranelift
-	ENABLE_CRANELIFT := 1
-endif
-
-exclude_tests := --exclude wasmer-cli
-# We run integration tests separately (it requires building the c-api)
-exclude_tests += --exclude wasmer-integration-tests-cli
-exclude_tests += --exclude wasmer-integration-tests-ios
+exclude_tests :=
 
 ##
 # Singlepass
@@ -155,27 +134,6 @@ compilers := $(strip $(compilers))
 # The engine is part of a pair of kind (compiler, engine). All the
 # pairs are stored in the `compilers_engines` variable.
 compilers_engines :=
-
-##
-# The Cranelift case.
-##
-
-ifeq ($(ENABLE_CRANELIFT), 1)
-	compilers_engines += cranelift-universal
-
-	ifneq (, $(filter 1, $(IS_DARWIN) $(IS_LINUX)))
-		ifeq ($(IS_AMD64), 1)
-			ifneq ($(LIBC), musl)
-				compilers_engines += cranelift-dylib
-			endif
-		else ifeq ($(IS_AARCH64), 1)
-			# The object crate doesn't support yet Darwin + Aarch64 relocations
-			ifneq ($(IS_DARWIN), 1)
-				compilers_engines += cranelift-dylib
-			endif
-		endif
-	endif
-endif
 
 ##
 # The Singlepass case.

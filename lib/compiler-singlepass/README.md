@@ -20,8 +20,7 @@ here][example].*
 
 Singlepass is designed to emit compiled code at linear time, as such
 is not prone to JIT bombs and also offers great compilation
-performance orders of magnitude faster than [`wasmer-compiler-cranelift`], however with a bit
-slower runtime speed.
+performance, however with a bit slower runtime speed.
 
 The fact that singlepass is not prone to JIT bombs and offers a very
 predictable compilation speed makes it ideal for **blockchains** and other
@@ -29,4 +28,3 @@ systems where fast and consistent compilation times are very critical.
 
 
 [example]: https://github.com/wasmerio/wasmer/blob/master/examples/compiler_singlepass.rs
-[`wasmer-compiler-cranelift`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-cranelift

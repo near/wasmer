@@ -86,8 +86,6 @@
 //!   transform WebAssembly into executable code:
 //!   * [`wasmer-compiler-singlepass`] provides a fast compilation-time
 //!     but an unoptimized runtime speed,
-//!   * [`wasmer-compiler-cranelift`] provides the right balance between
-//!     compilation-time and runtime performance, useful for development,
 //!
 //! * **Headless mode** — Once a WebAssembly module has been compiled, it
 //!   is possible to serialize it in a file for example, and later execute
@@ -289,10 +287,6 @@
 //! set defaults.
 //!
 //! The features that enable new functionality are:
-//! - `cranelift`
-#![cfg_attr(feature = "cranelift", doc = "(enabled),")]
-#![cfg_attr(not(feature = "cranelift"), doc = "(disabled),")]
-//!   enables Wasmer's [Cranelift compiler][wasmer-compiler-cranelift],
 //! - `singlepass`
 #![cfg_attr(feature = "singlepass", doc = "(enabled),")]
 #![cfg_attr(not(feature = "singlepass"), doc = "(disabled),")]
@@ -313,10 +307,6 @@
 //! The features that set defaults come in sets that are mutually exclusive.
 //!
 //! The first set is the default compiler set:
-//! - `default-cranelift`
-#![cfg_attr(feature = "default-cranelift", doc = "(enabled),")]
-#![cfg_attr(not(feature = "default-cranelift"), doc = "(disabled),")]
-//!   set Wasmer's Cranelift compiler as the default,
 //! - `default-singlepass`
 #![cfg_attr(feature = "default-singlepass", doc = "(enabled),")]
 #![cfg_attr(not(feature = "default-singlepass"), doc = "(disabled),")]
@@ -349,7 +339,6 @@
 //! [`wasmer-engine-dylib`]: https://docs.rs/wasmer-engine-dylib/
 //! [`wasmer-engine-staticlib`]: https://docs.rs/wasmer-engine-staticlib/
 //! [`wasmer-compiler-singlepass`]: https://docs.rs/wasmer-compiler-singlepass/
-//! [`wasmer-compiler-cranelift`]: https://docs.rs/wasmer-compiler-cranelift/
 //! [`wasmer-wasi`]: https://docs.rs/wasmer-wasi/
 //! [`wasm-pack`]: https://github.com/rustwasm/wasm-pack/
 //! [`wasm-bindgen`]: https://github.com/rustwasm/wasm-bindgen

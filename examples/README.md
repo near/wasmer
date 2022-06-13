@@ -48,7 +48,7 @@ example.
     <summary><em>Execute the example</em></summary>
 
     ```shell
-    $ cargo run --example hello-world --release --features "cranelift"
+    $ cargo run --example hello-world --release --features "singlepass"
     ```
 
    </details>
@@ -62,7 +62,7 @@ example.
     <summary><em>Execute the example</em></summary>
 
     ```shell
-    $ cargo run --example instance --release --features "cranelift"
+    $ cargo run --example instance --release --features "singlepass"
     ```
 
    </details>
@@ -76,7 +76,7 @@ example.
     <summary><em>Execute the example</em></summary>
 
     ```shell
-    $ cargo run --example errors --release --features "cranelift"
+    $ cargo run --example errors --release --features "singlepass"
     ```
 
    </details>
@@ -90,7 +90,7 @@ example.
     <summary><em>Execute the example</em></summary>
 
     ```shell
-    $ cargo run --example memory --release --features "cranelift"
+    $ cargo run --example memory --release --features "singlepass"
     ```
 
    </details>
@@ -107,7 +107,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example exported-global --release --features "cranelift"
+   $ cargo run --example exported-global --release --features "singlepass"
    ```
 
    </details>
@@ -122,7 +122,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example exported-function --release --features "cranelift"
+   $ cargo run --example exported-function --release --features "singlepass"
    ```
 
    </details>
@@ -137,7 +137,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example exported-memory --release --features "cranelift"
+   $ cargo run --example exported-memory --release --features "singlepass"
    ```
 
    </details>
@@ -153,7 +153,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example imported-global --release --features "cranelift"
+   $ cargo run --example imported-global --release --features "singlepass"
    ```
 
    </details>
@@ -168,7 +168,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example imported-function --release --features "cranelift"
+   $ cargo run --example imported-function --release --features "singlepass"
    ```
 
    </details>
@@ -183,7 +183,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example table --release --features "cranelift"
+   $ cargo run --example table --release --features "singlepass"
    ```
 
    </details>
@@ -197,7 +197,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example memory --release --features "cranelift"
+   $ cargo run --example memory --release --features "singlepass"
    ```
 
    </details>
@@ -213,7 +213,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example tunables-limit-memory --release --features "cranelift"
+   $ cargo run --example tunables-limit-memory --release --features "singlepass"
    ```
 
    </details>
@@ -231,7 +231,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example engine-universal --release --features "cranelift"
+   $ cargo run --example engine-universal --release --features "singlepass"
    ```
 
    </details>
@@ -248,7 +248,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example engine-dylib --release --features "cranelift"
+   $ cargo run --example engine-dylib --release --features "singlepass"
    ```
 
    </details>
@@ -266,7 +266,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example engine-headless --release --features "cranelift"
+   $ cargo run --example engine-headless --release --features "singlepass"
    ```
 
    </details>
@@ -281,7 +281,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example cross-compilation --release --features "cranelift"
+   $ cargo run --example cross-compilation --release --features "singlepass"
    ```
 
    </details>
@@ -295,7 +295,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example features --release --features "cranelift"
+   $ cargo run --example features --release --features "singlepass"
    ```
 
    </details>
@@ -316,20 +316,6 @@ example.
 
    </details>
 
-2. [**Cranelift compiler**][compiler-cranelift], explains how to use
-   the [`wasmer-compiler-cranelift`] compiler.
-
-   _Keywords_: compiler, cranelift.
-
-   <details>
-   <summary><em>Execute the example</em></summary>
-
-   ```shell
-   $ cargo run --example compiler-cranelift --release --features "cranelift"
-   ```
-
-   </details>
-
 ### Integrations
 
 1. [**WASI**][wasi], explains how to use the [WebAssembly System
@@ -341,7 +327,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example wasi --release --features "cranelift,wasi"
+   $ cargo run --example wasi --release --features "singlepass,wasi"
    ```
 
    </details>
@@ -355,7 +341,7 @@ example.
    <summary><em>Execute the example</em></summary>
 
    ```shell
-   $ cargo run --example wasi-pipes --release --features "cranelift,wasi"
+   $ cargo run --example wasi-pipes --release --features "singlepass,wasi"
    ```
 
    </details>
@@ -365,7 +351,6 @@ example.
 [engine-dylib]: ./engine_dylib.rs
 [engine-headless]: ./engine_headless.rs
 [compiler-singlepass]: ./compiler_singlepass.rs
-[compiler-cranelift]: ./compiler_cranelift.rs
 [cross-compilation]: ./engine_cross_compilation.rs
 [exported-global]: ./exports_global.rs
 [exported-function]: ./exports_function.rs
@@ -381,6 +366,5 @@ example.
 [tunables-limit-memory]: ./tunables_limit_memory.rs
 [features]: ./features.rs
 [`wasmer-compiler-singlepass`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-singlepass
-[`wasmer-compiler-cranelift`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-cranelift
 [`wasmer-wasi`]: https://github.com/wasmerio/wasmer/tree/master/lib/wasi
 [WASI]: https://github.com/WebAssembly/WASI
