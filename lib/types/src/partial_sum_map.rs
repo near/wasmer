@@ -19,11 +19,13 @@
 /// This map can only be appended to.
 #[derive(Debug)]
 pub struct PartialSumMap<K, V> {
+    /// Keys between ((keys[n-1] + 1) or 0) and keys[n] (both included) have value values[n]
     keys: Vec<K>,
     values: Vec<V>,
+    size: K,
 }
 
-impl<K: seal::PartialSumKey, V> PartialSumMap<K, V> {
+impl<K: Clone + Ord + num_traits::Unsigned + num_traits::CheckedAdd, V> PartialSumMap<K, V> {
     /// Create a new `PartialSumMap`.
     ///
     /// Does not allocate.
@@ -31,22 +33,17 @@ impl<K: seal::PartialSumKey, V> PartialSumMap<K, V> {
         Self {
             keys: vec![],
             values: vec![],
+            size: K::zero(),
         }
     }
 
     /// Push `count` number of `value`s.
     ///
     /// `O(1)` amortized.
-    ///
-    /// # Panics
-    ///
-    /// `count` must be `non-zero`.
     pub fn push(&mut self, count: K, value: V) -> Result<(), Error> {
-        if count != K::ZERO {
-            self.keys.push(
-                self.max_index()
-                    .map_or(Ok(count.first_index()), |k| k.step(count))?,
-            );
+        if count != K::zero() {
+            self.size = self.size.checked_add(&count).ok_or(Error::Overflow)?;
+            self.keys.push(self.size.clone() - K::one());
             self.values.push(value);
         }
         Ok(())
@@ -58,7 +55,14 @@ impl<K: seal::PartialSumKey, V> PartialSumMap<K, V> {
     ///
     /// `O(1)`
     pub fn max_index(&self) -> Option<K> {
-        self.keys.last().copied()
+        self.keys.last().cloned()
+    }
+
+    /// Get the current (virtual) size of this map. This is the sum of all `count` arguments passed to `push` until now.
+    ///
+    /// `O(1)`
+    pub fn size(&self) -> K {
+        self.size.clone()
     }
 
     /// Find the value by the index.
@@ -75,29 +79,6 @@ impl<K: seal::PartialSumKey, V> PartialSumMap<K, V> {
             // to our "compressed" representation. In both cases we access the
             // list at index `i`.
             Ok(i) | Err(i) => self.values.get(i),
-        }
-    }
-}
-
-// Make sure the PartialSumKey trait isn't actually accessible...
-mod seal {
-    use super::Error;
-
-    pub trait PartialSumKey: Copy + Eq + Ord {
-        const ZERO: Self;
-
-        fn step(self, count: Self) -> Result<Self, Error>;
-        fn first_index(self) -> Self;
-    }
-
-    impl PartialSumKey for u32 {
-        const ZERO: Self = 0;
-
-        fn step(self, count: Self) -> Result<Self, Error> {
-            self.checked_add(count).ok_or(Error::Overflow)
-        }
-        fn first_index(self) -> Self {
-            self.checked_sub(1).expect("cannot happen")
         }
     }
 }
@@ -126,15 +107,18 @@ mod tests {
     fn empty_partial_map() {
         let map = PartialSumMap::<u32, u32>::new();
         assert_eq!(None, map.find(0));
+        assert_eq!(0, map.size());
     }
 
     #[test]
     fn basic_function() {
         let mut map = PartialSumMap::<u32, u32>::new();
         assert_eq!(None, map.max_index());
+        assert_eq!(0, map.size());
         for i in 0..10 {
             map.push(1, i).unwrap();
             assert_eq!(Some(i), map.max_index());
+            assert_eq!(i + 1, map.size());
         }
         for i in 0..10 {
             assert_eq!(Some(&i), map.find(i));
@@ -148,29 +132,34 @@ mod tests {
         let mut map = PartialSumMap::<u32, u32>::new();
         assert_eq!(Ok(()), map.push(0, 0));
         assert_eq!(None, map.max_index());
+        assert_eq!(0, map.size());
         assert_eq!(Ok(()), map.push(10, 42));
         assert_eq!(Some(9), map.max_index());
+        assert_eq!(10, map.size());
         assert_eq!(Ok(()), map.push(0, 43));
         assert_eq!(Some(9), map.max_index());
+        assert_eq!(10, map.size());
     }
 
     #[test]
     fn close_to_limit() {
         let mut map = PartialSumMap::<u32, u32>::new();
-        assert_eq!(Ok(()), map.push(0xFFFF_FFFF, 42)); // we added values 0..=0xFFFF_FFFE
-        assert_eq!(Some(&42), map.find(0xFFFF_FFFE));
-        assert_eq!(None, map.find(0xFFFF_FFFF));
+        assert_eq!(Ok(()), map.push(0xFFFF_FFFE, 42)); // we added values 0..=0xFFFF_FFFD
+        assert_eq!(Some(&42), map.find(0xFFFF_FFFD));
+        assert_eq!(None, map.find(0xFFFF_FFFE));
 
         assert_eq!(Err(Error::Overflow), map.push(100, 93)); // overflowing does not change the map
-        assert_eq!(Some(&42), map.find(0xFFFF_FFFE));
+        assert_eq!(Some(&42), map.find(0xFFFF_FFFD));
+        assert_eq!(None, map.find(0xFFFF_FFFE));
+
+        assert_eq!(Ok(()), map.push(1, 322)); // we added value at index 0xFFFF_FFFE (which is the 0xFFFF_FFFFth value)
+        assert_eq!(Some(&42), map.find(0xFFFF_FFFD));
+        assert_eq!(Some(&322), map.find(0xFFFF_FFFE));
         assert_eq!(None, map.find(0xFFFF_FFFF));
 
-        assert_eq!(Ok(()), map.push(1, 322)); // we added value at index 0xFFFF_FFFF
-        assert_eq!(Some(&42), map.find(0xFFFF_FFFE));
-        assert_eq!(Some(&322), map.find(0xFFFF_FFFF));
-
         assert_eq!(Err(Error::Overflow), map.push(1, 1234)); // can't add any more stuff...
-        assert_eq!(Some(&42), map.find(0xFFFF_FFFE));
-        assert_eq!(Some(&322), map.find(0xFFFF_FFFF));
+        assert_eq!(Some(&42), map.find(0xFFFF_FFFD));
+        assert_eq!(Some(&322), map.find(0xFFFF_FFFE));
+        assert_eq!(None, map.find(0xFFFF_FFFF));
     }
 }
