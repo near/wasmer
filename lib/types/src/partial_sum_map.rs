@@ -63,8 +63,8 @@ impl<K: Clone + Ord + num_traits::Unsigned + num_traits::CheckedAdd, V> PartialS
     /// Note that the result can be greater than `usize::MAX` if eg. `K` is a BigInt type. Cast at your own risk.
     ///
     /// `O(1)`
-    pub fn size(&self) -> K {
-        self.size.clone()
+    pub fn size(&self) -> &K {
+        &self.size
     }
 
     /// Find the value by the index.
@@ -109,18 +109,18 @@ mod tests {
     fn empty_partial_map() {
         let map = PartialSumMap::<u32, u32>::new();
         assert_eq!(None, map.find(0));
-        assert_eq!(0, map.size());
+        assert_eq!(0, *map.size());
     }
 
     #[test]
     fn basic_function() {
         let mut map = PartialSumMap::<u32, u32>::new();
         assert_eq!(None, map.max_index());
-        assert_eq!(0, map.size());
+        assert_eq!(0, *map.size());
         for i in 0..10 {
             map.push(1, i).unwrap();
             assert_eq!(Some(i), map.max_index());
-            assert_eq!(i + 1, map.size());
+            assert_eq!(i + 1, *map.size());
         }
         for i in 0..10 {
             assert_eq!(Some(&i), map.find(i));
@@ -134,13 +134,13 @@ mod tests {
         let mut map = PartialSumMap::<u32, u32>::new();
         assert_eq!(Ok(()), map.push(0, 0));
         assert_eq!(None, map.max_index());
-        assert_eq!(0, map.size());
+        assert_eq!(0, *map.size());
         assert_eq!(Ok(()), map.push(10, 42));
         assert_eq!(Some(9), map.max_index());
-        assert_eq!(10, map.size());
+        assert_eq!(10, *map.size());
         assert_eq!(Ok(()), map.push(0, 43));
         assert_eq!(Some(9), map.max_index());
-        assert_eq!(10, map.size());
+        assert_eq!(10, *map.size());
     }
 
     #[test]

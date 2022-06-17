@@ -1960,7 +1960,7 @@ impl<'a> FuncGen<'a> {
     ///
     /// More can be introduced with the [`feed_local`](Self::feed_local) method.
     pub(crate) fn local_count(&self) -> u32 {
-        self.local_types.size()
+        *self.local_types.size()
     }
 
     /// Obtain the type of the local or argument at the specified index.
