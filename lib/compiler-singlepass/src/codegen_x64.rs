@@ -1954,17 +1954,13 @@ impl<'a> FuncGen<'a> {
         self.local_types
             .push(local_count, local_type)
             .expect("module cannot have more than u32::MAX locals");
-        // We will want to add `+ 1` to this number in `local_count` later.
-        if self.local_types.max_index() == Some(u32::max_value()) {
-            panic!("module cannot have more than u32::MAX locals");
-        }
     }
 
     /// Total number of locals and arguments so far.
     ///
     /// More can be introduced with the [`feed_local`](Self::feed_local) method.
     pub(crate) fn local_count(&self) -> u32 {
-        self.local_types.max_index().map_or(0, |v| v + 1)
+        *self.local_types.size()
     }
 
     /// Obtain the type of the local or argument at the specified index.
