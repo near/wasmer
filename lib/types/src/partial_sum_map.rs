@@ -60,6 +60,8 @@ impl<K: Clone + Ord + num_traits::Unsigned + num_traits::CheckedAdd, V> PartialS
 
     /// Get the current (virtual) size of this map. This is the sum of all `count` arguments passed to `push` until now.
     ///
+    /// Note that the result can be greater than `usize::MAX` if eg. `K` is a BigInt type. Cast at your own risk.
+    ///
     /// `O(1)`
     pub fn size(&self) -> K {
         self.size.clone()
