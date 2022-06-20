@@ -228,7 +228,14 @@ impl WpTypeExt for WpType {
 
 #[derive(Debug)]
 pub(crate) struct ControlFrame {
-    pub(crate) label: DynamicLabel,
+    /// The label to which `br` opcodes should jump
+    ///
+    /// This is:
+    ///  * for functions (ie. the control_stack[0]), the start of the epilogue
+    ///  * for `block` or `if`/`else` blocks, the end of the block (after stack cleanup)
+    ///  * for `loop` blocks, the beginning of the loop block
+    pub(crate) br_label: DynamicLabel,
+
     pub(crate) loop_like: bool,
     pub(crate) if_else: IfElseState,
     pub(crate) returns: SmallVec<[WpType; 1]>,
@@ -1862,7 +1869,7 @@ impl<'a> FuncGen<'a> {
             .emit_sub(Size::S64, Location::Imm32(32), Location::GPR(GPR::RSP)); // simulate "red zone" if not supported by the platform
 
         self.control_stack.push(ControlFrame {
-            label: self.assembler.get_label(),
+            br_label: self.assembler.get_label(),
             loop_like: false,
             if_else: IfElseState::None,
             returns: self
@@ -5340,7 +5347,7 @@ impl<'a> FuncGen<'a> {
                 let cond = self.pop_value_released();
 
                 let frame = ControlFrame {
-                    label: label_end,
+                    br_label: label_end,
                     loop_like: false,
                     if_else: IfElseState::If(label_else),
                     returns: match ty {
@@ -5410,7 +5417,7 @@ impl<'a> FuncGen<'a> {
 
                 match frame.if_else {
                     IfElseState::If(label) => {
-                        self.assembler.emit_jmp(Condition::None, frame.label);
+                        self.assembler.emit_jmp(Condition::None, frame.br_label);
                         self.assembler.emit_label(label);
                         frame.if_else = IfElseState::Else;
                     }
@@ -5481,7 +5488,7 @@ impl<'a> FuncGen<'a> {
             }
             Operator::Block { ty } => {
                 let frame = ControlFrame {
-                    label: self.assembler.get_label(),
+                    br_label: self.assembler.get_label(),
                     loop_like: false,
                     if_else: IfElseState::None,
                     returns: match ty {
@@ -5511,11 +5518,11 @@ impl<'a> FuncGen<'a> {
                 }
                 assert_eq!(self.assembler.get_offset().0 % 16, 0);
 
-                let label = self.assembler.get_label();
+                let br_label = self.assembler.get_label();
                 let _activate_offset = self.assembler.get_offset().0;
 
                 self.control_stack.push(ControlFrame {
-                    label,
+                    br_label,
                     loop_like: true,
                     if_else: IfElseState::None,
                     returns: match ty {
@@ -5531,7 +5538,7 @@ impl<'a> FuncGen<'a> {
                     value_stack_depth: self.value_stack.len(),
                     fp_stack_depth: self.fp_stack.len(),
                 });
-                self.assembler.emit_label(label);
+                self.assembler.emit_label(br_label);
 
                 // TODO: Re-enable interrupt signal check without branching
             }
@@ -6214,7 +6221,7 @@ impl<'a> FuncGen<'a> {
                 let released = &self.value_stack[frame.value_stack_depth..];
                 self.machine
                     .release_locations_keep_state(&mut self.assembler, released);
-                self.assembler.emit_jmp(Condition::None, frame.label);
+                self.assembler.emit_jmp(Condition::None, frame.br_label);
                 self.unreachable_depth = 1;
             }
             Operator::Br { relative_depth } => {
@@ -6263,7 +6270,7 @@ impl<'a> FuncGen<'a> {
                 let released = &self.value_stack[frame.value_stack_depth..];
                 self.machine
                     .release_locations_keep_state(&mut self.assembler, released);
-                self.assembler.emit_jmp(Condition::None, frame.label);
+                self.assembler.emit_jmp(Condition::None, frame.br_label);
                 self.unreachable_depth = 1;
             }
             Operator::BrIf { relative_depth } => {
@@ -6316,7 +6323,7 @@ impl<'a> FuncGen<'a> {
                 let released = &self.value_stack[frame.value_stack_depth..];
                 self.machine
                     .release_locations_keep_state(&mut self.assembler, released);
-                self.assembler.emit_jmp(Condition::None, frame.label);
+                self.assembler.emit_jmp(Condition::None, frame.br_label);
 
                 self.assembler.emit_label(after);
             }
@@ -6406,7 +6413,7 @@ impl<'a> FuncGen<'a> {
                     let released = &self.value_stack[frame.value_stack_depth..];
                     self.machine
                         .release_locations_keep_state(&mut self.assembler, released);
-                    self.assembler.emit_jmp(Condition::None, frame.label);
+                    self.assembler.emit_jmp(Condition::None, frame.br_label);
                 }
                 self.assembler.emit_label(default_br);
 
@@ -6455,7 +6462,7 @@ impl<'a> FuncGen<'a> {
                     let released = &self.value_stack[frame.value_stack_depth..];
                     self.machine
                         .release_locations_keep_state(&mut self.assembler, released);
-                    self.assembler.emit_jmp(Condition::None, frame.label);
+                    self.assembler.emit_jmp(Condition::None, frame.br_label);
                 }
 
                 self.assembler.emit_label(table_label);
@@ -6511,7 +6518,7 @@ impl<'a> FuncGen<'a> {
                 }
 
                 if self.control_stack.is_empty() {
-                    self.assembler.emit_label(frame.label);
+                    self.assembler.emit_label(frame.br_label);
                     self.update_max_stack_depth();
                     self.emit_function_stack_check(false);
                     let local_count = self.local_count();
@@ -6548,7 +6555,7 @@ impl<'a> FuncGen<'a> {
                     self.fp_stack.truncate(frame.fp_stack_depth);
 
                     if !frame.loop_like {
-                        self.assembler.emit_label(frame.label);
+                        self.assembler.emit_label(frame.br_label);
                     }
 
                     if let IfElseState::If(label) = frame.if_else {
