@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
 use wasmer_types::{FunctionType, FunctionTypeRef};
-use wasmer_vm::{Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+use wasmer_vm::{VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
 
 mod private {
     pub struct Internal(pub(super) ());
@@ -31,13 +31,6 @@ pub trait Engine {
 
     /// Validates a WebAssembly module
     fn validate(&self, binary: &[u8]) -> Result<(), CompileError>;
-
-    /// Compile a WebAssembly binary
-    fn compile(
-        &self,
-        binary: &[u8],
-        tunables: &dyn Tunables,
-    ) -> Result<Box<dyn crate::Executable>, CompileError>;
 
     /// A unique identifier for this object.
     ///

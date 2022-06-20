@@ -1,6 +1,7 @@
 use anyhow::Result;
 use wasmer::{wat2wasm, BaseTunables, Engine};
 use wasmer_compiler_singlepass::Singlepass;
+use wasmer_engine::Executable;
 use wasmer_engine_universal::Universal;
 
 fn compile_and_compare(wasm: &[u8]) -> Result<()> {
@@ -9,11 +10,11 @@ fn compile_and_compare(wasm: &[u8]) -> Result<()> {
     let tunables = BaseTunables::for_target(engine.target());
 
     // compile for first time
-    let executable = engine.compile(wasm, &tunables).unwrap();
+    let executable = engine.compile_universal(wasm, &tunables).unwrap();
     let serialized1 = executable.serialize().unwrap();
 
     // compile for second time
-    let executable = engine.compile(wasm, &tunables).unwrap();
+    let executable = engine.compile_universal(wasm, &tunables).unwrap();
     let serialized2 = executable.serialize().unwrap();
 
     assert_eq!(serialized1, serialized2);

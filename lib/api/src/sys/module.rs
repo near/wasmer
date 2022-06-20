@@ -7,6 +7,7 @@ use thiserror::Error;
 use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
+use wasmer_engine::Engine;
 use wasmer_engine::RuntimeError;
 use wasmer_types::InstanceConfig;
 use wasmer_vm::{InstanceHandle, Instantiatable, Resolver};
@@ -116,11 +117,9 @@ impl Module {
     /// this crate).
     #[tracing::instrument(skip_all)]
     pub(crate) fn from_binary(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
-        store.engine().validate(binary)?;
-
-        match Arc::clone(store.engine()).downcast_arc::<wasmer_engine_universal::UniversalEngine>()
-        {
+        match store.engine::<wasmer_engine_universal::UniversalEngine>() {
             Ok(engine) => {
+                engine.validate(binary)?;
                 let executable = engine.compile_universal(binary, store.tunables())?;
                 let artifact = engine.load_universal_executable(&executable)?;
                 Ok(Self {

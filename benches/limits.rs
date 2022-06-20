@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use wasmer::*;
+use wasmer_engine::Executable;
 use wasmer_engine_universal::UniversalExecutableRef;
 
 pub struct LargeContract {
@@ -106,7 +107,7 @@ fn many_functions(c: &mut Criterion) {
         });
 
         let wasm = wat::parse_bytes(wasm.as_ref()).unwrap();
-        let executable = store.engine().compile(&wasm, store.tunables()).unwrap();
+        let executable = engine.compile_universal(&wasm, store.tunables()).unwrap();
         group.bench_function(BenchmarkId::new("serialize", functions), |b| {
             b.iter(|| {
                 black_box(executable.serialize().unwrap());
@@ -144,7 +145,7 @@ fn many_locals(c: &mut Criterion) {
         });
 
         let wasm = wat::parse_bytes(wasm.as_ref()).unwrap();
-        let executable = store.engine().compile(&wasm, store.tunables()).unwrap();
+        let executable = engine.compile_universal(&wasm, store.tunables()).unwrap();
         group.bench_function(BenchmarkId::new("serialize", size), |b| {
             b.iter(|| {
                 black_box(executable.serialize().unwrap());

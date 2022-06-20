@@ -456,30 +456,6 @@ impl Engine for UniversalEngine {
         self.inner().validate(binary)
     }
 
-    #[cfg(not(feature = "compiler"))]
-    fn compile(
-        &self,
-        binary: &[u8],
-        tunables: &dyn Tunables,
-    ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
-        return Err(CompileError::Codegen(
-            "The UniversalEngine is operating in headless mode, so it can not compile Modules."
-                .to_string(),
-        ));
-    }
-
-    /// Compile a WebAssembly binary
-    #[cfg(feature = "compiler")]
-    #[tracing::instrument(skip_all)]
-    fn compile(
-        &self,
-        binary: &[u8],
-        tunables: &dyn Tunables,
-    ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
-        self.compile_universal(binary, tunables)
-            .map(|ex| Box::new(ex) as _)
-    }
-
     fn id(&self) -> &EngineId {
         &self.engine_id
     }
