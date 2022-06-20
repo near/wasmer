@@ -29,5 +29,4 @@ core = []
 
 [[test]]
 name = "partial-sum-map"
-path = "tests/partial-sum-map/test_target.rs"
 harness = false
