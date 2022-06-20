@@ -79,7 +79,8 @@ fn many_functions(c: &mut Criterion) {
             ..Default::default()
         }
         .make();
-        let store = Store::new(&Universal::new(Singlepass::new()).engine());
+        let engine = Universal::new(Singlepass::new()).engine();
+        let store = Store::new(&engine);
         group.bench_function(BenchmarkId::new("compile+instantiate", functions), |b| {
             b.iter(|| {
                 let module = Module::new(&store, &wasm).unwrap();
@@ -116,7 +117,7 @@ fn many_functions(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new("load", functions), |b| {
             b.iter(|| unsafe {
                 let deserialized = UniversalExecutableRef::deserialize(&serialized).unwrap();
-                black_box(store.engine().load(&deserialized).unwrap());
+                black_box(engine.load_universal_executable_ref(&deserialized).unwrap());
             })
         });
     }
@@ -132,7 +133,8 @@ fn many_locals(c: &mut Criterion) {
         }
         .make();
         let size = functions * locals_per_function;
-        let store = Store::new(&Universal::new(Singlepass::new()).engine());
+        let engine = Universal::new(Singlepass::new()).engine();
+        let store = Store::new(&engine);
         group.bench_function(BenchmarkId::new("compile+instantiate", size), |b| {
             b.iter(|| {
                 let module = Module::new(&store, &wasm).unwrap();
@@ -153,7 +155,7 @@ fn many_locals(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new("load", size), |b| {
             b.iter(|| unsafe {
                 let deserialized = UniversalExecutableRef::deserialize(&serialized).unwrap();
-                black_box(store.engine().load(&deserialized).unwrap());
+                black_box(engine.load_universal_executable_ref(&deserialized).unwrap());
             })
         });
     }

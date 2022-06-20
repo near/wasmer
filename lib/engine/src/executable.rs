@@ -1,8 +1,6 @@
-use crate::Engine;
 use enumset::EnumSet;
-use wasmer_compiler::{CompileError, CpuFeature, Features};
+use wasmer_compiler::{CpuFeature, Features};
 use wasmer_types::FunctionIndex;
-use wasmer_vm::Artifact;
 
 mod private {
     pub struct Internal(pub(super) ());
@@ -13,14 +11,6 @@ mod private {
 /// Types implementing this trait are ready to be saved (to e.g. disk) for later use or loaded with
 /// the `Engine` to in order to produce an [`Artifact`](crate::Artifact).
 pub trait Executable {
-    /// Load this executable with the specified engine.
-    ///
-    /// TODO(0-copy): change error type here.
-    fn load(
-        &self,
-        engine: &(dyn Engine + 'static),
-    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError>;
-
     /// The features with which this `Executable` was built.
     fn features(&self) -> Features;
 

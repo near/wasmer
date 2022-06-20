@@ -8,7 +8,6 @@ use wasmer_compiler::CompileError;
 #[cfg(feature = "wat")]
 use wasmer_compiler::WasmError;
 use wasmer_engine::RuntimeError;
-use wasmer_engine_universal::UniversalArtifact;
 use wasmer_types::InstanceConfig;
 use wasmer_vm::{InstanceHandle, Instantiatable, Resolver};
 
@@ -118,21 +117,22 @@ impl Module {
     #[tracing::instrument(skip_all)]
     pub(crate) fn from_binary(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
         store.engine().validate(binary)?;
-        let module = {
-            let executable = store.engine().compile(binary, store.tunables())?;
-            let artifact = store.engine().load(&*executable)?;
-            match artifact.downcast_arc::<UniversalArtifact>() {
-                Ok(universal) => Self {
+
+        match Arc::clone(store.engine()).downcast_arc::<wasmer_engine_universal::UniversalEngine>()
+        {
+            Ok(engine) => {
+                let executable = engine.compile_universal(binary, store.tunables())?;
+                let artifact = engine.load_universal_executable(&executable)?;
+                Ok(Self {
                     store: store.clone(),
-                    artifact: universal,
-                },
-                // We're are probably given an externally defined artifact type
-                // which I imagine we don't care about for now since this entire crate
-                // is only used for tests and this crate only defines universal engine.
-                Err(_) => panic!("unhandled artifact type"),
+                    artifact: Arc::new(artifact),
+                })
             }
-        };
-        Ok(module)
+            // We're are probably given an externally defined artifact type
+            // which I imagine we don't care about for now since this entire crate
+            // is only used for tests and this crate only defines universal engine.
+            Err(_) => panic!("unhandled engine type"),
+        }
     }
 
     pub(crate) fn instantiate(

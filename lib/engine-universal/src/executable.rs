@@ -1,21 +1,18 @@
-use std::sync::Arc;
-
 use enumset::EnumSet;
 use rkyv::de::deserializers::SharedDeserializeMap;
 use rkyv::ser::serializers::{
     AllocScratchError, AllocSerializer, CompositeSerializerError, SharedSerializeMapError,
 };
 use wasmer_compiler::{
-    CompileError, CompileModuleInfo, CompiledFunctionFrameInfo, CpuFeature, CustomSection, Dwarf,
-    Features, FunctionBody, JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
+    CompileModuleInfo, CompiledFunctionFrameInfo, CpuFeature, CustomSection, Dwarf, Features,
+    FunctionBody, JumpTableOffsets, Relocation, SectionIndex, TrampolinesSection,
 };
-use wasmer_engine::{DeserializeError, Engine};
+use wasmer_engine::DeserializeError;
 use wasmer_types::entity::PrimaryMap;
 use wasmer_types::{
     ExportIndex, FunctionIndex, ImportIndex, LocalFunctionIndex, OwnedDataInitializer,
     SignatureIndex,
 };
-use wasmer_vm::Artifact;
 
 const MAGIC_HEADER: [u8; 32] = {
     let value = *b"\0wasmer-universal\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF";
@@ -127,17 +124,6 @@ pub enum ExecutableSerializeError {
 }
 
 impl wasmer_engine::Executable for UniversalExecutable {
-    fn load(
-        &self,
-        engine: &(dyn Engine + 'static),
-    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
-        engine
-            .downcast_ref::<crate::UniversalEngine>()
-            .ok_or(CompileError::EngineDowncast)?
-            .load_universal_executable(self)
-            .map(|a| Arc::new(a) as _)
-    }
-
     fn features(&self) -> Features {
         self.compile_info.features.clone()
     }
@@ -189,17 +175,6 @@ impl wasmer_engine::Executable for UniversalExecutable {
 }
 
 impl<'a> wasmer_engine::Executable for UniversalExecutableRef<'a> {
-    fn load(
-        &self,
-        engine: &(dyn Engine + 'static),
-    ) -> Result<std::sync::Arc<dyn Artifact>, CompileError> {
-        engine
-            .downcast_ref::<crate::UniversalEngine>()
-            .ok_or_else(|| CompileError::Codegen("can't downcast TODO FIXME".into()))?
-            .load_universal_executable_ref(self)
-            .map(|a| Arc::new(a) as _)
-    }
-
     fn features(&self) -> Features {
         unrkyv(&self.archive.compile_info.features)
     }

@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
 use wasmer_types::{FunctionType, FunctionTypeRef};
-use wasmer_vm::{Artifact, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
+use wasmer_vm::{Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
 
 mod private {
     pub struct Internal(pub(super) ());
@@ -38,10 +38,6 @@ pub trait Engine {
         binary: &[u8],
         tunables: &dyn Tunables,
     ) -> Result<Box<dyn crate::Executable>, CompileError>;
-
-    /// Load a compiled executable with this engine.
-    fn load(&self, executable: &(dyn crate::Executable))
-        -> Result<Arc<dyn Artifact>, CompileError>;
 
     /// A unique identifier for this object.
     ///
@@ -99,6 +95,43 @@ impl dyn Engine {
             unsafe { Some(&*(self as *const dyn Engine as *const T)) }
         } else {
             None
+        }
+    }
+
+    /// Downcast a dynamic Executable object to a concrete implementation of the trait.
+    pub fn downcast_arc<T: Engine + 'static>(self: Arc<Self>) -> Result<Arc<T>, Arc<Self>> {
+        if std::any::TypeId::of::<T>() == Engine::type_id(&*self, private::Internal(())) {
+            // SAFETY: err, its probably sound, we effectively construct a transmute here.
+            unsafe {
+                let ptr = Arc::into_raw(self).cast::<T>();
+                Ok(Arc::from_raw(ptr))
+            }
+        } else {
+            Err(self)
+        }
+    }
+}
+
+impl dyn Engine + Send + Sync {
+    /// Downcast a dynamic Executable object to a concrete implementation of the trait.
+    pub fn downcast_ref<T: Engine + 'static>(&self) -> Option<&T> {
+        if std::any::TypeId::of::<T>() == self.type_id(private::Internal(())) {
+            unsafe { Some(&*(self as *const dyn Engine as *const T)) }
+        } else {
+            None
+        }
+    }
+
+    /// Downcast a dynamic Executable object to a concrete implementation of the trait.
+    pub fn downcast_arc<T: Engine + 'static>(self: Arc<Self>) -> Result<Arc<T>, Arc<Self>> {
+        if std::any::TypeId::of::<T>() == Engine::type_id(&*self, private::Internal(())) {
+            // SAFETY: err, its probably sound, we effectively construct a transmute here.
+            unsafe {
+                let ptr = Arc::into_raw(self).cast::<T>();
+                Ok(Arc::from_raw(ptr))
+            }
+        } else {
+            Err(self)
         }
     }
 }

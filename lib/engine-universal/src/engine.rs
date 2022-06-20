@@ -480,14 +480,6 @@ impl Engine for UniversalEngine {
             .map(|ex| Box::new(ex) as _)
     }
 
-    #[tracing::instrument(skip_all)]
-    fn load(
-        &self,
-        executable: &(dyn wasmer_engine::Executable),
-    ) -> Result<Arc<dyn wasmer_vm::Artifact>, CompileError> {
-        executable.load(self)
-    }
-
     fn id(&self) -> &EngineId {
         &self.engine_id
     }
