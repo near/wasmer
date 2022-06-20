@@ -1,8 +1,7 @@
-use bolero::check;
 use wasmer_types::partial_sum_map::{Error, PartialSumMap};
 
 fn main() {
-    check!()
+    bolero::check!()
         .with_type::<(Vec<(u32, u32)>, Vec<u32>)>()
         .for_each(|input| {
             let adds = &input.0;
