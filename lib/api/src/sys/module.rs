@@ -97,6 +97,7 @@ impl Module {
     /// # }
     /// ```
     #[allow(unreachable_code)]
+    #[tracing::instrument(skip_all)]
     pub fn new(store: &Store, bytes: impl AsRef<[u8]>) -> Result<Self, CompileError> {
         #[cfg(feature = "wat")]
         let bytes = wat::parse_bytes(bytes.as_ref()).map_err(|e| {
@@ -114,6 +115,7 @@ impl Module {
     /// Opposed to [`Module::new`], this function is not compatible with
     /// the WebAssembly text format (if the "wat" feature is enabled for
     /// this crate).
+    #[tracing::instrument(skip_all)]
     pub(crate) fn from_binary(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
         store.engine().validate(binary)?;
         let module = {

@@ -89,6 +89,7 @@ impl UniversalEngine {
 
     /// Compile a WebAssembly binary
     #[cfg(feature = "compiler")]
+    #[tracing::instrument(skip_all)]
     pub fn compile_universal(
         &self,
         binary: &[u8],
@@ -156,6 +157,7 @@ impl UniversalEngine {
     }
 
     /// Load a [`UniversalExecutable`](crate::UniversalExecutable) with this engine.
+    #[tracing::instrument(skip_all)]
     pub fn load_universal_executable(
         &self,
         executable: &UniversalExecutable,
@@ -449,6 +451,7 @@ impl Engine for UniversalEngine {
     }
 
     /// Validates a WebAssembly module
+    #[tracing::instrument(skip_all)]
     fn validate(&self, binary: &[u8]) -> Result<(), CompileError> {
         self.inner().validate(binary)
     }
@@ -467,6 +470,7 @@ impl Engine for UniversalEngine {
 
     /// Compile a WebAssembly binary
     #[cfg(feature = "compiler")]
+    #[tracing::instrument(skip_all)]
     fn compile(
         &self,
         binary: &[u8],
@@ -476,6 +480,7 @@ impl Engine for UniversalEngine {
             .map(|ex| Box::new(ex) as _)
     }
 
+    #[tracing::instrument(skip_all)]
     fn load(
         &self,
         executable: &(dyn wasmer_engine::Executable),

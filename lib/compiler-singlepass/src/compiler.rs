@@ -42,6 +42,7 @@ impl SinglepassCompiler {
 impl Compiler for SinglepassCompiler {
     /// Compile the module using Singlepass, producing a compilation result with
     /// associated relocations.
+    #[tracing::instrument(skip_all)]
     fn compile_module(
         &self,
         target: &Target,
@@ -85,82 +86,101 @@ impl Compiler for SinglepassCompiler {
             .bytes();
         let vmoffsets = VMOffsets::new(pointer_width).with_module_info(&module);
         let import_idxs = 0..module.import_counts.functions as usize;
-        let import_trampolines: PrimaryMap<SectionIndex, _> = import_idxs
-            .into_par_iter_if_rayon()
-            .map(|i| {
-                let i = FunctionIndex::new(i);
-                gen_import_call_trampoline(
-                    &vmoffsets,
-                    i,
-                    &module.signatures[module.functions[i]],
-                    calling_convention,
-                )
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect();
+        let import_trampolines: PrimaryMap<SectionIndex, _> =
+            tracing::info_span!("import_trampolines", n_imports = import_idxs.len()).in_scope(
+                || {
+                    import_idxs
+                        .into_par_iter_if_rayon()
+                        .map(|i| {
+                            let i = FunctionIndex::new(i);
+                            gen_import_call_trampoline(
+                                &vmoffsets,
+                                i,
+                                &module.signatures[module.functions[i]],
+                                calling_convention,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .collect()
+                },
+            );
         let functions = function_body_inputs
             .iter()
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
             .into_par_iter_if_rayon()
             .map(|(i, input)| {
-                let reader = wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
+                tracing::info_span!("function", i = i.index()).in_scope(|| {
+                    let reader =
+                        wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
+                    let mut generator = FuncGen::new(
+                        module,
+                        module_translation,
+                        &self.config,
+                        &vmoffsets,
+                        &table_styles,
+                        i,
+                        calling_convention,
+                    )
+                    .map_err(to_compile_error)?;
 
-                let mut generator = FuncGen::new(
-                    module,
-                    module_translation,
-                    &self.config,
-                    &vmoffsets,
-                    &table_styles,
-                    i,
-                    calling_convention,
-                )
-                .map_err(to_compile_error)?;
+                    let mut local_reader = reader.get_locals_reader()?;
+                    for _ in 0..local_reader.get_count() {
+                        let (count, ty) = local_reader.read()?;
+                        // Overflows feeding a local here have most likely already been caught by the
+                        // validator, but it is possible that the validator hasn't been run at all, or
+                        // that the validator does not impose any limits on the number of locals.
+                        generator.feed_local(count, ty);
+                    }
 
-                let mut local_reader = reader.get_locals_reader()?;
-                for _ in 0..local_reader.get_count() {
-                    let (count, ty) = local_reader.read()?;
-                    // Overflows feeding a local here have most likely already been caught by the
-                    // validator, but it is possible that the validator hasn't been run at all, or
-                    // that the validator does not impose any limits on the number of locals.
-                    generator.feed_local(count, ty);
-                }
+                    generator.emit_head().map_err(to_compile_error)?;
 
-                generator.emit_head().map_err(to_compile_error)?;
+                    let mut operator_reader =
+                        reader.get_operators_reader()?.into_iter_with_offsets();
+                    while generator.has_control_frames() {
+                        let (op, pos) = tracing::info_span!("parsing-next-operator")
+                            .in_scope(|| operator_reader.next().unwrap())?;
+                        generator.set_srcloc(pos as u32);
+                        generator.feed_operator(op).map_err(to_compile_error)?;
+                    }
 
-                let mut operator_reader = reader.get_operators_reader()?.into_iter_with_offsets();
-                while generator.has_control_frames() {
-                    let (op, pos) = operator_reader.next().unwrap()?;
-                    generator.set_srcloc(pos as u32);
-                    generator.feed_operator(op).map_err(to_compile_error)?;
-                }
-
-                Ok(generator.finalize(&input))
+                    Ok(generator.finalize(&input))
+                })
             })
             .collect::<Result<Vec<CompiledFunction>, CompileError>>()?
-            .into_iter()
+            .into_iter() // TODO: why not just collect to PrimaryMap directly?
             .collect::<PrimaryMap<LocalFunctionIndex, CompiledFunction>>();
 
-        let function_call_trampolines = module
-            .signatures
-            .values()
-            .collect::<Vec<_>>()
-            .into_par_iter_if_rayon()
-            .map(|func_type| gen_std_trampoline(&func_type, calling_convention))
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect::<PrimaryMap<_, _>>();
+        let function_call_trampolines =
+            tracing::info_span!("function_call_trampolines").in_scope(|| {
+                module
+                    .signatures
+                    .values()
+                    .collect::<Vec<_>>()
+                    .into_par_iter_if_rayon()
+                    .map(|func_type| gen_std_trampoline(&func_type, calling_convention))
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .collect::<PrimaryMap<_, _>>()
+            });
 
-        let dynamic_function_trampolines = module
-            .imported_function_types()
-            .collect::<Vec<_>>()
-            .into_par_iter_if_rayon()
-            .map(|func_type| {
-                gen_std_dynamic_import_trampoline(&vmoffsets, &func_type, calling_convention)
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect::<PrimaryMap<FunctionIndex, FunctionBody>>();
+        let dynamic_function_trampolines = tracing::info_span!("dynamic_function_trampolines")
+            .in_scope(|| {
+                module
+                    .imported_function_types()
+                    .collect::<Vec<_>>()
+                    .into_par_iter_if_rayon()
+                    .map(|func_type| {
+                        gen_std_dynamic_import_trampoline(
+                            &vmoffsets,
+                            &func_type,
+                            calling_convention,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .collect::<PrimaryMap<FunctionIndex, FunctionBody>>()
+            });
 
         Ok(Compilation::new(
             functions,
