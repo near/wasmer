@@ -26,6 +26,11 @@ fn main() -> anyhow::Result<()> {
     )
     .expect("Failed setting tracing subscriber");
 
+    // Prepare rayon so that we don't see a huge 3-4ms for the first rayon usage
+    tracing::info_span!("init_rayon").in_scope(|| {
+        rayon::ThreadPoolBuilder::new().build_global().unwrap();
+    });
+
     // Load the wasm
     let args = std::env::args().collect::<Vec<String>>();
     let input = std::fs::read(args.get(1).context("Usage: tracy_exec <WASM_FILE>")?)

@@ -86,17 +86,9 @@ impl Compiler for SinglepassCompiler {
             .bytes();
         let vmoffsets = VMOffsets::new(pointer_width).with_module_info(&module);
         let import_idxs = 0..module.import_counts.functions as usize;
-        rayon::ThreadPoolBuilder::new().build().unwrap();
-        rayon::ThreadPoolBuilder::new().build().unwrap();
         let import_trampolines: PrimaryMap<SectionIndex, _> =
             tracing::info_span!("import_trampolines", n_imports = import_idxs.len()).in_scope(
                 || {
-                    // Note for the curious coming here after seeing a tracing trace:
-                    // I do not know either why this takes so long even with import_idxs.len() = 0
-                    // My guess is this is the place where rayon thread pools get initialized
-                    // And it happens in the .collect::<Vec<_>>() so there's no good way to add a span around it
-                    // But even adding a rayon::ThreadPoolBuilder::new().build().unwrap() above doesn't accelerate it
-                    // So... I don't know
                     import_idxs
                         .into_par_iter_if_rayon()
                         .map(|i| {

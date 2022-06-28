@@ -1819,6 +1819,7 @@ dependencies = [
  "criterion",
  "glob",
  "lazy_static",
+ "rayon",
  "rustc_version",
  "serial_test",
  "tempfile",
