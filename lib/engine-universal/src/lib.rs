@@ -34,7 +34,7 @@ mod unwind;
 
 pub use crate::artifact::UniversalArtifact;
 pub use crate::builder::Universal;
-pub use crate::code_memory::CodeMemory;
+pub use crate::code_memory::{CodeMemory, LimitedMemoryPool};
 pub use crate::engine::UniversalEngine;
 pub use crate::executable::{UniversalExecutable, UniversalExecutableRef};
 pub use crate::link::link_module;

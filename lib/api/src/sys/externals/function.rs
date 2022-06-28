@@ -389,7 +389,9 @@ impl Function {
             build_export_function_metadata::<Env>(env, Env::init_with_instance);
 
         let vmctx = VMFunctionEnvironment { host_env };
-        let signature = store.dyn_engine().register_signature((&function.ty()).into());
+        let signature = store
+            .dyn_engine()
+            .register_signature((&function.ty()).into());
         Self {
             store: store.clone(),
             exported: ExportFunction {

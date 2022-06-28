@@ -21,6 +21,7 @@ use wasmer_vm::{
 pub struct UniversalArtifact {
     // TODO: figure out how to allocate fewer distinct structures onto heap. Maybe have an arena…?
     pub(crate) engine: crate::UniversalEngine,
+    pub(crate) _code_memory: crate::CodeMemory,
     pub(crate) import_counts: ImportCounts,
     pub(crate) start_function: Option<FunctionIndex>,
     pub(crate) vmoffsets: VMOffsets,

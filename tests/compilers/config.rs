@@ -54,7 +54,8 @@ impl Config {
         match &self.engine {
             #[cfg(feature = "universal")]
             Engine::Universal => {
-                let mut engine = wasmer_engine_universal::Universal::new(compiler_config);
+                let mut engine = wasmer_engine_universal::Universal::new(compiler_config)
+                    .pool(wasmer_engine_universal::LimitedMemoryPool::new(128, 16 * 4096).unwrap());
                 if let Some(ref features) = self.features {
                     engine = engine.features(features.clone())
                 }
