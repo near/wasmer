@@ -254,8 +254,10 @@ impl UniversalEngine {
         );
 
         unsafe {
-            // TODO:
-            code_memory.publish();
+            // SAFETY: We finished relocation and linking just above. There should be no write
+            // access past this point, though I don’t think we have a good mechanism to ensure this
+            // statically at this point..
+            code_memory.publish()?;
         }
         let exports = module
             .exports
@@ -394,8 +396,10 @@ impl UniversalEngine {
         );
 
         unsafe {
-            // TODO:
-            code_memory.publish();
+            // SAFETY: We finished relocation and linking just above. There should be no write
+            // access past this point, though I don’t think we have a good mechanism to ensure this
+            // statically at this point..
+            code_memory.publish()?;
         }
         let exports = module
             .exports
@@ -575,8 +579,8 @@ impl UniversalEngineInner {
             CompileError::Resource(format!("could not allocate code memory: {}", e))
         })?;
         let mut code_writer = unsafe {
-            // SAFETY: We just popped out a “free” code memory from an allocator pool.
-            code_memory.writer()
+            // SAFETY: We just popped out an unused code memory from an allocator pool.
+            code_memory.writer()?
         };
 
         let mut allocated_functions = vec![];
@@ -585,18 +589,16 @@ impl UniversalEngineInner {
         for func in function_bodies {
             let offset = code_writer
                 .write_executable(ARCH_FUNCTION_ALIGNMENT, func.body)
-                .expect("TODO");
+                .expect("incorrectly computed code memory size");
             if let Some(CompiledFunctionUnwindInfoRef::WindowsX64(info)) = &func.unwind_info {
                 // Windows unwind information is written following the function body
                 // Keep unwind information 32-bit aligned (round up to the nearest 4 byte boundary)
-                code_writer.write_executable(4, info).expect("TODO");
+                code_writer.write_executable(4, info)?;
             }
             allocated_functions.push((offset, func.body.len()));
         }
         for section in executable_sections {
-            let offset = code_writer
-                .write_executable(ARCH_FUNCTION_ALIGNMENT, section.bytes)
-                .expect("TODO");
+            let offset = code_writer.write_executable(ARCH_FUNCTION_ALIGNMENT, section.bytes)?;
             allocated_executable_sections.push(offset);
         }
         if !data_sections.is_empty() {
@@ -606,7 +608,7 @@ impl UniversalEngineInner {
             for section in data_sections {
                 let offset = code_writer
                     .write_aligned(alignment, section.bytes)
-                    .expect("TODO");
+                    .expect("incorrectly computed code memory size");
                 alignment = DATA_SECTION_ALIGNMENT;
                 allocated_data_sections.push(offset);
             }
@@ -687,7 +689,7 @@ fn function_allocation_size(func: FunctionBodyRef<'_>) -> usize {
             // Windows unwind information is required to be emitted into code memory
             // This is because it must be a positive relative offset from the start of the memory
             // Account for necessary unwind information alignment padding (32-bit alignment)
-            ((func.body.len() + 3) & !3) + info.len()
+            round_up(func.body.len(), 4) + info.len()
         }
         _ => func.body.len(),
     }

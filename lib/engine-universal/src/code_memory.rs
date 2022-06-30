@@ -4,6 +4,7 @@
 //! Memory management for executable code.
 use rustix::mm::{self, MapFlags, MprotectFlags, ProtFlags};
 use std::sync::Arc;
+use wasmer_compiler::CompileError;
 
 /// The optimal alignment for functions.
 ///
@@ -31,10 +32,8 @@ impl<'a> CodeMemoryWriter<'a> {
     /// provided `alignment`.
     ///
     /// Returns the position within the mapping at which the buffer was written.
-    ///
-    /// TODO: error type.
-    pub fn write_aligned(&mut self, alignment: u16, input: &[u8]) -> Result<usize, &'static str> {
-        self.offset = (self.offset + (usize::from(alignment) - 1)) & !(usize::from(alignment) - 1);
+    pub fn write_aligned(&mut self, alignment: u16, input: &[u8]) -> Result<usize, CompileError> {
+        self.offset = round_up(self.offset, usize::from(alignment));
         let out_buffer = unsafe {
             // SAFETY: We have made sure that this is the only reference to the memory region by
             // requiring that the users do not create `CodeMemoryWriter` from non-unique
@@ -45,7 +44,7 @@ impl<'a> CodeMemoryWriter<'a> {
         self.offset += input.len();
         let out_buffer = out_buffer
             .get_mut(initial_offset..self.offset)
-            .ok_or("ran out of space :sadface:")?;
+            .ok_or_else(|| CompileError::Resource("out of code memory space".into()))?;
         out_buffer.copy_from_slice(input);
         Ok(initial_offset)
     }
@@ -54,7 +53,7 @@ impl<'a> CodeMemoryWriter<'a> {
         &mut self,
         alignment: u16,
         input: &[u8],
-    ) -> Result<usize, &'static str> {
+    ) -> Result<usize, CompileError> {
         let result = self.write_aligned(alignment, input);
         self.memory.executable_size = self.offset;
         result
@@ -83,11 +82,9 @@ pub struct CodeMemory {
 
 impl CodeMemory {
     fn create(size: usize) -> rustix::io::Result<CodeMemory> {
-        // TODO: figure out who does this.
+        // Make sure callers don’t pass in a 0-sized map request. That is most likely a bug.
         assert!(size != 0);
-        // TODO: figure out why is this necessary.
-        let page_size = rustix::param::page_size();
-        let size = std::cmp::max(page_size, round_up(size, page_size));
+        let size = round_up(size, rustix::param::page_size());
         let map = unsafe {
             mm::mmap_anonymous(
                 std::ptr::null_mut(),
@@ -110,6 +107,8 @@ impl CodeMemory {
     pub fn resize(mut self, size: usize) -> rustix::io::Result<Self> {
         if self.size < size {
             let source_pool = self.source_pool.take();
+            // Ideally we would use mremap, but see
+            // https://bugzilla.kernel.org/show_bug.cgi?id=8691
             unsafe {
                 mm::munmap(self.map.cast(), self.size)?;
                 std::mem::forget(self);
@@ -130,28 +129,36 @@ impl CodeMemory {
     /// At the time this method is called, there should remain no dangling readable/executable
     /// references to this `CodeMemory`, for the original code memory that those references point
     /// to are invalidated as soon as this method is invoked.
-    pub unsafe fn writer(&mut self) -> CodeMemoryWriter<'_> {
+    pub unsafe fn writer(&mut self) -> Result<CodeMemoryWriter<'_>, CompileError> {
         mm::mprotect(
             self.map.cast(),
             self.size,
             MprotectFlags::WRITE | MprotectFlags::READ,
         )
-        .expect("TODO");
+        .map_err(|e| {
+            CompileError::Resource(format!("could not make code memory writable: {}", e))
+        })?;
         self.executable_size = 0;
-        CodeMemoryWriter {
+        Ok(CodeMemoryWriter {
             memory: self,
             offset: 0,
-        }
+        })
     }
 
     /// Publish the specified number of bytes as executable code.
-    pub unsafe fn publish(&mut self) {
+    ///
+    /// # Safety
+    ///
+    /// Calling this requires that no mutable references to the code memory remain.
+    pub unsafe fn publish(&mut self) -> Result<(), CompileError> {
         mm::mprotect(
             self.map.cast(),
             self.executable_size,
             MprotectFlags::EXEC | MprotectFlags::READ,
         )
-        .expect("TODO");
+        .map_err(|e| {
+            CompileError::Resource(format!("could not make code memory executable: {}", e))
+        })
     }
 
     /// Remap the offset into an absolute address within a read-execute mapping.
@@ -163,7 +170,7 @@ impl CodeMemory {
     }
 
     /// Remap the offset into an absolute address within a read-write mapping.
-    pub fn writable_address(&self, offset: usize) -> *const u8 {
+    pub fn writable_address(&self, offset: usize) -> *mut u8 {
         unsafe {
             // TODO: encapsulate offsets so that this `offset` is guaranteed to be sound.
             self.map.offset(offset as isize)
@@ -182,8 +189,12 @@ impl Drop for CodeMemory {
             }));
         } else {
             unsafe {
-                // TODO(nagisa): log errors here.
-                drop(mm::munmap(self.map.cast(), self.size));
+                if let Err(e) = mm::munmap(self.map.cast(), self.size) {
+                    tracing::error!(
+                        message="could not unmap mapping",
+                        map=?self.map, size=self.size, error=%e
+                    );
+                }
             }
         }
     }
@@ -220,9 +231,7 @@ impl LimitedMemoryPool {
         if let Some(memory) = memory.as_mut() {
             memory.source_pool = Some(Arc::clone(&self.pool));
         }
-        let memory = memory
-            .map(Ok)
-            .unwrap_or_else(|| Err(rustix::io::Errno::NOMEM))?;
+        let memory = memory.ok_or(rustix::io::Errno::NOMEM)?;
         if memory.size < size {
             Ok(memory.resize(size)?)
         } else {
