@@ -35,7 +35,7 @@ pub trait Instantiatable: Artifact {
 ///
 /// Some other operations such as linking, relocating and similar may also be performed during
 /// constructon of the Artifact, making this type particularly well suited for caching in-memory.
-pub trait Artifact: Send + Sync {
+pub trait Artifact: Send {
     /// Internal: support for downcasting `Executable`s.
     #[doc(hidden)]
     fn type_id(&self, _: private::Internal) -> std::any::TypeId

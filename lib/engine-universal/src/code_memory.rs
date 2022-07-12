@@ -201,7 +201,6 @@ impl Drop for CodeMemory {
 }
 
 unsafe impl Send for CodeMemory {}
-unsafe impl Sync for CodeMemory {}
 
 /// The pool of preallocated memory maps for storing the code.
 ///
@@ -244,7 +243,7 @@ impl LimitedMemoryPool {
 mod tests {
     use super::CodeMemory;
     fn _assert() {
-        fn _assert_send_sync<T: Send + Sync>() {}
-        _assert_send_sync::<CodeMemory>();
+        fn _assert_send<T: Send>() {}
+        _assert_send::<CodeMemory>();
     }
 }
