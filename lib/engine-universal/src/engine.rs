@@ -580,7 +580,7 @@ impl UniversalEngineInner {
         })?;
         let mut code_writer = unsafe {
             // SAFETY: We just popped out an unused code memory from an allocator pool.
-            code_memory.writer()?
+            code_memory.writer()
         };
 
         let mut allocated_functions = vec![];

@@ -81,7 +81,7 @@ impl Default for EngineId {
     }
 }
 
-impl dyn Engine {
+impl dyn Engine + 'static {
     /// Downcast a dynamic Executable object to a concrete implementation of the trait.
     pub fn downcast_ref<T: Engine + 'static>(&self) -> Option<&T> {
         if std::any::TypeId::of::<T>() == self.type_id(private::Internal(())) {
@@ -105,7 +105,7 @@ impl dyn Engine {
     }
 }
 
-impl dyn Engine + Send + Sync {
+impl dyn Engine + Send + Sync + 'static {
     /// Downcast a dynamic Executable object to a concrete implementation of the trait.
     pub fn downcast_ref<T: Engine + 'static>(&self) -> Option<&T> {
         if std::any::TypeId::of::<T>() == self.type_id(private::Internal(())) {

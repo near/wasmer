@@ -33,20 +33,21 @@ impl<'a> CodeMemoryWriter<'a> {
     ///
     /// Returns the position within the mapping at which the buffer was written.
     pub fn write_aligned(&mut self, alignment: u16, input: &[u8]) -> Result<usize, CompileError> {
-        self.offset = round_up(self.offset, usize::from(alignment));
-        let out_buffer = unsafe {
-            // SAFETY: We have made sure that this is the only reference to the memory region by
-            // requiring that the users do not create `CodeMemoryWriter` from non-unique
-            // `CodeMemory2` references. See the safety comment on [`CodeMemory2::writer`].
-            std::slice::from_raw_parts_mut(self.memory.map, self.memory.size)
-        };
-        let initial_offset = self.offset;
-        self.offset += input.len();
+        let entry_offset = self.offset;
+        let aligned_offset = round_up(entry_offset, usize::from(alignment));
+        let final_offset = aligned_offset + input.len();
+        let out_buffer = self.memory.as_slice_mut();
+        // Fill out the padding with zeroes, if only to make sure there are no gadgets in there.
+        out_buffer
+            .get_mut(entry_offset..aligned_offset)
+            .ok_or_else(|| CompileError::Resource("out of code memory space".into()))?
+            .fill(0);
         let out_buffer = out_buffer
-            .get_mut(initial_offset..self.offset)
+            .get_mut(aligned_offset..final_offset)
             .ok_or_else(|| CompileError::Resource("out of code memory space".into()))?;
         out_buffer.copy_from_slice(input);
-        Ok(initial_offset)
+        self.offset = final_offset;
+        Ok(aligned_offset)
     }
 
     pub fn write_executable(
@@ -89,7 +90,7 @@ impl CodeMemory {
             mm::mmap_anonymous(
                 std::ptr::null_mut(),
                 size,
-                ProtFlags::empty(),
+                ProtFlags::WRITE | ProtFlags::READ,
                 MapFlags::SHARED,
             )?
         };
@@ -99,6 +100,14 @@ impl CodeMemory {
             executable_size: 0,
             size,
         })
+    }
+
+    fn as_slice_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            // SAFETY: We have made sure that this is the only reference to the memory region by
+            // requiring a mutable self reference.
+            std::slice::from_raw_parts_mut(self.map, self.size)
+        }
     }
 
     /// Ensure this CodeMemory is at least of the requested size.
@@ -129,20 +138,12 @@ impl CodeMemory {
     /// At the time this method is called, there should remain no dangling readable/executable
     /// references to this `CodeMemory`, for the original code memory that those references point
     /// to are invalidated as soon as this method is invoked.
-    pub unsafe fn writer(&mut self) -> Result<CodeMemoryWriter<'_>, CompileError> {
-        mm::mprotect(
-            self.map.cast(),
-            self.size,
-            MprotectFlags::WRITE | MprotectFlags::READ,
-        )
-        .map_err(|e| {
-            CompileError::Resource(format!("could not make code memory writable: {}", e))
-        })?;
+    pub unsafe fn writer(&mut self) -> CodeMemoryWriter<'_> {
         self.executable_size = 0;
-        Ok(CodeMemoryWriter {
+        CodeMemoryWriter {
             memory: self,
             offset: 0,
-        })
+        }
     }
 
     /// Publish the specified number of bytes as executable code.
@@ -181,6 +182,19 @@ impl CodeMemory {
 impl Drop for CodeMemory {
     fn drop(&mut self) {
         if let Some(source_pool) = self.source_pool.take() {
+            unsafe {
+                let result = mm::mprotect(
+                    self.map.cast(),
+                    self.size,
+                    MprotectFlags::WRITE | MprotectFlags::READ,
+                );
+                if let Err(e) = result {
+                    tracing::error!(
+                        message="could not mprotect mapping before returning it to the memory pool",
+                        map=?self.map, size=self.size, error=%e
+                    );
+                }
+            }
             drop(source_pool.push(CodeMemory {
                 source_pool: None,
                 map: self.map,
