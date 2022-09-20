@@ -141,12 +141,12 @@ impl TrampolinesSection {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Compilation {
     /// Compiled code for the function bodies.
-    functions: Functions,
+    pub functions: Functions,
 
     /// Custom sections for the module.
     /// It will hold the data, for example, for constants used in a
     /// function, global variables, rodata_64, hot/cold function partitioning, ...
-    custom_sections: CustomSections,
+    pub custom_sections: CustomSections,
 
     /// Trampolines to call a function defined locally in the wasm via a
     /// provided `Vec` of values.
@@ -157,7 +157,7 @@ pub struct Compilation {
     /// let func = instance.exports.get_function("my_func");
     /// func.call(&[Value::I32(1)]);
     /// ```
-    function_call_trampolines: PrimaryMap<SignatureIndex, FunctionBody>,
+    pub function_call_trampolines: PrimaryMap<SignatureIndex, FunctionBody>,
 
     /// Trampolines to call a dynamic function defined in
     /// a host, from a Wasm module.
@@ -178,13 +178,13 @@ pub struct Compilation {
     /// ```
     ///
     /// Note: Dynamic function trampolines are only compiled for imported function types.
-    dynamic_function_trampolines: PrimaryMap<FunctionIndex, FunctionBody>,
+    pub dynamic_function_trampolines: PrimaryMap<FunctionIndex, FunctionBody>,
 
     /// Section ids corresponding to the Dwarf debug info
-    debug: Option<Dwarf>,
+    pub debug: Option<Dwarf>,
 
     /// Trampolines for the arch that needs it
-    trampolines: Option<TrampolinesSection>,
+    pub trampolines: Option<TrampolinesSection>,
 }
 
 impl Compilation {
