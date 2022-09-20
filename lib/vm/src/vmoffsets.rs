@@ -24,6 +24,7 @@ fn cast_to_u32(sz: usize) -> u32 {
 }
 
 /// Align an offset used in this module to a specific byte-width by rounding up
+#[inline]
 const fn align(offset: u32, width: u32) -> u32 {
     (offset + (width - 1)) / width * width
 }
@@ -32,28 +33,44 @@ const fn align(offset: u32, width: u32) -> u32 {
 /// related structs that JIT code accesses directly.
 ///
 /// [`VMContext`]: crate::vmcontext::VMContext
+// Invariant: the addresses always fit into an u32 without overflowing
 #[derive(Clone, Debug)]
 pub struct VMOffsets {
     /// The size in bytes of a pointer on the target.
-    pub pointer_size: u8,
+    pointer_size: u8,
     /// The number of signature declarations in the module.
-    pub num_signature_ids: u32,
+    num_signature_ids: u32,
     /// The number of imported functions in the module.
-    pub num_imported_functions: u32,
+    num_imported_functions: u32,
     /// The number of imported tables in the module.
-    pub num_imported_tables: u32,
+    num_imported_tables: u32,
     /// The number of imported memories in the module.
-    pub num_imported_memories: u32,
+    num_imported_memories: u32,
     /// The number of imported globals in the module.
-    pub num_imported_globals: u32,
+    num_imported_globals: u32,
     /// The number of defined tables in the module.
-    pub num_local_tables: u32,
+    num_local_tables: u32,
     /// The number of defined memories in the module.
-    pub num_local_memories: u32,
+    num_local_memories: u32,
     /// The number of defined globals in the module.
-    pub num_local_globals: u32,
+    num_local_globals: u32,
     /// If the module has trap handler.
-    pub has_trap_handlers: bool,
+    has_trap_handlers: bool,
+
+    vmctx_signature_ids_begin: u32,
+    vmctx_imported_functions_begin: u32,
+    vmctx_imported_tables_begin: u32,
+    vmctx_imported_memories_begin: u32,
+    vmctx_imported_globals_begin: u32,
+    vmctx_tables_begin: u32,
+    vmctx_memories_begin: u32,
+    vmctx_globals_begin: u32,
+    vmctx_builtin_functions_begin: u32,
+    vmctx_trap_handler_begin: u32,
+    vmctx_gas_limiter_pointer: u32,
+    vmctx_stack_limit_begin: u32,
+    vmctx_stack_limit_initial_begin: u32,
+    size_of_vmctx: u32,
 }
 
 impl VMOffsets {
@@ -73,6 +90,20 @@ impl VMOffsets {
             num_local_memories: 0,
             num_local_globals: 0,
             has_trap_handlers: false,
+            vmctx_signature_ids_begin: 0,
+            vmctx_imported_functions_begin: 0,
+            vmctx_imported_tables_begin: 0,
+            vmctx_imported_memories_begin: 0,
+            vmctx_imported_globals_begin: 0,
+            vmctx_tables_begin: 0,
+            vmctx_memories_begin: 0,
+            vmctx_globals_begin: 0,
+            vmctx_builtin_functions_begin: 0,
+            vmctx_trap_handler_begin: 0,
+            vmctx_gas_limiter_pointer: 0,
+            vmctx_stack_limit_begin: 0,
+            vmctx_stack_limit_initial_begin: 0,
+            size_of_vmctx: 0,
         }
     }
 
@@ -97,6 +128,7 @@ impl VMOffsets {
         self.num_local_memories = cast_to_u32(module.memories.len());
         self.num_local_globals = cast_to_u32(module.globals.len());
         self.has_trap_handlers = true;
+        self.precompute();
         self
     }
 
@@ -112,7 +144,110 @@ impl VMOffsets {
         self.num_local_memories = cast_to_u32(module.memories.len());
         self.num_local_globals = cast_to_u32(module.globals.len());
         self.has_trap_handlers = true;
+        self.precompute();
         self
+    }
+
+    /// Number of local tables defined in the module
+    pub fn num_local_tables(&self) -> u32 {
+        self.num_local_tables
+    }
+
+    /// Number of local memories defined in the module
+    pub fn num_local_memories(&self) -> u32 {
+        self.num_local_memories
+    }
+
+    fn precompute(&mut self) {
+        self.vmctx_signature_ids_begin = 0;
+        self.vmctx_imported_functions_begin = self
+            .vmctx_signature_ids_begin
+            .checked_add(
+                self.num_signature_ids
+                    .checked_mul(u32::from(self.size_of_vmshared_signature_index()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_imported_tables_begin = self
+            .vmctx_imported_functions_begin
+            .checked_add(
+                self.num_imported_functions
+                    .checked_mul(u32::from(self.size_of_vmfunction_import()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_imported_memories_begin = self
+            .vmctx_imported_tables_begin
+            .checked_add(
+                self.num_imported_tables
+                    .checked_mul(u32::from(self.size_of_vmtable_import()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_imported_globals_begin = self
+            .vmctx_imported_memories_begin
+            .checked_add(
+                self.num_imported_memories
+                    .checked_mul(u32::from(self.size_of_vmmemory_import()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_tables_begin = self
+            .vmctx_imported_globals_begin
+            .checked_add(
+                self.num_imported_globals
+                    .checked_mul(u32::from(self.size_of_vmglobal_import()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_memories_begin = self
+            .vmctx_tables_begin
+            .checked_add(
+                self.num_local_tables
+                    .checked_mul(u32::from(self.size_of_vmtable_definition()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_globals_begin = align(
+            self.vmctx_memories_begin
+                .checked_add(
+                    self.num_local_memories
+                        .checked_mul(u32::from(self.size_of_vmmemory_definition()))
+                        .unwrap(),
+                )
+                .unwrap(),
+            16,
+        );
+        self.vmctx_builtin_functions_begin = self
+            .vmctx_globals_begin
+            .checked_add(
+                self.num_local_globals
+                    .checked_mul(u32::from(self.size_of_vmglobal_local()))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_trap_handler_begin = self
+            .vmctx_builtin_functions_begin
+            .checked_add(
+                VMBuiltinFunctionIndex::builtin_functions_total_number()
+                    .checked_mul(u32::from(self.pointer_size))
+                    .unwrap(),
+            )
+            .unwrap();
+        self.vmctx_gas_limiter_pointer = self
+            .vmctx_trap_handler_begin
+            .checked_add(if self.has_trap_handlers {
+                u32::from(self.pointer_size)
+            } else {
+                0u32
+            })
+            .unwrap();
+        self.vmctx_stack_limit_begin = self
+            .vmctx_gas_limiter_pointer
+            .checked_add(u32::from(self.pointer_size))
+            .unwrap();
+        self.vmctx_stack_limit_initial_begin = self.vmctx_stack_limit_begin.checked_add(4).unwrap();
+        self.size_of_vmctx = self.vmctx_stack_limit_begin.checked_add(4).unwrap();
     }
 }
 
@@ -383,368 +518,242 @@ impl VMOffsets {
 /// [`VMContext`]: crate::vmcontext::VMContext
 impl VMOffsets {
     /// The offset of the `signature_ids` array.
+    #[inline]
     pub fn vmctx_signature_ids_begin(&self) -> u32 {
-        0
+        self.vmctx_signature_ids_begin
     }
 
     /// The offset of the `tables` array.
-    #[allow(clippy::erasing_op)]
     pub fn vmctx_imported_functions_begin(&self) -> u32 {
-        self.vmctx_signature_ids_begin()
-            .checked_add(
-                self.num_signature_ids
-                    .checked_mul(u32::from(self.size_of_vmshared_signature_index()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_functions_begin
     }
 
     /// The offset of the `tables` array.
     #[allow(clippy::identity_op)]
     pub fn vmctx_imported_tables_begin(&self) -> u32 {
-        self.vmctx_imported_functions_begin()
-            .checked_add(
-                self.num_imported_functions
-                    .checked_mul(u32::from(self.size_of_vmfunction_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_tables_begin
     }
 
     /// The offset of the `memories` array.
     pub fn vmctx_imported_memories_begin(&self) -> u32 {
-        self.vmctx_imported_tables_begin()
-            .checked_add(
-                self.num_imported_tables
-                    .checked_mul(u32::from(self.size_of_vmtable_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_memories_begin
     }
 
     /// The offset of the `globals` array.
     pub fn vmctx_imported_globals_begin(&self) -> u32 {
-        self.vmctx_imported_memories_begin()
-            .checked_add(
-                self.num_imported_memories
-                    .checked_mul(u32::from(self.size_of_vmmemory_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_globals_begin
     }
 
     /// The offset of the `tables` array.
     pub fn vmctx_tables_begin(&self) -> u32 {
-        self.vmctx_imported_globals_begin()
-            .checked_add(
-                self.num_imported_globals
-                    .checked_mul(u32::from(self.size_of_vmglobal_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_tables_begin
     }
 
     /// The offset of the `memories` array.
     pub fn vmctx_memories_begin(&self) -> u32 {
-        self.vmctx_tables_begin()
-            .checked_add(
-                self.num_local_tables
-                    .checked_mul(u32::from(self.size_of_vmtable_definition()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_memories_begin
     }
 
     /// The offset of the `globals` array.
     pub fn vmctx_globals_begin(&self) -> u32 {
-        let offset = self
-            .vmctx_memories_begin()
-            .checked_add(
-                self.num_local_memories
-                    .checked_mul(u32::from(self.size_of_vmmemory_definition()))
-                    .unwrap(),
-            )
-            .unwrap();
-        align(offset, 16)
+        self.vmctx_globals_begin
     }
 
     /// The offset of the builtin functions array.
     pub fn vmctx_builtin_functions_begin(&self) -> u32 {
-        self.vmctx_globals_begin()
-            .checked_add(
-                self.num_local_globals
-                    .checked_mul(u32::from(self.size_of_vmglobal_local()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_builtin_functions_begin
     }
 
     /// The offset of the trap handler.
     pub fn vmctx_trap_handler_begin(&self) -> u32 {
-        self.vmctx_builtin_functions_begin()
-            .checked_add(
-                VMBuiltinFunctionIndex::builtin_functions_total_number()
-                    .checked_mul(u32::from(self.pointer_size))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_trap_handler_begin
     }
 
     /// The offset of the gas limiter pointer.
     pub fn vmctx_gas_limiter_pointer(&self) -> u32 {
-        self.vmctx_trap_handler_begin()
-            .checked_add(if self.has_trap_handlers {
-                u32::from(self.pointer_size)
-            } else {
-                0u32
-            })
-            .unwrap()
+        self.vmctx_gas_limiter_pointer
     }
 
     /// The offset of the current stack limit.
     pub fn vmctx_stack_limit_begin(&self) -> u32 {
-        self.vmctx_gas_limiter_pointer()
-            .checked_add(u32::from(self.pointer_size))
-            .unwrap()
+        self.vmctx_stack_limit_begin
     }
 
     /// The offset of the initial stack limit.
     pub fn vmctx_stack_limit_initial_begin(&self) -> u32 {
-        self.vmctx_stack_limit_begin().checked_add(4).unwrap()
+        self.vmctx_stack_limit_initial_begin
     }
 
     /// Return the size of the [`VMContext`] allocation.
     ///
     /// [`VMContext`]: crate::vmcontext::VMContext
     pub fn size_of_vmctx(&self) -> u32 {
-        self.vmctx_stack_limit_initial_begin()
-            .checked_add(4)
-            .unwrap()
+        self.size_of_vmctx
     }
 
     /// Return the offset to [`VMSharedSignatureIndex`] index `index`.
     ///
     /// [`VMSharedSignatureIndex`]: crate::vmcontext::VMSharedSignatureIndex
+    // Remember updating precompute upon changes
     pub fn vmctx_vmshared_signature_id(&self, index: SignatureIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_signature_ids);
-        self.vmctx_signature_ids_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmshared_signature_index()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_signature_ids_begin
+            + index.as_u32() * u32::from(self.size_of_vmshared_signature_index())
     }
 
     /// Return the offset to [`VMFunctionImport`] index `index`.
     ///
     /// [`VMFunctionImport`]: crate::vmcontext::VMFunctionImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmfunction_import(&self, index: FunctionIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_imported_functions);
-        self.vmctx_imported_functions_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmfunction_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_functions_begin
+            + index.as_u32() * u32::from(self.size_of_vmfunction_import())
     }
 
     /// Return the offset to [`VMTableImport`] index `index`.
     ///
     /// [`VMTableImport`]: crate::vmcontext::VMTableImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmtable_import(&self, index: TableIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_imported_tables);
-        self.vmctx_imported_tables_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmtable_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_tables_begin + index.as_u32() * u32::from(self.size_of_vmtable_import())
     }
 
     /// Return the offset to [`VMMemoryImport`] index `index`.
     ///
     /// [`VMMemoryImport`]: crate::vmcontext::VMMemoryImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmmemory_import(&self, index: MemoryIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_imported_memories);
-        self.vmctx_imported_memories_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmmemory_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_memories_begin
+            + index.as_u32() * u32::from(self.size_of_vmmemory_import())
     }
 
     /// Return the offset to [`VMGlobalImport`] index `index`.
     ///
     /// [`VMGlobalImport`]: crate::vmcontext::VMGlobalImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmglobal_import(&self, index: GlobalIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_imported_globals);
-        self.vmctx_imported_globals_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmglobal_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_imported_globals_begin
+            + index.as_u32() * u32::from(self.size_of_vmglobal_import())
     }
 
     /// Return the offset to [`VMTableDefinition`] index `index`.
     ///
     /// [`VMTableDefinition`]: crate::vmcontext::VMTableDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmtable_definition(&self, index: LocalTableIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_local_tables);
-        self.vmctx_tables_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmtable_definition()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_tables_begin + index.as_u32() * u32::from(self.size_of_vmtable_definition())
     }
 
     /// Return the offset to [`VMMemoryDefinition`] index `index`.
     ///
     /// [`VMMemoryDefinition`]: crate::vmcontext::VMMemoryDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmmemory_definition(&self, index: LocalMemoryIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_local_memories);
-        self.vmctx_memories_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmmemory_definition()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_memories_begin + index.as_u32() * u32::from(self.size_of_vmmemory_definition())
     }
 
     /// Return the offset to the [`VMGlobalDefinition`] index `index`.
     ///
     /// [`VMGlobalDefinition`]: crate::vmcontext::VMGlobalDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmglobal_definition(&self, index: LocalGlobalIndex) -> u32 {
         assert_lt!(index.as_u32(), self.num_local_globals);
-        self.vmctx_globals_begin()
-            .checked_add(
-                index
-                    .as_u32()
-                    .checked_mul(u32::from(self.size_of_vmglobal_local()))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_globals_begin + index.as_u32() * u32::from(self.size_of_vmglobal_local())
     }
 
     /// Return the offset to the `body` field in `*const VMFunctionBody` index `index`.
+    // Remember updating precompute upon changes
     pub fn vmctx_vmfunction_import_body(&self, index: FunctionIndex) -> u32 {
-        self.vmctx_vmfunction_import(index)
-            .checked_add(u32::from(self.vmfunction_import_body()))
-            .unwrap()
+        self.vmctx_vmfunction_import(index) + u32::from(self.vmfunction_import_body())
     }
 
     /// Return the offset to the `vmctx` field in `*const VMFunctionBody` index `index`.
+    // Remember updating precompute upon changes
     pub fn vmctx_vmfunction_import_vmctx(&self, index: FunctionIndex) -> u32 {
-        self.vmctx_vmfunction_import(index)
-            .checked_add(u32::from(self.vmfunction_import_vmctx()))
-            .unwrap()
+        self.vmctx_vmfunction_import(index) + u32::from(self.vmfunction_import_vmctx())
     }
 
     /// Return the offset to the `definition` field in [`VMTableImport`] index `index`.
     ///
     /// [`VMTableImport`]: crate::vmcontext::VMTableImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmtable_import_definition(&self, index: TableIndex) -> u32 {
-        self.vmctx_vmtable_import(index)
-            .checked_add(u32::from(self.vmtable_import_definition()))
-            .unwrap()
+        self.vmctx_vmtable_import(index) + u32::from(self.vmtable_import_definition())
     }
 
     /// Return the offset to the `base` field in [`VMTableDefinition`] index `index`.
     ///
     /// [`VMTableDefinition`]: crate::vmcontext::VMTableDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmtable_definition_base(&self, index: LocalTableIndex) -> u32 {
-        self.vmctx_vmtable_definition(index)
-            .checked_add(u32::from(self.vmtable_definition_base()))
-            .unwrap()
+        self.vmctx_vmtable_definition(index) + u32::from(self.vmtable_definition_base())
     }
 
     /// Return the offset to the `current_elements` field in [`VMTableDefinition`] index `index`.
     ///
     /// [`VMTableDefinition`]: crate::vmcontext::VMTableDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmtable_definition_current_elements(&self, index: LocalTableIndex) -> u32 {
-        self.vmctx_vmtable_definition(index)
-            .checked_add(u32::from(self.vmtable_definition_current_elements()))
-            .unwrap()
+        self.vmctx_vmtable_definition(index) + u32::from(self.vmtable_definition_current_elements())
     }
 
     /// Return the offset to the `from` field in [`VMMemoryImport`] index `index`.
     ///
     /// [`VMMemoryImport`]: crate::vmcontext::VMMemoryImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmmemory_import_definition(&self, index: MemoryIndex) -> u32 {
-        self.vmctx_vmmemory_import(index)
-            .checked_add(u32::from(self.vmmemory_import_definition()))
-            .unwrap()
+        self.vmctx_vmmemory_import(index) + u32::from(self.vmmemory_import_definition())
     }
 
     /// Return the offset to the `vmctx` field in [`VMMemoryImport`] index `index`.
     ///
     /// [`VMMemoryImport`]: crate::vmcontext::VMMemoryImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmmemory_import_from(&self, index: MemoryIndex) -> u32 {
-        self.vmctx_vmmemory_import(index)
-            .checked_add(u32::from(self.vmmemory_import_from()))
-            .unwrap()
+        self.vmctx_vmmemory_import(index) + u32::from(self.vmmemory_import_from())
     }
 
     /// Return the offset to the `base` field in [`VMMemoryDefinition`] index `index`.
     ///
     /// [`VMMemoryDefinition`]: crate::vmcontext::VMMemoryDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmmemory_definition_base(&self, index: LocalMemoryIndex) -> u32 {
-        self.vmctx_vmmemory_definition(index)
-            .checked_add(u32::from(self.vmmemory_definition_base()))
-            .unwrap()
+        self.vmctx_vmmemory_definition(index) + u32::from(self.vmmemory_definition_base())
     }
 
     /// Return the offset to the `current_length` field in [`VMMemoryDefinition`] index `index`.
     ///
     /// [`VMMemoryDefinition`]: crate::vmcontext::VMMemoryDefinition
+    // Remember updating precompute upon changes
     pub fn vmctx_vmmemory_definition_current_length(&self, index: LocalMemoryIndex) -> u32 {
-        self.vmctx_vmmemory_definition(index)
-            .checked_add(u32::from(self.vmmemory_definition_current_length()))
-            .unwrap()
+        self.vmctx_vmmemory_definition(index) + u32::from(self.vmmemory_definition_current_length())
     }
 
     /// Return the offset to the `from` field in [`VMGlobalImport`] index `index`.
     ///
     /// [`VMGlobalImport`]: crate::vmcontext::VMGlobalImport
+    // Remember updating precompute upon changes
     pub fn vmctx_vmglobal_import_definition(&self, index: GlobalIndex) -> u32 {
-        self.vmctx_vmglobal_import(index)
-            .checked_add(u32::from(self.vmglobal_import_definition()))
-            .unwrap()
+        self.vmctx_vmglobal_import(index) + u32::from(self.vmglobal_import_definition())
     }
 
     /// Return the offset to builtin function in `VMBuiltinFunctionsArray` index `index`.
+    // Remember updating precompute upon changes
     pub fn vmctx_builtin_function(&self, index: VMBuiltinFunctionIndex) -> u32 {
-        self.vmctx_builtin_functions_begin()
-            .checked_add(
-                index
-                    .index()
-                    .checked_mul(u32::from(self.pointer_size))
-                    .unwrap(),
-            )
-            .unwrap()
+        self.vmctx_builtin_functions_begin + index.index() * u32::from(self.pointer_size)
     }
 
     /// Return the offset to the trap handler.
     pub fn vmctx_trap_handler(&self) -> u32 {
         // Ensure that we never ask for trap handler offset if it's not enabled.
         assert!(self.has_trap_handlers);
-        self.vmctx_trap_handler_begin()
+        self.vmctx_trap_handler_begin
     }
 }
 
