@@ -182,14 +182,14 @@ impl Compiler for SinglepassCompiler {
                     .collect::<PrimaryMap<FunctionIndex, FunctionBody>>()
             });
 
-        Ok(Compilation::new(
+        Ok(Compilation {
             functions,
-            import_trampolines,
+            custom_sections: import_trampolines,
             function_call_trampolines,
             dynamic_function_trampolines,
-            None,
-            None,
-        ))
+            debug: None,
+            trampolines: None,
+        })
     }
 }
 

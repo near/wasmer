@@ -121,7 +121,14 @@ impl UniversalEngine {
             memory_styles,
             table_styles,
         };
-        let compilation = compiler.compile_module(
+        let wasmer_compiler::Compilation {
+            functions,
+            custom_sections,
+            function_call_trampolines,
+            dynamic_function_trampolines,
+            debug,
+            trampolines,
+        } = compiler.compile_module(
             &self.target(),
             &compile_info,
             // SAFETY: Calling `unwrap` is correct since
@@ -130,26 +137,36 @@ impl UniversalEngine {
             translation.module_translation_state.as_ref().unwrap(),
             translation.function_body_inputs,
         )?;
-        let function_call_trampolines = compilation.get_function_call_trampolines();
-        let dynamic_function_trampolines = compilation.get_dynamic_function_trampolines();
         let data_initializers = translation
             .data_initializers
             .iter()
             .map(wasmer_types::OwnedDataInitializer::new)
             .collect();
-
-        let frame_infos = compilation.get_frame_info();
+        let mut function_frame_info = PrimaryMap::with_capacity(functions.len());
+        let mut function_bodies = PrimaryMap::with_capacity(functions.len());
+        let mut function_relocations = PrimaryMap::with_capacity(functions.len());
+        let mut function_jt_offsets = PrimaryMap::with_capacity(functions.len());
+        for (_, func) in functions.into_iter() {
+            function_bodies.push(func.body);
+            function_relocations.push(func.relocations);
+            function_jt_offsets.push(func.jt_offsets);
+            function_frame_info.push(func.frame_info);
+        }
+        let custom_section_relocations = custom_sections
+            .iter()
+            .map(|(_, section)| section.relocations.clone())
+            .collect::<PrimaryMap<SectionIndex, _>>();
         Ok(crate::UniversalExecutable {
-            function_bodies: compilation.get_function_bodies(),
-            function_relocations: compilation.get_relocations(),
-            function_jt_offsets: compilation.get_jt_offsets(),
-            function_frame_info: frame_infos,
+            function_bodies,
+            function_relocations,
+            function_jt_offsets,
+            function_frame_info,
             function_call_trampolines,
             dynamic_function_trampolines,
-            custom_sections: compilation.get_custom_sections(),
-            custom_section_relocations: compilation.get_custom_section_relocations(),
-            debug: compilation.get_debug(),
-            trampolines: compilation.get_trampolines(),
+            custom_sections,
+            custom_section_relocations,
+            debug,
+            trampolines,
             compile_info,
             data_initializers,
             cpu_features: self.target().cpu_features().as_u64(),
