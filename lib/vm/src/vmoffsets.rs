@@ -159,93 +159,71 @@ impl VMOffsets {
     }
 
     fn precompute(&mut self) {
+        /// Offset base by num_items items of size item_size, panicking on overflow
+        fn offset_by(base: u32, num_items: u32, item_size: u32) -> u32 {
+            base.checked_add(num_items.checked_mul(item_size).unwrap())
+                .unwrap()
+        }
+
         self.vmctx_signature_ids_begin = 0;
-        self.vmctx_imported_functions_begin = self
-            .vmctx_signature_ids_begin
-            .checked_add(
-                self.num_signature_ids
-                    .checked_mul(u32::from(self.size_of_vmshared_signature_index()))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_imported_tables_begin = self
-            .vmctx_imported_functions_begin
-            .checked_add(
-                self.num_imported_functions
-                    .checked_mul(u32::from(self.size_of_vmfunction_import()))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_imported_memories_begin = self
-            .vmctx_imported_tables_begin
-            .checked_add(
-                self.num_imported_tables
-                    .checked_mul(u32::from(self.size_of_vmtable_import()))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_imported_globals_begin = self
-            .vmctx_imported_memories_begin
-            .checked_add(
-                self.num_imported_memories
-                    .checked_mul(u32::from(self.size_of_vmmemory_import()))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_tables_begin = self
-            .vmctx_imported_globals_begin
-            .checked_add(
-                self.num_imported_globals
-                    .checked_mul(u32::from(self.size_of_vmglobal_import()))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_memories_begin = self
-            .vmctx_tables_begin
-            .checked_add(
-                self.num_local_tables
-                    .checked_mul(u32::from(self.size_of_vmtable_definition()))
-                    .unwrap(),
-            )
-            .unwrap();
+        self.vmctx_imported_functions_begin = offset_by(
+            self.vmctx_signature_ids_begin,
+            self.num_signature_ids,
+            u32::from(self.size_of_vmshared_signature_index()),
+        );
+        self.vmctx_imported_tables_begin = offset_by(
+            self.vmctx_imported_functions_begin,
+            self.num_imported_functions,
+            u32::from(self.size_of_vmfunction_import()),
+        );
+        self.vmctx_imported_memories_begin = offset_by(
+            self.vmctx_imported_tables_begin,
+            self.num_imported_tables,
+            u32::from(self.size_of_vmtable_import()),
+        );
+        self.vmctx_imported_globals_begin = offset_by(
+            self.vmctx_imported_memories_begin,
+            self.num_imported_memories,
+            u32::from(self.size_of_vmmemory_import()),
+        );
+        self.vmctx_tables_begin = offset_by(
+            self.vmctx_imported_globals_begin,
+            self.num_imported_globals,
+            u32::from(self.size_of_vmglobal_import()),
+        );
+        self.vmctx_memories_begin = offset_by(
+            self.vmctx_tables_begin,
+            self.num_local_tables,
+            u32::from(self.size_of_vmtable_definition()),
+        );
         self.vmctx_globals_begin = align(
-            self.vmctx_memories_begin
-                .checked_add(
-                    self.num_local_memories
-                        .checked_mul(u32::from(self.size_of_vmmemory_definition()))
-                        .unwrap(),
-                )
-                .unwrap(),
+            offset_by(
+                self.vmctx_memories_begin,
+                self.num_local_memories,
+                u32::from(self.size_of_vmmemory_definition()),
+            ),
             16,
         );
-        self.vmctx_builtin_functions_begin = self
-            .vmctx_globals_begin
-            .checked_add(
-                self.num_local_globals
-                    .checked_mul(u32::from(self.size_of_vmglobal_local()))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_trap_handler_begin = self
-            .vmctx_builtin_functions_begin
-            .checked_add(
-                VMBuiltinFunctionIndex::builtin_functions_total_number()
-                    .checked_mul(u32::from(self.pointer_size))
-                    .unwrap(),
-            )
-            .unwrap();
-        self.vmctx_gas_limiter_pointer = self
-            .vmctx_trap_handler_begin
-            .checked_add(if self.has_trap_handlers {
-                u32::from(self.pointer_size)
-            } else {
-                0u32
-            })
-            .unwrap();
-        self.vmctx_stack_limit_begin = self
-            .vmctx_gas_limiter_pointer
-            .checked_add(u32::from(self.pointer_size))
-            .unwrap();
+        self.vmctx_builtin_functions_begin = offset_by(
+            self.vmctx_globals_begin,
+            self.num_local_globals,
+            u32::from(self.size_of_vmglobal_local()),
+        );
+        self.vmctx_trap_handler_begin = offset_by(
+            self.vmctx_builtin_functions_begin,
+            VMBuiltinFunctionIndex::builtin_functions_total_number(),
+            u32::from(self.pointer_size),
+        );
+        self.vmctx_gas_limiter_pointer = offset_by(
+            self.vmctx_trap_handler_begin,
+            if self.has_trap_handlers { 1 } else { 0 },
+            u32::from(self.pointer_size),
+        );
+        self.vmctx_stack_limit_begin = offset_by(
+            self.vmctx_gas_limiter_pointer,
+            1,
+            u32::from(self.pointer_size),
+        );
         self.vmctx_stack_limit_initial_begin = self.vmctx_stack_limit_begin.checked_add(4).unwrap();
         self.size_of_vmctx = self.vmctx_stack_limit_begin.checked_add(4).unwrap();
     }
