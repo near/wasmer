@@ -1910,6 +1910,32 @@ impl<'a> FuncGen<'a> {
         let signature = module.signatures[sig_index].clone();
 
         let mut assembler = Assembler::new(0);
+        unsafe {
+            let ptr = &mut assembler as *mut _;
+            use dynasmrt::components::PatchLoc;
+            use std::collections::HashMap;
+            struct Lr {
+                _global_labels: HashMap<&'static str, AssemblyOffset>,
+                _local_labels: HashMap<&'static str, AssemblyOffset>,
+                dynamic_labels: Vec<Option<AssemblyOffset>>,
+            }
+            struct Rr {
+                global: Vec<(PatchLoc<X64Relocation>, &'static str)>,
+                dynamic: Vec<(PatchLoc<X64Relocation>, DynamicLabel)>,
+                local: HashMap<&'static str, Vec<PatchLoc<X64Relocation>>>,
+            }
+            struct Asm {
+                ops: Vec<u8>,
+                baseaddr: usize,
+                labels: Lr,
+                relocs: Rr,
+                error: Option<dynasmrt::DynasmError>,
+            }
+            let s = &mut *(ptr as *mut Asm);
+            s.ops.reserve(102400);
+            s.labels.dynamic_labels.reserve(100);
+            s.relocs.dynamic.reserve(100);
+        }
         let special_labels = SpecialLabelSet {
             integer_division_by_zero: assembler.get_label(),
             integer_overflow: assembler.get_label(),
@@ -8619,6 +8645,30 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
     calling_convention: CallingConvention,
 ) -> FunctionBody {
     let mut a = Assembler::new(0);
+    unsafe {
+        let ptr = &mut a as *mut _;
+        use dynasmrt::components::PatchLoc;
+        use std::collections::HashMap;
+        struct Lr {
+            _global_labels: HashMap<&'static str, AssemblyOffset>,
+            _local_labels: HashMap<&'static str, AssemblyOffset>,
+            dynamic_labels: Vec<Option<AssemblyOffset>>,
+        }
+        struct Rr {
+            global: Vec<(PatchLoc<X64Relocation>, &'static str)>,
+            dynamic: Vec<(PatchLoc<X64Relocation>, DynamicLabel)>,
+            local: HashMap<&'static str, Vec<PatchLoc<X64Relocation>>>,
+        }
+        struct Asm {
+            ops: Vec<u8>,
+            baseaddr: usize,
+            labels: Lr,
+            relocs: Rr,
+            error: Option<dynasmrt::DynasmError>,
+        }
+        let s = &mut *(ptr as *mut Asm);
+        s.ops.reserve(256);
+    }
 
     // Allocate argument array.
     let stack_offset: usize = 16 * std::cmp::max(sig.params().len(), sig.results().len()) + 8; // 16 bytes each + 8 bytes sysv call padding
@@ -8742,6 +8792,30 @@ pub(crate) fn gen_import_call_trampoline(
     calling_convention: CallingConvention,
 ) -> CustomSection {
     let mut a = Assembler::new(0);
+    unsafe {
+        let ptr = &mut a as *mut _;
+        use dynasmrt::components::PatchLoc;
+        use std::collections::HashMap;
+        struct Lr {
+            _global_labels: HashMap<&'static str, AssemblyOffset>,
+            _local_labels: HashMap<&'static str, AssemblyOffset>,
+            dynamic_labels: Vec<Option<AssemblyOffset>>,
+        }
+        struct Rr {
+            global: Vec<(PatchLoc<X64Relocation>, &'static str)>,
+            dynamic: Vec<(PatchLoc<X64Relocation>, DynamicLabel)>,
+            local: HashMap<&'static str, Vec<PatchLoc<X64Relocation>>>,
+        }
+        struct Asm {
+            ops: Vec<u8>,
+            baseaddr: usize,
+            labels: Lr,
+            relocs: Rr,
+            error: Option<dynasmrt::DynasmError>,
+        }
+        let s = &mut *(ptr as *mut Asm);
+        s.ops.reserve(256);
+    }
 
     // TODO: ARM entry trampoline is not emitted.
 
