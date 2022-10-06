@@ -1419,6 +1419,27 @@ impl Emitter for Assembler {
         self.emit_jmp_location(Location::GPR(target));
     }
 
+    fn arch_has_xzcnt(&self) -> bool {
+        std::is_x86_feature_detected!("bmi1") // tzcnt
+            && std::is_x86_feature_detected!("lzcnt")
+    }
+
+    fn arch_emit_lzcnt(&mut self, sz: Size, src: Location, dst: Location) {
+        binop_gpr_gpr!(lzcnt, self, sz, src, dst, {
+            binop_mem_gpr!(lzcnt, self, sz, src, dst, {
+                panic!("singlepass can't emit LZCNT {:?} {:?} {:?}", sz, src, dst)
+            })
+        })
+    }
+
+    fn arch_emit_tzcnt(&mut self, sz: Size, src: Location, dst: Location) {
+        binop_gpr_gpr!(tzcnt, self, sz, src, dst, {
+            binop_mem_gpr!(tzcnt, self, sz, src, dst, {
+                panic!("singlepass can't emit TZCNT {:?} {:?} {:?}", sz, src, dst)
+            })
+        })
+    }
+
     fn arch_mov64_imm_offset(&self) -> usize {
         2
     }
