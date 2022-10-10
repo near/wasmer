@@ -17,6 +17,7 @@ use crate::{WasmError, WasmResult};
 use core::convert::TryFrom;
 use std::boxed::Box;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::vec::Vec;
 use wasmer_types::entity::packed_option::ReservedValue;
 use wasmer_types::entity::EntityRef;
@@ -60,14 +61,14 @@ pub fn parse_type_section(
 
     for entry in types {
         if let Ok(TypeDef::Func(WPFunctionType { params, returns })) = entry {
-            let sig_params: Vec<Type> = params
+            let sig_params: Arc<[Type]> = params
                 .iter()
                 .map(|ty| {
                     wptype_to_type(*ty)
                         .expect("only numeric types are supported in function signatures")
                 })
                 .collect();
-            let sig_returns: Vec<Type> = returns
+            let sig_returns: Arc<[Type]> = returns
                 .iter()
                 .map(|ty| {
                     wptype_to_type(*ty)
