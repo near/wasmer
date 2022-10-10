@@ -8423,7 +8423,8 @@ impl<'a> FuncGen<'a> {
         let body_len = self.assembler.get_offset().0;
         let instructions_address_map = self.instructions_address_map;
         let address_map = get_function_address_map(instructions_address_map, data, body_len);
-        let body = self.assembler.finalize().unwrap().to_vec();
+        let mut body = self.assembler.finalize().unwrap();
+        body.shrink_to_fit();
 
         CompiledFunction {
             body: FunctionBody {
@@ -8605,8 +8606,10 @@ pub(crate) fn gen_std_trampoline(
 
     a.emit_ret();
 
+    let mut body = a.finalize().unwrap();
+    body.shrink_to_fit();
     FunctionBody {
-        body: a.finalize().unwrap().to_vec(),
+        body,
         unwind_info: None,
     }
 }
@@ -8727,8 +8730,10 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
     // Return.
     a.emit_ret();
 
+    let mut body = a.finalize().unwrap();
+    body.shrink_to_fit();
     FunctionBody {
-        body: a.finalize().unwrap().to_vec(),
+        body,
         unwind_info: None,
     }
 }
@@ -8889,7 +8894,9 @@ pub(crate) fn gen_import_call_trampoline(
     }
     a.emit_host_redirection(GPR::RAX);
 
-    let section_body = SectionBody::new_with_vec(a.finalize().unwrap().to_vec());
+    let mut contents = a.finalize().unwrap();
+    contents.shrink_to_fit();
+    let section_body = SectionBody::new_with_vec(contents);
 
     CustomSection {
         protection: CustomSectionProtection::ReadExecute,
