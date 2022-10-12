@@ -13,7 +13,7 @@ use wasmer_compiler::{
     CallingConvention, CompiledFunction, CompiledFunctionFrameInfo, CustomSection,
     CustomSectionProtection, FunctionBody, FunctionBodyData, InstructionAddressMap,
     ModuleTranslationState, Relocation, RelocationKind, RelocationTarget, SectionBody,
-    SectionIndex, SourceLoc,
+    SectionIndex, SourceLoc, Target,
 };
 use wasmer_types::{
     entity::{EntityRef, PrimaryMap, SecondaryMap},
@@ -38,6 +38,9 @@ pub(crate) struct FuncGen<'a> {
 
     /// ModuleInfo compilation config.
     config: &'a Singlepass,
+
+    /// Target to which we compile
+    target: &'a Target,
 
     /// Offsets of vmctx fields.
     vmoffsets: &'a VMOffsets,
@@ -1900,6 +1903,7 @@ impl<'a> FuncGen<'a> {
         module: &'a ModuleInfo,
         module_translation_state: &'a ModuleTranslationState,
         config: &'a Singlepass,
+        target: &'a Target,
         vmoffsets: &'a VMOffsets,
         _table_styles: &'a PrimaryMap<TableIndex, TableStyle>,
         local_func_index: LocalFunctionIndex,
@@ -1926,6 +1930,7 @@ impl<'a> FuncGen<'a> {
             module,
             module_translation_state,
             config,
+            target,
             vmoffsets,
             local_types: wasmer_types::partial_sum_map::PartialSumMap::new(),
             assembler,
@@ -2321,7 +2326,7 @@ impl<'a> FuncGen<'a> {
                     }
                 };
 
-                if self.assembler.arch_has_xzcnt() {
+                if self.assembler.arch_has_xzcnt(self.target.cpu_features()) {
                     self.assembler.arch_emit_lzcnt(
                         Size::S32,
                         Location::GPR(src),
@@ -2386,7 +2391,7 @@ impl<'a> FuncGen<'a> {
                     }
                 };
 
-                if self.assembler.arch_has_xzcnt() {
+                if self.assembler.arch_has_xzcnt(self.target.cpu_features()) {
                     self.assembler.arch_emit_tzcnt(
                         Size::S32,
                         Location::GPR(src),
@@ -2552,7 +2557,7 @@ impl<'a> FuncGen<'a> {
                     }
                 };
 
-                if self.assembler.arch_has_xzcnt() {
+                if self.assembler.arch_has_xzcnt(self.target.cpu_features()) {
                     self.assembler.arch_emit_lzcnt(
                         Size::S64,
                         Location::GPR(src),
@@ -2617,7 +2622,7 @@ impl<'a> FuncGen<'a> {
                     }
                 };
 
-                if self.assembler.arch_has_xzcnt() {
+                if self.assembler.arch_has_xzcnt(self.target.cpu_features()) {
                     self.assembler.arch_emit_tzcnt(
                         Size::S64,
                         Location::GPR(src),

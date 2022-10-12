@@ -117,6 +117,7 @@ impl Compiler for SinglepassCompiler {
                         module,
                         module_translation,
                         &self.config,
+                        &target,
                         &vmoffsets,
                         &table_styles,
                         i,

@@ -3,6 +3,8 @@ use dynasm::dynasm;
 use dynasmrt::{
     x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi, VecAssembler,
 };
+use enumset::EnumSet;
+use wasmer_compiler::CpuFeature;
 
 type Assembler = VecAssembler<X64Relocation>;
 
@@ -287,7 +289,7 @@ pub(crate) trait Emitter {
         unimplemented!()
     }
 
-    fn arch_has_xzcnt(&self) -> bool {
+    fn arch_has_xzcnt(&self, _cpu: &EnumSet<CpuFeature>) -> bool {
         false
     }
     fn arch_emit_lzcnt(&mut self, _sz: Size, _src: Location, _dst: Location) {
@@ -1419,9 +1421,8 @@ impl Emitter for Assembler {
         self.emit_jmp_location(Location::GPR(target));
     }
 
-    fn arch_has_xzcnt(&self) -> bool {
-        std::is_x86_feature_detected!("bmi1") // tzcnt
-            && std::is_x86_feature_detected!("lzcnt")
+    fn arch_has_xzcnt(&self, cpu: &EnumSet<CpuFeature>) -> bool {
+        cpu.contains(CpuFeature::BMI1) && cpu.contains(CpuFeature::LZCNT)
     }
 
     fn arch_emit_lzcnt(&mut self, sz: Size, src: Location, dst: Location) {
