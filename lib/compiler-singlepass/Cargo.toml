@@ -21,8 +21,8 @@ wasmer-types = { path = "../types", package = "wasmer-types-near", version = "=2
 rayon = { version = "1.5", optional = true }
 hashbrown = { version = "0.11", optional = true }
 more-asserts = "0.2"
-dynasm = "1.0"
-dynasmrt = "1.0"
+dynasm = { git = "https://github.com/CensoredUsername/dynasm-rs", branch = "dev" }
+dynasmrt = { git = "https://github.com/CensoredUsername/dynasm-rs", branch = "dev" }
 lazy_static = "1.4"
 byteorder = "1.3"
 smallvec = "1.6"
