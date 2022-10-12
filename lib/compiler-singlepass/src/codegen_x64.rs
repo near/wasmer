@@ -1909,7 +1909,7 @@ impl<'a> FuncGen<'a> {
         let sig_index = module.functions[func_index];
         let signature = module.signatures[sig_index].clone();
 
-        let mut assembler = Assembler::new(0);
+        let mut assembler = Assembler::new_with_capacity(0, 102400, 100);
         let special_labels = SpecialLabelSet {
             integer_division_by_zero: assembler.get_label(),
             integer_overflow: assembler.get_label(),
@@ -8618,7 +8618,7 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
     sig: &FunctionType,
     calling_convention: CallingConvention,
 ) -> FunctionBody {
-    let mut a = Assembler::new(0);
+    let mut a = Assembler::new_with_capacity(0, 256, 0);
 
     // Allocate argument array.
     let stack_offset: usize = 16 * std::cmp::max(sig.params().len(), sig.results().len()) + 8; // 16 bytes each + 8 bytes sysv call padding
@@ -8741,7 +8741,7 @@ pub(crate) fn gen_import_call_trampoline(
     sig: &FunctionType,
     calling_convention: CallingConvention,
 ) -> CustomSection {
-    let mut a = Assembler::new(0);
+    let mut a = Assembler::new_with_capacity(0, 256, 0);
 
     // TODO: ARM entry trampoline is not emitted.
 
