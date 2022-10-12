@@ -105,6 +105,7 @@ impl Compiler for SinglepassCompiler {
                         .collect()
                 },
             );
+        let mut assembler = crate::codegen_x64::Assembler::new_with_capacity(0, 102400, 100);
         let functions = function_body_inputs
             .iter()
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
@@ -114,6 +115,7 @@ impl Compiler for SinglepassCompiler {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
                     let mut generator = FuncGen::new(
+                        &mut assembler,
                         module,
                         module_translation,
                         &self.config,
