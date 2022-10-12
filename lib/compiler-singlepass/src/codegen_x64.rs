@@ -8423,7 +8423,7 @@ impl<'a> FuncGen<'a> {
         let body_len = self.assembler.get_offset().0;
         let instructions_address_map = self.instructions_address_map;
         let address_map = get_function_address_map(instructions_address_map, data, body_len);
-        let body = self.assembler.take().unwrap().to_vec();
+        let body = self.assembler.drain().unwrap().collect::<Vec<_>>().to_vec();
 
         CompiledFunction {
             body: FunctionBody {
