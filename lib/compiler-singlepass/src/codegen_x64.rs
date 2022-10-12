@@ -1909,7 +1909,7 @@ impl<'a> FuncGen<'a> {
         let sig_index = module.functions[func_index];
         let signature = module.signatures[sig_index].clone();
 
-        let mut assembler = Assembler::new_with_capacity(0, 102400, 100);
+        let mut assembler = Assembler::new_with_capacity(0, 102400, 0);
         let special_labels = SpecialLabelSet {
             integer_division_by_zero: assembler.get_label(),
             integer_overflow: assembler.get_label(),
