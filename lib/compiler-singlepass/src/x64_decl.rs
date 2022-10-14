@@ -3,8 +3,8 @@ use wasmer_compiler::CallingConvention;
 use wasmer_types::Type;
 
 /// General-purpose registers.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, num_enum::TryFromPrimitive)]
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum GPR {
     /// RAX register
     RAX,
@@ -40,10 +40,15 @@ pub(crate) enum GPR {
     R15,
 }
 
+impl GPR {
+    pub fn num_gprs() -> usize {
+        GPR::R15 as usize + 1
+    }
+}
+
 /// XMM registers.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, num_enum::TryFromPrimitive)]
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[allow(dead_code)]
 pub(crate) enum XMM {
     /// XMM register 0
     XMM0,
@@ -77,6 +82,12 @@ pub(crate) enum XMM {
     XMM14,
     /// XMM register 15
     XMM15,
+}
+
+impl XMM {
+    pub fn num_xmms() -> usize {
+        XMM::XMM15 as usize + 1
+    }
 }
 
 /// A machine register under the x86-64 architecture.
