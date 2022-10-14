@@ -3,6 +3,8 @@ use dynasm::dynasm;
 use dynasmrt::{
     x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi, VecAssembler,
 };
+use enumset::EnumSet;
+use wasmer_compiler::CpuFeature;
 
 type Assembler = VecAssembler<X64Relocation>;
 
@@ -287,7 +289,7 @@ pub(crate) trait Emitter {
         unimplemented!()
     }
 
-    fn arch_has_xzcnt(&self) -> bool {
+    fn arch_has_xzcnt(&self, _cpu: &EnumSet<CpuFeature>) -> bool {
         false
     }
     fn arch_emit_lzcnt(&mut self, _sz: Size, _src: Location, _dst: Location) {
@@ -1417,6 +1419,26 @@ impl Emitter for Assembler {
 
     fn emit_host_redirection(&mut self, target: GPR) {
         self.emit_jmp_location(Location::GPR(target));
+    }
+
+    fn arch_has_xzcnt(&self, cpu: &EnumSet<CpuFeature>) -> bool {
+        cpu.contains(CpuFeature::BMI1) && cpu.contains(CpuFeature::LZCNT)
+    }
+
+    fn arch_emit_lzcnt(&mut self, sz: Size, src: Location, dst: Location) {
+        binop_gpr_gpr!(lzcnt, self, sz, src, dst, {
+            binop_mem_gpr!(lzcnt, self, sz, src, dst, {
+                panic!("singlepass can't emit LZCNT {:?} {:?} {:?}", sz, src, dst)
+            })
+        })
+    }
+
+    fn arch_emit_tzcnt(&mut self, sz: Size, src: Location, dst: Location) {
+        binop_gpr_gpr!(tzcnt, self, sz, src, dst, {
+            binop_mem_gpr!(tzcnt, self, sz, src, dst, {
+                panic!("singlepass can't emit TZCNT {:?} {:?} {:?}", sz, src, dst)
+            })
+        })
     }
 
     fn arch_mov64_imm_offset(&self) -> usize {
