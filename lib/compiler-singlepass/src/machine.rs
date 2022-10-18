@@ -1,7 +1,6 @@
 use crate::emitter_x64::*;
 use smallvec::smallvec;
 use smallvec::SmallVec;
-use std::convert::TryFrom;
 use wasmer_compiler::wasmparser::Type as WpType;
 use wasmer_compiler::CallingConvention;
 
@@ -27,12 +26,13 @@ macro_rules! bitset_of_regs {
     }}
 }
 
+// Note: the below asserts are because we currently use u32 for used_gprs and used_xmms
+// Feel free to increase the number in this assert by making them bigger if needed
+const _GPRS_FIT_IN_U32: () = assert!(GPR::num_gprs() <= 32);
+const _XMMS_FIT_IN_U32: () = assert!(XMM::num_xmms() <= 32);
+
 impl Machine {
     pub(crate) fn new() -> Self {
-        // Note: the below asserts are because we currently use u16 for used_gprs and used_xmms
-        // Feel free to increase the number in this assert by making them bigger if needed
-        assert!(GPR::num_gprs() <= 32);
-        assert!(XMM::num_xmms() <= 32);
         Machine {
             used_gprs: 0,
             used_xmms: 0,
@@ -46,12 +46,12 @@ impl Machine {
         self.stack_offset.0
     }
 
-    fn get_used_in(mut v: u32) -> Vec<u8> {
+    fn get_used_in<T>(mut v: u32, to_return_type: impl Fn(u8) -> T) -> Vec<T> {
         let mut n = 0u8;
         let mut res = Vec::with_capacity(v.count_ones() as usize);
         while v != 0 {
             n += v.trailing_zeros() as u8;
-            res.push(n);
+            res.push(to_return_type(n));
             v >>= v.trailing_zeros() + 1;
             n += 1;
         }
@@ -59,17 +59,11 @@ impl Machine {
     }
 
     pub(crate) fn get_used_gprs(&self) -> Vec<GPR> {
-        Self::get_used_in(self.used_gprs)
-            .into_iter()
-            .map(|r| GPR::try_from(r).unwrap())
-            .collect()
+        Self::get_used_in(self.used_gprs, |r| GPR::from_repr(r).unwrap())
     }
 
     pub(crate) fn get_used_xmms(&self) -> Vec<XMM> {
-        Self::get_used_in(self.used_xmms)
-            .into_iter()
-            .map(|r| XMM::try_from(r).unwrap())
-            .collect()
+        Self::get_used_in(self.used_xmms, |r| XMM::from_repr(r).unwrap())
     }
 
     pub(crate) fn get_vmctx_reg() -> GPR {
@@ -87,7 +81,7 @@ impl Machine {
     pub(crate) fn pick_gpr(&self) -> Option<GPR> {
         use GPR::*;
         const REGS: u32 = bitset_of_regs!(RSI, RDI, R8, R9, R10, R11);
-        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::try_from(r).unwrap())
+        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::from_repr(r).unwrap())
     }
 
     /// Picks an unused general purpose register for internal temporary use.
@@ -96,11 +90,11 @@ impl Machine {
     pub(crate) fn pick_temp_gpr(&self) -> Option<GPR> {
         use GPR::*;
         const REGS: u32 = bitset_of_regs!(RAX, RCX, RDX);
-        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::try_from(r).unwrap())
+        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::from_repr(r).unwrap())
     }
 
     fn get_gpr_used(&self, r: GPR) -> bool {
-        if 0 != (self.used_gprs & (1u32 << (r as u32))) {
+        if 0 != (self.used_gprs & bitset_of_regs!(r)) {
             true
         } else {
             false
@@ -108,15 +102,15 @@ impl Machine {
     }
 
     fn set_gpr_used(&mut self, r: GPR) {
-        self.used_gprs |= 1u32 << (r as u32);
+        self.used_gprs |= bitset_of_regs!(r);
     }
 
     fn set_gpr_unused(&mut self, r: GPR) {
-        self.used_gprs &= !(1u32 << (r as u32));
+        self.used_gprs &= !bitset_of_regs!(r);
     }
 
     fn get_xmm_used(&self, r: XMM) -> bool {
-        if 0 != (self.used_xmms & (1u32 << (r as u32))) {
+        if 0 != (self.used_xmms & bitset_of_regs!(r)) {
             true
         } else {
             false
@@ -124,11 +118,11 @@ impl Machine {
     }
 
     fn set_xmm_used(&mut self, r: XMM) {
-        self.used_xmms |= 1u32 << (r as u32);
+        self.used_xmms |= bitset_of_regs!(r);
     }
 
     fn set_xmm_unused(&mut self, r: XMM) {
-        self.used_xmms &= !(1u32 << (r as u32));
+        self.used_xmms &= !bitset_of_regs!(r);
     }
 
     /// Acquires a temporary GPR.
@@ -159,7 +153,7 @@ impl Machine {
     pub(crate) fn pick_xmm(&self) -> Option<XMM> {
         use XMM::*;
         const REGS: u32 = bitset_of_regs!(XMM3, XMM4, XMM5, XMM6, XMM7);
-        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::try_from(r).unwrap())
+        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::from_repr(r).unwrap())
     }
 
     /// Picks an unused XMM register for internal temporary use.
@@ -168,7 +162,7 @@ impl Machine {
     pub(crate) fn pick_temp_xmm(&self) -> Option<XMM> {
         use XMM::*;
         const REGS: u32 = bitset_of_regs!(XMM0, XMM1, XMM2);
-        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::try_from(r).unwrap())
+        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::from_repr(r).unwrap())
     }
 
     /// Acquires a temporary XMM register.
