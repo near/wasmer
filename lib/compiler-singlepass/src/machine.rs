@@ -1,7 +1,6 @@
 use crate::emitter_x64::*;
 use smallvec::smallvec;
 use smallvec::SmallVec;
-use std::collections::HashSet;
 use wasmer_compiler::wasmparser::Type as WpType;
 use wasmer_compiler::CallingConvention;
 
@@ -10,8 +9,8 @@ const NATIVE_PAGE_SIZE: usize = 4096;
 struct MachineStackOffset(usize);
 
 pub(crate) struct Machine {
-    used_gprs: HashSet<GPR>,
-    used_xmms: HashSet<XMM>,
+    used_gprs: u32, // Bitset for the used GPRs, 1 means used
+    used_xmms: u32, // Bitset for the used XMMs, 1 means used
     stack_offset: MachineStackOffset,
     save_area_offset: Option<MachineStackOffset>,
     /// Memory location at which local variables begin.
@@ -20,11 +19,25 @@ pub(crate) struct Machine {
     locals_offset: MachineStackOffset,
 }
 
+/// Returns an u32 that has as 1 bits the ones matching registers passed as parameters
+macro_rules! bitset_of_regs {
+    ($( $r:expr ),*) => {{
+        $( (1u32 << ($r as u32)) )|*
+    }}
+}
+
+// Note: the below asserts are because we currently use u32 for used_gprs and used_xmms
+// Feel free to increase the number in this assert by making them bigger if needed
+#[allow(dead_code)]
+const _GPRS_FIT_IN_U32: () = assert!(GPR::num_gprs() <= 32);
+#[allow(dead_code)]
+const _XMMS_FIT_IN_U32: () = assert!(XMM::num_xmms() <= 32);
+
 impl Machine {
     pub(crate) fn new() -> Self {
         Machine {
-            used_gprs: HashSet::new(),
-            used_xmms: HashSet::new(),
+            used_gprs: 0,
+            used_xmms: 0,
             stack_offset: MachineStackOffset(0),
             save_area_offset: None,
             locals_offset: MachineStackOffset(0),
@@ -35,20 +48,33 @@ impl Machine {
         self.stack_offset.0
     }
 
+    fn get_used_in<T>(mut v: u32, to_return_type: impl Fn(u8) -> T) -> Vec<T> {
+        let mut n = 0u8;
+        let mut res = Vec::with_capacity(v.count_ones() as usize);
+        while v != 0 {
+            n += v.trailing_zeros() as u8;
+            res.push(to_return_type(n));
+            v >>= v.trailing_zeros() + 1;
+            n += 1;
+        }
+        res
+    }
+
     pub(crate) fn get_used_gprs(&self) -> Vec<GPR> {
-        let mut result = self.used_gprs.iter().cloned().collect::<Vec<_>>();
-        result.sort_unstable();
-        result
+        Self::get_used_in(self.used_gprs, |r| GPR::from_repr(r).unwrap())
     }
 
     pub(crate) fn get_used_xmms(&self) -> Vec<XMM> {
-        let mut result = self.used_xmms.iter().cloned().collect::<Vec<_>>();
-        result.sort_unstable();
-        result
+        Self::get_used_in(self.used_xmms, |r| XMM::from_repr(r).unwrap())
     }
 
     pub(crate) fn get_vmctx_reg() -> GPR {
         GPR::R15
+    }
+
+    fn pick_one_in(v: u32) -> Option<u8> {
+        let r = v.trailing_zeros() as u8;
+        (r != 32).then_some(r)
     }
 
     /// Picks an unused general purpose register for local/stack/argument use.
@@ -56,13 +82,8 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_gpr(&self) -> Option<GPR> {
         use GPR::*;
-        static REGS: &[GPR] = &[RSI, RDI, R8, R9, R10, R11];
-        for r in REGS {
-            if !self.used_gprs.contains(r) {
-                return Some(*r);
-            }
-        }
-        None
+        const REGS: u32 = bitset_of_regs!(RSI, RDI, R8, R9, R10, R11);
+        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::from_repr(r).unwrap())
     }
 
     /// Picks an unused general purpose register for internal temporary use.
@@ -70,33 +91,61 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_temp_gpr(&self) -> Option<GPR> {
         use GPR::*;
-        static REGS: &[GPR] = &[RAX, RCX, RDX];
-        for r in REGS {
-            if !self.used_gprs.contains(r) {
-                return Some(*r);
-            }
+        const REGS: u32 = bitset_of_regs!(RAX, RCX, RDX);
+        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::from_repr(r).unwrap())
+    }
+
+    fn get_gpr_used(&self, r: GPR) -> bool {
+        if 0 != (self.used_gprs & bitset_of_regs!(r)) {
+            true
+        } else {
+            false
         }
-        None
+    }
+
+    fn set_gpr_used(&mut self, r: GPR) {
+        self.used_gprs |= bitset_of_regs!(r);
+    }
+
+    fn set_gpr_unused(&mut self, r: GPR) {
+        self.used_gprs &= !bitset_of_regs!(r);
+    }
+
+    fn get_xmm_used(&self, r: XMM) -> bool {
+        if 0 != (self.used_xmms & bitset_of_regs!(r)) {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_xmm_used(&mut self, r: XMM) {
+        self.used_xmms |= bitset_of_regs!(r);
+    }
+
+    fn set_xmm_unused(&mut self, r: XMM) {
+        self.used_xmms &= !bitset_of_regs!(r);
     }
 
     /// Acquires a temporary GPR.
     pub(crate) fn acquire_temp_gpr(&mut self) -> Option<GPR> {
         let gpr = self.pick_temp_gpr();
         if let Some(x) = gpr {
-            self.used_gprs.insert(x);
+            self.set_gpr_used(x);
         }
         gpr
     }
 
     /// Releases a temporary GPR.
     pub(crate) fn release_temp_gpr(&mut self, gpr: GPR) {
-        assert!(self.used_gprs.remove(&gpr));
+        assert!(self.get_gpr_used(gpr));
+        self.set_gpr_unused(gpr);
     }
 
     /// Specify that a given register is in use.
     pub(crate) fn reserve_unused_temp_gpr(&mut self, gpr: GPR) -> GPR {
-        assert!(!self.used_gprs.contains(&gpr));
-        self.used_gprs.insert(gpr);
+        assert!(!self.get_gpr_used(gpr));
+        self.set_gpr_used(gpr);
         gpr
     }
 
@@ -105,13 +154,8 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_xmm(&self) -> Option<XMM> {
         use XMM::*;
-        static REGS: &[XMM] = &[XMM3, XMM4, XMM5, XMM6, XMM7];
-        for r in REGS {
-            if !self.used_xmms.contains(r) {
-                return Some(*r);
-            }
-        }
-        None
+        const REGS: u32 = bitset_of_regs!(XMM3, XMM4, XMM5, XMM6, XMM7);
+        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::from_repr(r).unwrap())
     }
 
     /// Picks an unused XMM register for internal temporary use.
@@ -119,27 +163,23 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_temp_xmm(&self) -> Option<XMM> {
         use XMM::*;
-        static REGS: &[XMM] = &[XMM0, XMM1, XMM2];
-        for r in REGS {
-            if !self.used_xmms.contains(r) {
-                return Some(*r);
-            }
-        }
-        None
+        const REGS: u32 = bitset_of_regs!(XMM0, XMM1, XMM2);
+        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::from_repr(r).unwrap())
     }
 
     /// Acquires a temporary XMM register.
     pub(crate) fn acquire_temp_xmm(&mut self) -> Option<XMM> {
         let xmm = self.pick_temp_xmm();
         if let Some(x) = xmm {
-            self.used_xmms.insert(x);
+            self.set_xmm_used(x);
         }
         xmm
     }
 
     /// Releases a temporary XMM register.
     pub(crate) fn release_temp_xmm(&mut self, xmm: XMM) {
-        assert_eq!(self.used_xmms.remove(&xmm), true);
+        assert!(self.get_xmm_used(xmm));
+        self.set_xmm_unused(xmm);
     }
 
     /// Acquires locations from the machine state.
@@ -171,9 +211,9 @@ impl Machine {
                 Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32))
             };
             if let Location::GPR(x) = loc {
-                self.used_gprs.insert(x);
+                self.set_gpr_used(x);
             } else if let Location::XMM(x) = loc {
-                self.used_xmms.insert(x);
+                self.set_xmm_used(x);
             }
             ret.push(loc);
         }
@@ -199,11 +239,13 @@ impl Machine {
 
         for loc in locs.iter().rev() {
             match *loc {
-                Location::GPR(ref x) => {
-                    assert_eq!(self.used_gprs.remove(x), true);
+                Location::GPR(x) => {
+                    assert!(self.get_gpr_used(x));
+                    self.set_gpr_unused(x);
                 }
-                Location::XMM(ref x) => {
-                    assert_eq!(self.used_xmms.remove(x), true);
+                Location::XMM(x) => {
+                    assert!(self.get_xmm_used(x));
+                    self.set_xmm_unused(x);
                 }
                 Location::Memory(GPR::RBP, x) => {
                     if x >= 0 {
@@ -232,11 +274,13 @@ impl Machine {
     pub(crate) fn release_locations_only_regs(&mut self, locs: &[Location]) {
         for loc in locs.iter().rev() {
             match *loc {
-                Location::GPR(ref x) => {
-                    assert_eq!(self.used_gprs.remove(x), true);
+                Location::GPR(x) => {
+                    assert!(self.get_gpr_used(x));
+                    self.set_gpr_unused(x);
                 }
-                Location::XMM(ref x) => {
-                    assert_eq!(self.used_xmms.remove(x), true);
+                Location::XMM(x) => {
+                    assert!(self.get_xmm_used(x));
+                    self.set_xmm_unused(x);
                 }
                 _ => {}
             }

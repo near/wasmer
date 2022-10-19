@@ -28,6 +28,7 @@ memoffset = "0.6"
 more-asserts = "0.2"
 rayon = { version = "1.5", optional = true }
 smallvec = "1.6"
+strum = { version = "0.24", features = ["derive"] }
 tracing = "0.1"
 
 [dev-dependencies]
