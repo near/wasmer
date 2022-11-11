@@ -6,7 +6,7 @@
 
 use std::collections::{hash_map, HashMap};
 use std::convert::TryFrom;
-use wasmer_types::{FunctionType, FunctionTypeRef};
+use wasmer_types::FunctionType;
 
 /// An index into the shared signature registry, usable for checking signatures
 /// at indirect calls.
@@ -41,16 +41,15 @@ impl SignatureRegistry {
     }
 
     /// Register a signature and return its unique index.
-    pub fn register(&mut self, sig: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
+    pub fn register(&mut self, sig: FunctionType) -> VMSharedSignatureIndex {
         let len = self.index_to_data.len();
-        // TODO(0-copy): this. should. not. allocate.
+        // TODO(0-copy): this. should. not. allocate. (and take FunctionTypeRef as a parameter)
         //
         // This is pretty hard to avoid, however. In order to implement bijective map, we'd want
         // a `Rc<FunctionType>`, but indexing into a map keyed by `Rc<FunctionType>` with
         // `FunctionTypeRef` is… not possible given the current API either.
         //
         // Consider `transmute` or `hashbrown`'s raw_entry.
-        let sig = FunctionType::new(sig.params(), sig.results());
         match self.type_to_index.entry(sig.clone()) {
             hash_map::Entry::Occupied(entry) => *entry.get(),
             hash_map::Entry::Vacant(entry) => {
