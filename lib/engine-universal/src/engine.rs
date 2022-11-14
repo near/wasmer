@@ -211,7 +211,7 @@ impl UniversalEngine {
         let signatures = module
             .signatures
             .iter()
-            .map(|(_, sig)| inner_engine.signatures.register(sig.into()))
+            .map(|(_, sig)| inner_engine.signatures.register(sig.clone()))
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
         let (functions, trampolines, dynamic_trampolines, custom_sections) = inner_engine
@@ -352,7 +352,12 @@ impl UniversalEngine {
         let signatures = module
             .signatures
             .values()
-            .map(|sig| inner_engine.signatures.register(sig.into()))
+            .map(|sig| {
+                let sig_ref = FunctionTypeRef::from(sig);
+                inner_engine
+                    .signatures
+                    .register(FunctionType::new(sig_ref.params(), sig_ref.results()))
+            })
             .collect::<PrimaryMap<SignatureIndex, _>>()
             .into_boxed_slice();
         let (functions, trampolines, dynamic_trampolines, custom_sections) = inner_engine
@@ -454,7 +459,7 @@ impl Engine for UniversalEngine {
     }
 
     /// Register a signature
-    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex {
+    fn register_signature(&self, func_type: FunctionType) -> VMSharedSignatureIndex {
         self.inner().signatures.register(func_type)
     }
 

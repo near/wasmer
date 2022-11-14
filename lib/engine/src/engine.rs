@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use wasmer_compiler::{CompileError, Target};
-use wasmer_types::{FunctionType, FunctionTypeRef};
+use wasmer_types::FunctionType;
 use wasmer_vm::{Artifact, Tunables, VMCallerCheckedAnyfunc, VMFuncRef, VMSharedSignatureIndex};
 
 mod private {
@@ -21,7 +21,7 @@ pub trait Engine {
     fn target(&self) -> &Target;
 
     /// Register a signature
-    fn register_signature(&self, func_type: FunctionTypeRef<'_>) -> VMSharedSignatureIndex;
+    fn register_signature(&self, func_type: FunctionType) -> VMSharedSignatureIndex;
 
     /// Register a function's data.
     fn register_function_metadata(&self, func_data: VMCallerCheckedAnyfunc) -> VMFuncRef;

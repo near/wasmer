@@ -275,7 +275,7 @@ impl Function {
         let signature = store
             .engine()
             // TODO(0-copy):
-            .register_signature((&ty).into());
+            .register_signature(ty);
 
         Self {
             store: store.clone(),
@@ -328,7 +328,7 @@ impl Function {
         let signature = store
             .engine()
             // TODO(0-copy):
-            .register_signature((&function.ty()).into());
+            .register_signature(function.ty());
 
         Self {
             store: store.clone(),
@@ -389,7 +389,7 @@ impl Function {
             build_export_function_metadata::<Env>(env, Env::init_with_instance);
 
         let vmctx = VMFunctionEnvironment { host_env };
-        let signature = store.engine().register_signature((&function.ty()).into());
+        let signature = store.engine().register_signature(function.ty());
         Self {
             store: store.clone(),
             exported: ExportFunction {
