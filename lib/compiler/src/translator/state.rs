@@ -1,7 +1,6 @@
 // This file contains code from external sources.
 // Attributions: https://github.com/wasmerio/wasmer/blob/master/ATTRIBUTIONS.md
 
-use crate::{wasm_unsupported, WasmResult};
 use std::boxed::Box;
 use std::collections::HashMap;
 use wasmer_types::entity::PrimaryMap;
@@ -9,7 +8,7 @@ use wasmer_types::{FunctionIndex, ImportIndex, ModuleInfo, SignatureIndex};
 
 /// Map of signatures to a function's parameter and return types.
 pub(crate) type WasmTypes =
-    PrimaryMap<SignatureIndex, (Box<[wasmparser::Type]>, Box<[wasmparser::Type]>)>;
+    PrimaryMap<SignatureIndex, (Box<[wasmparser::ValType]>, Box<[wasmparser::ValType]>)>;
 
 /// Contains information decoded from the Wasm module that must be referenced
 /// during each Wasm function's translation.
@@ -52,30 +51,5 @@ impl ModuleTranslationState {
                 }
             }
         }
-    }
-
-    /// Get the parameter and result types for the given Wasm blocktype.
-    pub fn blocktype_params_results(
-        &self,
-        ty_or_ft: wasmparser::TypeOrFuncType,
-    ) -> WasmResult<(&[wasmparser::Type], &[wasmparser::Type])> {
-        Ok(match ty_or_ft {
-            wasmparser::TypeOrFuncType::Type(ty) => match ty {
-                wasmparser::Type::I32 => (&[], &[wasmparser::Type::I32]),
-                wasmparser::Type::I64 => (&[], &[wasmparser::Type::I64]),
-                wasmparser::Type::F32 => (&[], &[wasmparser::Type::F32]),
-                wasmparser::Type::F64 => (&[], &[wasmparser::Type::F64]),
-                wasmparser::Type::V128 => (&[], &[wasmparser::Type::V128]),
-                wasmparser::Type::ExternRef => (&[], &[wasmparser::Type::ExternRef]),
-                wasmparser::Type::FuncRef => (&[], &[wasmparser::Type::FuncRef]),
-                wasmparser::Type::EmptyBlockType => (&[], &[]),
-                ty => return Err(wasm_unsupported!("blocktype_params_results: type {:?}", ty)),
-            },
-            wasmparser::TypeOrFuncType::FuncType(ty_index) => {
-                let sig_idx = SignatureIndex::from_u32(ty_index);
-                let (ref params, ref results) = self.wasm_types[sig_idx];
-                (&*params, &*results)
-            }
-        })
     }
 }

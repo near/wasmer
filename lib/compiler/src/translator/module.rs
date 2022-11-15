@@ -24,7 +24,7 @@ pub fn translate_module<'data>(
 
     for payload in Parser::new(0).parse_all(data) {
         match payload? {
-            Payload::Version { .. } | Payload::End => {}
+            Payload::Version { .. } | Payload::End(_) => {}
 
             Payload::TypeSection(types) => {
                 parse_type_section(types, &mut module_translation_state, environ)?;
@@ -82,22 +82,53 @@ pub fn translate_module<'data>(
                 environ.reserve_passive_data(count)?;
             }
 
-            Payload::InstanceSection(_)
-            | Payload::AliasSection(_)
-            | Payload::EventSection(_)
-            | Payload::ModuleSectionStart { .. }
-            | Payload::ModuleSectionEntry { .. } => {
+            Payload::InstanceSection(_) => {
                 unimplemented!("module linking not implemented yet")
             }
 
-            Payload::CustomSection {
-                name: "name",
-                data,
-                data_offset,
-                ..
-            } => parse_name_section(NameSectionReader::new(data, data_offset)?, environ)?,
+            Payload::TagSection(_) => {
+                unimplemented!("exception handling proposal is not implemented yet")
+            }
 
-            Payload::CustomSection { name, data, .. } => environ.custom_section(name, data)?,
+            Payload::CustomSection(reader) => {
+                if reader.name() == "name" {
+                    parse_name_section(
+                        NameSectionReader::new(reader.data(), reader.data_offset())?,
+                        environ,
+                    )?;
+                } else {
+                    environ.custom_section(reader.name(), reader.data())?;
+                }
+            }
+
+            Payload::ModuleSection { .. } => unimplemented!("module sections not supported yet"), // which proposal is this coming from?
+            Payload::CoreTypeSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentInstanceSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentAliasSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentTypeSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentCanonicalSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentStartSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentImportSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
+            Payload::ComponentExportSection { .. } => {
+                unimplemented!("component proposal is not implemented yet")
+            }
 
             Payload::UnknownSection { .. } => unreachable!(),
         }

@@ -16,8 +16,6 @@ pub struct Features {
     pub multi_value: bool,
     /// Tail call proposal should be enabled
     pub tail_call: bool,
-    /// Module Linking proposal should be enabled
-    pub module_linking: bool,
     /// Multi Memory proposal should be enabled
     pub multi_memory: bool,
     /// 64-bit Memory proposal should be enabled
@@ -40,7 +38,6 @@ impl Features {
             // Multivalue should be on by default
             multi_value: true,
             tail_call: false,
-            module_linking: false,
             multi_memory: false,
             memory64: false,
             exceptions: false,
@@ -163,25 +160,6 @@ impl Features {
         self
     }
 
-    /// Configures whether the WebAssembly module linking proposal will
-    /// be enabled.
-    ///
-    /// The [WebAssembly module linking proposal][proposal] is not
-    /// currently fully standardized and is undergoing development.
-    /// Support for this feature can be enabled through this method for
-    /// appropriate WebAssembly modules.
-    ///
-    /// This feature allows WebAssembly modules to define, import and
-    /// export modules and instances.
-    ///
-    /// This is `false` by default.
-    ///
-    /// [proposal]: https://github.com/webassembly/module-linking
-    pub fn module_linking(&mut self, enable: bool) -> &mut Self {
-        self.module_linking = enable;
-        self
-    }
-
     /// Configures whether the WebAssembly multi-memory proposal will
     /// be enabled.
     ///
@@ -242,7 +220,6 @@ mod test_features {
                 bulk_memory: true,
                 multi_value: true,
                 tail_call: false,
-                module_linking: false,
                 multi_memory: false,
                 memory64: false,
                 exceptions: false,
@@ -303,13 +280,6 @@ mod test_features {
         let mut features = Features::new();
         features.tail_call(true);
         assert!(features.tail_call);
-    }
-
-    #[test]
-    fn enable_module_linking() {
-        let mut features = Features::new();
-        features.module_linking(true);
-        assert!(features.module_linking);
     }
 
     #[test]
