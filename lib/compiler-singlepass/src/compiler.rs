@@ -105,7 +105,7 @@ impl Compiler for SinglepassCompiler {
                         .collect()
                 },
             );
-        let mut assembler = crate::codegen_x64::Assembler::new_with_capacity(0, 102400, 100);
+        let mut assembler = crate::codegen_x64::Assembler::new_with_capacity(0, 131072, 0, 0, 1024, 0, 1024);
         let functions = function_body_inputs
             .iter()
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()

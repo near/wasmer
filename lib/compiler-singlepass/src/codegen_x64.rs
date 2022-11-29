@@ -8618,7 +8618,7 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
     sig: &FunctionType,
     calling_convention: CallingConvention,
 ) -> FunctionBody {
-    let mut a = Assembler::new_with_capacity(0, 256, 0);
+    let mut a = Assembler::new_with_capacity(0, 1024, 0, 0, 0, 0, 0); // TODO: use one to build all trampolines
 
     // Allocate argument array.
     let stack_offset: usize = 16 * std::cmp::max(sig.params().len(), sig.results().len()) + 8; // 16 bytes each + 8 bytes sysv call padding
@@ -8741,7 +8741,7 @@ pub(crate) fn gen_import_call_trampoline(
     sig: &FunctionType,
     calling_convention: CallingConvention,
 ) -> CustomSection {
-    let mut a = Assembler::new_with_capacity(0, 256, 0);
+    let mut a = Assembler::new_with_capacity(0, 1024, 0, 0, 0, 0, 0); // TODO: use one to build all trampolines
 
     // TODO: ARM entry trampoline is not emitted.
 
