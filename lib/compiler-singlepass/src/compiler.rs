@@ -160,7 +160,7 @@ impl Compiler for SinglepassCompiler {
                     .values()
                     .collect::<Vec<_>>()
                     .into_par_iter_if_rayon()
-                    .map(|func_type| gen_std_trampoline(&func_type, calling_convention))
+                    .map(|func_type| gen_std_trampoline(&func_type, calling_convention, &mut assembler))
                     .collect::<Vec<_>>()
                     .into_iter()
                     .collect::<PrimaryMap<_, _>>()
@@ -177,6 +177,7 @@ impl Compiler for SinglepassCompiler {
                             &vmoffsets,
                             &func_type,
                             calling_convention,
+                            &mut assembler,
                         )
                     })
                     .collect::<Vec<_>>()

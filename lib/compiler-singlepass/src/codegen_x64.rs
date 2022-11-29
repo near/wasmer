@@ -8506,9 +8506,8 @@ fn sort_call_movs(movs: &mut [(Location, GPR)]) {
 pub(crate) fn gen_std_trampoline(
     sig: &FunctionType,
     calling_convention: CallingConvention,
+    a: &mut Assembler,
 ) -> FunctionBody {
-    let mut a = Assembler::new(0);
-
     // Calculate stack offset.
     let mut stack_offset: u32 = 0;
     for (i, _param) in sig.params().iter().enumerate() {
@@ -8606,7 +8605,7 @@ pub(crate) fn gen_std_trampoline(
     a.emit_ret();
 
     FunctionBody {
-        body: a.finalize().unwrap().to_vec(),
+        body: a.drain().unwrap().collect(),
         unwind_info: None,
     }
 }
@@ -8617,9 +8616,8 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
     vmoffsets: &VMOffsets,
     sig: &FunctionType,
     calling_convention: CallingConvention,
+    a: &mut Assembler,
 ) -> FunctionBody {
-    let mut a = Assembler::new_with_capacity(0, 1024, 0, 0, 0, 0, 0); // TODO: use one to build all trampolines
-
     // Allocate argument array.
     let stack_offset: usize = 16 * std::cmp::max(sig.params().len(), sig.results().len()) + 8; // 16 bytes each + 8 bytes sysv call padding
     let stack_padding: usize = match calling_convention {
@@ -8728,7 +8726,7 @@ pub(crate) fn gen_std_dynamic_import_trampoline(
     a.emit_ret();
 
     FunctionBody {
-        body: a.finalize().unwrap().to_vec(),
+        body: a.drain().unwrap().collect::<Vec<_>>(),
         unwind_info: None,
     }
 }
