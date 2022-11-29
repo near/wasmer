@@ -114,33 +114,6 @@ impl Compiler for SinglepassCompiler {
                 tracing::info_span!("function", i = i.index()).in_scope(|| {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
-                    unsafe {
-                        let ptr = &mut assembler as *mut _;
-                        use dynasmrt::components::PatchLoc;
-                        use dynasmrt::AssemblyOffset;
-                        use dynasmrt::x64::X64Relocation;
-                        use dynasmrt::DynamicLabel;
-                        use std::collections::HashMap;
-                        struct Lr {
-                            _global_labels: HashMap<&'static str, AssemblyOffset>,
-                            _local_labels: HashMap<&'static str, AssemblyOffset>,
-                            dynamic_labels: Vec<Option<AssemblyOffset>>,
-                        }
-                        struct Rr {
-                            global: Vec<(PatchLoc<X64Relocation>, &'static str)>,
-                            dynamic: Vec<(PatchLoc<X64Relocation>, DynamicLabel)>,
-                            local: HashMap<&'static str, Vec<PatchLoc<X64Relocation>>>,
-                        }
-                        struct Asm {
-                            ops: Vec<u8>,
-                            baseaddr: usize,
-                            labels: Lr,
-                            relocs: Rr,
-                            error: Option<dynasmrt::DynasmError>,
-                        }
-                        let s = &mut *(ptr as *mut Asm);
-                        s.ops.reserve(102400);
-                    }
                     let mut generator = FuncGen::new(
                         &mut assembler,
                         module,
