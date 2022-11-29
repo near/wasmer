@@ -8738,9 +8738,8 @@ pub(crate) fn gen_import_call_trampoline(
     index: FunctionIndex,
     sig: &FunctionType,
     calling_convention: CallingConvention,
+    a: &mut Assembler,
 ) -> CustomSection {
-    let mut a = Assembler::new_with_capacity(0, 1024, 0, 0, 0, 0, 0); // TODO: use one to build all trampolines
-
     // TODO: ARM entry trampoline is not emitted.
 
     // Singlepass internally treats all arguments as integers
@@ -8887,7 +8886,7 @@ pub(crate) fn gen_import_call_trampoline(
     }
     a.emit_host_redirection(GPR::RAX);
 
-    let section_body = SectionBody::new_with_vec(a.finalize().unwrap().to_vec());
+    let section_body = SectionBody::new_with_vec(a.drain().unwrap().collect());
 
     CustomSection {
         protection: CustomSectionProtection::ReadExecute,

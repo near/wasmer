@@ -85,6 +85,7 @@ impl Compiler for SinglepassCompiler {
             })?
             .bytes();
         let vmoffsets = VMOffsets::new(pointer_width).with_module_info(&module);
+        let mut assembler = crate::codegen_x64::Assembler::new_with_capacity(0, 131072, 0, 0, 1024, 0, 1024);
         let import_idxs = 0..module.import_counts.functions as usize;
         let import_trampolines: PrimaryMap<SectionIndex, _> =
             tracing::info_span!("import_trampolines", n_imports = import_idxs.len()).in_scope(
@@ -98,6 +99,7 @@ impl Compiler for SinglepassCompiler {
                                 i,
                                 &module.signatures[module.functions[i]],
                                 calling_convention,
+                                &mut assembler,
                             )
                         })
                         .collect::<Vec<_>>()
@@ -105,7 +107,6 @@ impl Compiler for SinglepassCompiler {
                         .collect()
                 },
             );
-        let mut assembler = crate::codegen_x64::Assembler::new_with_capacity(0, 131072, 0, 0, 1024, 0, 1024);
         let functions = function_body_inputs
             .iter()
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
