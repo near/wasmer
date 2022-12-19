@@ -2005,7 +2005,6 @@ impl<'a> FuncGen<'a> {
 
     /// Consume offset self.src_loc, return Some(cost) iff there must be an instrumentation point here
     fn consume_gas_offset(&mut self) -> Option<u64> {
-        println!("consuming gas offset {}", self.src_loc);
         if self.gas_offsets.get(self.next_gas_offset_id) == Some(&(self.src_loc as usize)) {
             let res = self.gas_costs[self.next_gas_offset_id];
             self.next_gas_offset_id += 1;
@@ -2052,11 +2051,6 @@ impl<'a> FuncGen<'a> {
         }
 
         if let Some(cost) = self.consume_gas_offset() {
-            let next_gas_offset = self.next_gas_offset_id.clone();
-            let gas_offsets = self.gas_offsets;
-            let gas_costs = self.gas_costs;
-            let idx = self.src_loc;
-            eprintln!("hit next_gas_offset with:\nidx={idx}\ncost={cost}\nnext_gas_offset={next_gas_offset:?}\ngas_costs={gas_costs:?}\ngas_offsets={gas_offsets:?}");
             // TODO: dedup from emit_gas
             let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
             let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
@@ -8476,7 +8470,6 @@ impl<'a> FuncGen<'a> {
 
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
-        println!("next_gas_offset={:?}\ngas_offsets={:?}\ngas_costs={:?}", self.next_gas_offset_id, self.gas_offsets, self.gas_costs);
         debug_assert!(self.next_gas_offset_id == self.gas_offsets.len(), "finalizing function but not all instrumentation points were inserted");
 
         // Generate actual code for special labels.

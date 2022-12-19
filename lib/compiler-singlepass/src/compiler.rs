@@ -106,7 +106,6 @@ impl Compiler for SinglepassCompiler {
                         .collect()
                 },
             );
-        println!("instrumentation results:\n{:?}\n{:?}", instrumentation.gas_offsets, instrumentation.gas_costs);
         let functions = function_body_inputs
             .iter()
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
