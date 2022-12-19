@@ -49,6 +49,7 @@ impl Compiler for SinglepassCompiler {
         compile_info: &CompileModuleInfo,
         module_translation: &ModuleTranslationState,
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'_>>,
+        instrumentation: &finite_wasm::Module,
     ) -> Result<Compilation, CompileError> {
         /*if target.triple().operating_system == OperatingSystem::Windows {
             return Err(CompileError::UnsupportedTarget(
@@ -105,6 +106,7 @@ impl Compiler for SinglepassCompiler {
                         .collect()
                 },
             );
+        println!("instrumentation results:\n{:?}\n{:?}", instrumentation.gas_offsets, instrumentation.gas_costs);
         let functions = function_body_inputs
             .iter()
             .collect::<Vec<(LocalFunctionIndex, &FunctionBodyData<'_>)>>()
@@ -122,6 +124,8 @@ impl Compiler for SinglepassCompiler {
                         &table_styles,
                         i,
                         calling_convention,
+                        &instrumentation.gas_offsets[i.index()],
+                        &instrumentation.gas_costs[i.index()],
                     )
                     .map_err(to_compile_error)?;
 

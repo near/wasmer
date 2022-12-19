@@ -114,6 +114,32 @@ impl UniversalEngine {
             .map(|table_type| tunables.table_style(table_type))
             .collect();
 
+        // Compute the needed instrumentation
+        struct MaxStackCfg;
+        impl finite_wasm::max_stack::Config for MaxStackCfg {
+            fn size_of_value(&self, _ty: finite_wasm::wasmparser::ValType) -> u8 {
+                1
+            }
+            fn size_of_function_activation(&self, locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>) -> u64 {
+                u64::try_from(locals.max_index().map(|l| l.saturating_add(1)).unwrap_or(0)).unwrap()
+            }
+        }
+        struct GasCfg;
+        macro_rules! cost_one {
+            ($( @$_proposal:ident $_op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
+                $(
+                    fn $visit(&mut self $($(,$arg: $argty)*)?) -> u64 {
+                        1 // TODO: replace with regular_op_cost before landing!
+                    }
+                )*
+            }
+        }
+        impl<'a> finite_wasm::wasmparser::VisitOperator<'a> for GasCfg {
+            type Output = u64;
+            finite_wasm::wasmparser::for_each_operator!(cost_one);
+        }
+        let instrumentation = finite_wasm::Module::new(binary, Some(&MaxStackCfg), Some(GasCfg)).map_err(CompileError::Instrument)?;
+
         // Compile the Module
         let compile_info = wasmer_compiler::CompileModuleInfo {
             module: Arc::new(translation.module),
@@ -136,6 +162,7 @@ impl UniversalEngine {
             // `module_translation_state`.
             translation.module_translation_state.as_ref().unwrap(),
             translation.function_body_inputs,
+            &instrumentation,
         )?;
         let data_initializers = translation
             .data_initializers

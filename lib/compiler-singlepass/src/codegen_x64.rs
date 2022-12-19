@@ -99,6 +99,15 @@ pub(crate) struct FuncGen<'a> {
 
     /// Calling convention to use.
     calling_convention: CallingConvention,
+
+    /// Offsets at which to insert instrumentation points
+    gas_offsets: &'a [usize],
+
+    /// Gas costs at each instrumentation point
+    gas_costs: &'a [u64],
+
+    /// Next instrumentation point, as an index into gas_offsets (that may be beyond bounds)
+    next_gas_offset_id: usize,
 }
 
 struct SpecialLabelSet {
@@ -1907,6 +1916,8 @@ impl<'a> FuncGen<'a> {
         _table_styles: &'a PrimaryMap<TableIndex, TableStyle>,
         local_func_index: LocalFunctionIndex,
         calling_convention: CallingConvention,
+        gas_offsets: &'a [usize],
+        gas_costs: &'a [u64],
     ) -> Result<FuncGen<'a>, CodegenError> {
         let func_index = module.func_index(local_func_index);
         let sig_index = module.functions[func_index];
@@ -1946,6 +1957,9 @@ impl<'a> FuncGen<'a> {
             instructions_address_map: vec![],
             calling_convention,
             signature,
+            gas_offsets,
+            gas_costs,
+            next_gas_offset_id: 0,
         };
         for param in module.signatures[sig_index].params() {
             fg.feed_local(1, type_to_wp_type(*param));
@@ -1989,6 +2003,18 @@ impl<'a> FuncGen<'a> {
             .expect("local index out of bounds")
     }
 
+    /// Consume offset self.src_loc, return Some(cost) iff there must be an instrumentation point here
+    fn consume_gas_offset(&mut self) -> Option<u64> {
+        println!("consuming gas offset {}", self.src_loc);
+        if self.gas_offsets.get(self.next_gas_offset_id) == Some(&(self.src_loc as usize)) {
+            let res = self.gas_costs[self.next_gas_offset_id];
+            self.next_gas_offset_id += 1;
+            Some(res)
+        } else {
+            None
+        }
+    }
+
     #[tracing::instrument(skip(self))]
     pub(crate) fn feed_operator(&mut self, op: Operator) -> Result<(), CodegenError> {
         assert!(self.fp_stack.len() <= self.value_stack.len());
@@ -1997,6 +2023,7 @@ impl<'a> FuncGen<'a> {
 
         if self.unreachable_depth > 0 {
             was_unreachable = true;
+            self.consume_gas_offset(); // do not instrument unreachable code
 
             match op {
                 Operator::Block { .. } | Operator::Loop { .. } | Operator::If { .. } => {
@@ -2022,6 +2049,66 @@ impl<'a> FuncGen<'a> {
             }
         } else {
             was_unreachable = false;
+        }
+
+        if let Some(cost) = self.consume_gas_offset() {
+            let next_gas_offset = self.next_gas_offset_id.clone();
+            let gas_offsets = self.gas_offsets;
+            let gas_costs = self.gas_costs;
+            let idx = self.src_loc;
+            eprintln!("hit next_gas_offset with:\nidx={idx}\ncost={cost}\nnext_gas_offset={next_gas_offset:?}\ngas_costs={gas_costs:?}\ngas_offsets={gas_offsets:?}");
+            // TODO: dedup from emit_gas
+            let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
+            let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
+            let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
+            // Recheck offsets, to make sure offsets will never change.
+            assert_eq!(counter_offset, 0);
+            assert_eq!(gas_limit_offset, 8);
+            assert_eq!(opcode_cost_offset, 16);
+            let base_reg = self.machine.acquire_temp_gpr().unwrap();
+            // Load gas counter base.
+            self.assembler.emit_mov(
+                Size::S64,
+                Location::Memory(
+                    Machine::get_vmctx_reg(),
+                    self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
+                ),
+                Location::GPR(base_reg),
+            );
+            let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
+            // Read current gas counter.
+            self.assembler.emit_mov(
+                Size::S64,
+                Location::Memory(base_reg, counter_offset),
+                Location::GPR(current_burnt_reg),
+            );
+            // Compute new cost.
+            use std::convert::TryFrom;
+            self.assembler.emit_add(
+                Size::S64,
+                Location::Imm32(u32::try_from(cost).unwrap()), // TODO: this should be a proper imm64 building
+                Location::GPR(current_burnt_reg),
+            );
+            self.assembler
+                .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
+            // Compare with the limit.
+            self.assembler.emit_cmp(
+                Size::S64,
+                Location::GPR(current_burnt_reg),
+                Location::Memory(base_reg, gas_limit_offset),
+            );
+            // Write new gas counter unconditionally, so that runtime can sort out limits case.
+            self.assembler.emit_mov(
+                Size::S64,
+                Location::GPR(current_burnt_reg),
+                Location::Memory(base_reg, counter_offset),
+            );
+            self.assembler.emit_jmp(
+                Condition::BelowEqual,
+                self.special_labels.gas_limit_exceeded,
+            );
+            self.machine.release_temp_gpr(base_reg);
+            self.machine.release_temp_gpr(current_burnt_reg);
         }
 
         match op {
@@ -8389,6 +8476,9 @@ impl<'a> FuncGen<'a> {
 
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
+        println!("next_gas_offset={:?}\ngas_offsets={:?}\ngas_costs={:?}", self.next_gas_offset_id, self.gas_offsets, self.gas_costs);
+        debug_assert!(self.next_gas_offset_id == self.gas_offsets.len(), "finalizing function but not all instrumentation points were inserted");
+
         // Generate actual code for special labels.
         self.assembler
             .emit_label(self.special_labels.integer_division_by_zero);
