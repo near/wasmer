@@ -2011,58 +2011,60 @@ impl<'a> FuncGen<'a> {
         }
 
         if let Some(cost) = self.consume_gas_offset() {
-            // TODO: dedup from emit_gas
-            let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
-            let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
-            let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
-            // Recheck offsets, to make sure offsets will never change.
-            assert_eq!(counter_offset, 0);
-            assert_eq!(gas_limit_offset, 8);
-            assert_eq!(opcode_cost_offset, 16);
-            let base_reg = self.machine.acquire_temp_gpr().unwrap();
-            // Load gas counter base.
-            self.assembler.emit_mov(
-                Size::S64,
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
-                ),
-                Location::GPR(base_reg),
-            );
-            let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
-            // Read current gas counter.
-            self.assembler.emit_mov(
-                Size::S64,
-                Location::Memory(base_reg, counter_offset),
-                Location::GPR(current_burnt_reg),
-            );
-            // Charge the gas.
-            use std::convert::TryFrom;
-            self.assembler.emit_add(
-                Size::S64,
-                Location::Imm32(u32::try_from(cost).unwrap()), // TODO: this should be a proper imm64 building
-                Location::GPR(current_burnt_reg),
-            );
-            self.assembler
-                .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
-            // Compare with the limit.
-            self.assembler.emit_cmp(
-                Size::S64,
-                Location::GPR(current_burnt_reg),
-                Location::Memory(base_reg, gas_limit_offset),
-            );
-            // Write new gas counter unconditionally, so that runtime can sort out limits case.
-            self.assembler.emit_mov(
-                Size::S64,
-                Location::GPR(current_burnt_reg),
-                Location::Memory(base_reg, counter_offset),
-            );
-            self.assembler.emit_jmp(
-                Condition::BelowEqual,
-                self.special_labels.gas_limit_exceeded,
-            );
-            self.machine.release_temp_gpr(base_reg);
-            self.machine.release_temp_gpr(current_burnt_reg);
+            if cost > 0 { // without this, emit_add eliminates the add 0, which leaves OF clobbered
+                // TODO: dedup from emit_gas
+                let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
+                let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
+                let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
+                // Recheck offsets, to make sure offsets will never change.
+                assert_eq!(counter_offset, 0);
+                assert_eq!(gas_limit_offset, 8);
+                assert_eq!(opcode_cost_offset, 16);
+                let base_reg = self.machine.acquire_temp_gpr().unwrap();
+                // Load gas counter base.
+                self.assembler.emit_mov(
+                    Size::S64,
+                    Location::Memory(
+                        Machine::get_vmctx_reg(),
+                        self.vmoffsets.vmctx_gas_limiter_pointer() as i32,
+                    ),
+                    Location::GPR(base_reg),
+                );
+                let current_burnt_reg = self.machine.acquire_temp_gpr().unwrap();
+                // Read current gas counter.
+                self.assembler.emit_mov(
+                    Size::S64,
+                    Location::Memory(base_reg, counter_offset),
+                    Location::GPR(current_burnt_reg),
+                );
+                // Charge the gas.
+                use std::convert::TryFrom;
+                self.assembler.emit_add(
+                    Size::S64,
+                    Location::Imm32(u32::try_from(cost).unwrap()), // TODO: this should be a proper imm64 building
+                    Location::GPR(current_burnt_reg),
+                );
+                self.assembler
+                    .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
+                // Compare with the limit.
+                self.assembler.emit_cmp(
+                    Size::S64,
+                    Location::GPR(current_burnt_reg),
+                    Location::Memory(base_reg, gas_limit_offset),
+                );
+                // Write new gas counter unconditionally, so that runtime can sort out limits case.
+                self.assembler.emit_mov(
+                    Size::S64,
+                    Location::GPR(current_burnt_reg),
+                    Location::Memory(base_reg, counter_offset),
+                );
+                self.assembler.emit_jmp(
+                    Condition::BelowEqual,
+                    self.special_labels.gas_limit_exceeded,
+                );
+                self.machine.release_temp_gpr(base_reg);
+                self.machine.release_temp_gpr(current_burnt_reg);
+            }
         }
 
         match op {

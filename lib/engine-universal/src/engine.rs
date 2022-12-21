@@ -126,18 +126,28 @@ impl UniversalEngine {
             }
         }
         struct GasCfg;
-        macro_rules! cost_one {
-            ($( @$_proposal:ident $_op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
+        macro_rules! gas_cost {
+            (@@mvp $_op:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_block) => {
+                0
+            };
+            (@@mvp $_op:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_end) => {
+                0
+            };
+            (@@$_proposal:ident $_op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident) => {
+                1 // TODO: replace with regular_op_cost before landing!
+            };
+
+            ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
                 $(
-                    fn $visit(&mut self $($(,$arg: $argty)*)?) -> u64 {
-                        1 // TODO: replace with regular_op_cost before landing!
+                    fn $visit(&mut self $($(, $arg: $argty)*)?) -> u64 {
+                        gas_cost!(@@$proposal $op $({ $($arg: $argty),* })? => $visit)
                     }
                 )*
-            }
+            };
         }
         impl<'a> finite_wasm::wasmparser::VisitOperator<'a> for GasCfg {
             type Output = u64;
-            finite_wasm::wasmparser::for_each_operator!(cost_one);
+            finite_wasm::wasmparser::for_each_operator!(gas_cost);
         }
         let instrumentation = finite_wasm::Module::new(binary, Some(&MaxStackCfg), Some(GasCfg)).map_err(CompileError::Instrument)?;
 
