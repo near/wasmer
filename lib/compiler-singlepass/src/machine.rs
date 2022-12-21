@@ -374,11 +374,10 @@ impl Machine {
             })
     }
 
-    pub(crate) fn init_locals<E: Emitter>(
+    pub(crate) fn setup_registers<E: Emitter>(
         &mut self,
         a: &mut E,
         n: u32,
-        n_params: u32,
         calling_convention: CallingConvention,
     ) {
         // Total size (in bytes) of the pre-allocated "static area" for this function's
@@ -400,12 +399,11 @@ impl Machine {
         // the end address of the 0th local, not at the start address, so we add `8` bytes to fix
         // this up.
         self.locals_offset = MachineStackOffset(static_area_size + 8);
-        let locals_size = (n as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
 
         // Allocate the stack, without actually writing to it.
         a.emit_sub(
             Size::S64,
-            Location::Imm32((static_area_size + locals_size) as _),
+            Location::Imm32(static_area_size as _),
             Location::GPR(GPR::RSP),
         );
 
@@ -438,6 +436,30 @@ impl Machine {
             }
         }
 
+        // Load vmctx into R15.
+        a.emit_mov(
+            Size::S64,
+            Self::get_param_location(0, calling_convention),
+            Location::GPR(GPR::R15),
+        );
+    }
+
+    pub(crate) fn init_locals<E: Emitter>(
+        &mut self,
+        a: &mut E,
+        n: u32,
+        n_params: u32,
+        calling_convention: CallingConvention,
+    ) {
+        let locals_size = (n as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
+
+        // Allocate the stack, without actually writing to it.
+        a.emit_sub(
+            Size::S64,
+            Location::Imm32(locals_size as _),
+            Location::GPR(GPR::RSP),
+        );
+
         // Save the offset of register save area.
         self.save_area_offset = Some(MachineStackOffset(self.stack_offset.0));
 
@@ -465,13 +487,6 @@ impl Machine {
                 _ => unreachable!(),
             }
         }
-
-        // Load vmctx into R15.
-        a.emit_mov(
-            Size::S64,
-            Self::get_param_location(0, calling_convention),
-            Location::GPR(GPR::R15),
-        );
 
         // Stack probe.
         //

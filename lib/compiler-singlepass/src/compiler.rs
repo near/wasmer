@@ -125,6 +125,7 @@ impl Compiler for SinglepassCompiler {
                         calling_convention,
                         &instrumentation.gas_offsets[i.index()],
                         &instrumentation.gas_costs[i.index()],
+                        instrumentation.function_stack_sizes[i.index()],
                     )
                     .map_err(to_compile_error)?;
 

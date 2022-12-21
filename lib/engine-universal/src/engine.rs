@@ -121,7 +121,8 @@ impl UniversalEngine {
                 1
             }
             fn size_of_function_activation(&self, locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>) -> u64 {
-                u64::try_from(locals.max_index().map(|l| l.saturating_add(1)).unwrap_or(0)).unwrap()
+                // Number of locals plus 1 for function metadata
+                u64::try_from(locals.max_index().map(|l| l.saturating_add(2)).unwrap_or(1)).unwrap()
             }
         }
         struct GasCfg;

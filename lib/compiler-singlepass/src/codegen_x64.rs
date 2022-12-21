@@ -1,10 +1,9 @@
 use crate::address_map::get_function_address_map;
 use crate::config::IntrinsicKind;
 use crate::{config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
-use dynasmrt::{x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, VecAssembler};
+use dynasmrt::{x64::X64Relocation, DynamicLabel, VecAssembler};
 use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
-use std::cmp::max;
 use std::convert::TryFrom;
 use std::iter;
 use wasmer_compiler::wasmparser::{BlockType as WpBlockType, MemArg, Operator, ValType as WpType};
@@ -65,12 +64,6 @@ pub(crate) struct FuncGen<'a> {
     /// Value stack.
     value_stack: Vec<Location>,
 
-    /// Max stack depth.
-    max_stack_depth: usize,
-
-    /// Location to patch when we know the max stack depth.
-    stack_check_offset: AssemblyOffset,
-
     /// Metadata about floating point values on the stack.
     fp_stack: Vec<FloatValue>,
 
@@ -108,6 +101,9 @@ pub(crate) struct FuncGen<'a> {
 
     /// Next instrumentation point, as an index into gas_offsets (that may be beyond bounds)
     next_gas_offset_id: usize,
+
+    /// Maximum size of the stack for this function
+    stack_size: u32,
 }
 
 struct SpecialLabelSet {
@@ -285,15 +281,7 @@ impl<'a> FuncGen<'a> {
         loc
     }
 
-    fn update_max_stack_depth(&mut self) {
-        self.max_stack_depth = max(
-            self.max_stack_depth,
-            self.value_stack.len() + self.fp_stack.len(),
-        );
-    }
-
     fn pop_value_released(&mut self) -> Location {
-        self.update_max_stack_depth();
         let loc = self
             .value_stack
             .pop()
@@ -330,7 +318,6 @@ impl<'a> FuncGen<'a> {
         //
         // Canonicalization state will be lost across function calls, so early canonicalization
         // is necessary here.
-        self.update_max_stack_depth();
         while let Some(fp) = self.fp_stack.last() {
             if fp.depth >= self.value_stack.len() {
                 let index = fp.depth - self.value_stack.len();
@@ -1810,53 +1797,6 @@ impl<'a> FuncGen<'a> {
         self.assembler.emit_label(end);
     }
 
-    fn emit_stack_check(&mut self, enter: bool, depth: usize) {
-        if enter {
-            // Here we must use value we do not yet know, so we write 0x7fff_ffff and patch it later.
-            self.assembler.emit_sub(
-                Size::S32,
-                Location::Imm32(0x7fff_ffff),
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
-                ),
-            );
-            // TODO: make it cleaner, now we assume instruction with 32-bit immediate at the end.
-            // Recheck offsets, if change above instruction to anything else.
-            self.stack_check_offset = AssemblyOffset(self.assembler.offset().0 - 4);
-            self.assembler
-                .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
-        } else {
-            {
-                // Patch earlier stack checker with now known max stack depth.
-                assert!(self.stack_check_offset.0 > 0);
-                let mut alter = self.assembler.alter();
-                alter.goto(self.stack_check_offset);
-                // TODO: check that the value before was 0x7fff_ffff
-                alter.push_u32(depth as u32);
-            }
-            self.assembler.emit_add(
-                Size::S32,
-                Location::Imm32(depth as u32),
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
-                ),
-            );
-        }
-    }
-
-    fn emit_function_stack_check(&mut self, enter: bool) {
-        // `local_types` include parameters as well.
-        let depth = self.local_count() as usize
-            + self.max_stack_depth
-            // we add 4 to ensure that deep recursion is prohibited even for local and argument free
-            // functions, as they still use stack space for the saved frame base and return address,
-            // along with spill area for callee-saved registers.
-            + 4;
-        self.emit_stack_check(enter, depth);
-    }
-
     pub(crate) fn emit_head(&mut self) -> Result<(), CodegenError> {
         // TODO: Patchpoint is not emitted for now, and ARM trampoline is not prepended.
 
@@ -1865,7 +1805,26 @@ impl<'a> FuncGen<'a> {
         self.assembler
             .emit_mov(Size::S64, Location::GPR(GPR::RSP), Location::GPR(GPR::RBP));
 
-        // Initialize locals.
+        // Setup the registers (incl. defining the vmctx register)
+        let local_count = self.local_count();
+        self.machine.setup_registers(
+            &mut self.assembler,
+            local_count,
+            self.calling_convention,
+        );
+
+        // Verify stack height
+        self.assembler.emit_sub(
+            Size::S32,
+            Location::Imm32(self.stack_size),
+            Location::Memory(
+                Machine::get_vmctx_reg(),
+                self.vmoffsets.vmctx_stack_limit_begin() as i32,
+            ),
+        );
+        self.assembler.emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
+
+        // Initialize the locals
         let local_count = self.local_count();
         self.machine.init_locals(
             &mut self.assembler,
@@ -1873,8 +1832,6 @@ impl<'a> FuncGen<'a> {
             self.signature.params().len() as u32,
             self.calling_convention,
         );
-
-        self.emit_function_stack_check(true);
 
         self.assembler
             .emit_sub(Size::S64, Location::Imm32(32), Location::GPR(GPR::RSP)); // simulate "red zone" if not supported by the platform
@@ -1918,6 +1875,7 @@ impl<'a> FuncGen<'a> {
         calling_convention: CallingConvention,
         gas_offsets: &'a [usize],
         gas_costs: &'a [u64],
+        stack_size: u64,
     ) -> Result<FuncGen<'a>, CodegenError> {
         let func_index = module.func_index(local_func_index);
         let sig_index = module.functions[func_index];
@@ -1945,8 +1903,6 @@ impl<'a> FuncGen<'a> {
             local_types: wasmer_types::partial_sum_map::PartialSumMap::new(),
             assembler,
             value_stack: vec![],
-            max_stack_depth: 0,
-            stack_check_offset: AssemblyOffset(0),
             fp_stack: vec![],
             control_stack: vec![],
             machine: Machine::new(),
@@ -1960,6 +1916,10 @@ impl<'a> FuncGen<'a> {
             gas_offsets,
             gas_costs,
             next_gas_offset_id: 0,
+            stack_size: u32::try_from(stack_size)
+                .map_err(|_| CodegenError {
+                    message: "one function has a stack more than u32::MAX deep".to_string()
+                })?,
         };
         for param in module.signatures[sig_index].params() {
             fg.feed_local(1, type_to_wp_type(*param));
@@ -2076,7 +2036,7 @@ impl<'a> FuncGen<'a> {
                 Location::Memory(base_reg, counter_offset),
                 Location::GPR(current_burnt_reg),
             );
-            // Compute new cost.
+            // Charge the gas.
             use std::convert::TryFrom;
             self.assembler.emit_add(
                 Size::S64,
@@ -5496,8 +5456,6 @@ impl<'a> FuncGen<'a> {
                     }
                 }
 
-                self.update_max_stack_depth();
-
                 let mut frame = self.control_stack.last_mut().unwrap();
 
                 let released: &[Location] = &self.value_stack[frame.value_stack_depth..];
@@ -6610,8 +6568,6 @@ impl<'a> FuncGen<'a> {
 
                 if self.control_stack.is_empty() {
                     self.assembler.emit_label(frame.br_label);
-                    self.update_max_stack_depth();
-                    self.emit_function_stack_check(false);
                     let local_count = self.local_count();
                     self.machine.finalize_locals(
                         &mut self.assembler,
@@ -6641,7 +6597,6 @@ impl<'a> FuncGen<'a> {
                     let released = &self.value_stack[frame.value_stack_depth..];
                     self.machine
                         .release_locations(&mut self.assembler, released);
-                    self.update_max_stack_depth();
                     self.value_stack.truncate(frame.value_stack_depth);
                     self.fp_stack.truncate(frame.fp_stack_depth);
 
@@ -8471,6 +8426,16 @@ impl<'a> FuncGen<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
         debug_assert!(self.next_gas_offset_id == self.gas_offsets.len(), "finalizing function but not all instrumentation points were inserted");
+
+        // Restore stack height
+        self.assembler.emit_add(
+            Size::S32,
+            Location::Imm32(self.stack_size),
+            Location::Memory(
+                Machine::get_vmctx_reg(),
+                self.vmoffsets.vmctx_stack_limit_begin() as i32,
+            ),
+        );
 
         // Generate actual code for special labels.
         self.assembler
