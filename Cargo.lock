@@ -1920,6 +1920,7 @@ version = "2.4.0"
 dependencies = [
  "backtrace",
  "enumset",
+ "finite-wasm",
  "lazy_static",
  "memmap2",
  "more-asserts",

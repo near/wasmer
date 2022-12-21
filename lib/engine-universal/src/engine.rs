@@ -94,6 +94,7 @@ impl UniversalEngine {
         &self,
         binary: &[u8],
         tunables: &dyn Tunables,
+        instrumentation: finite_wasm::Module,
     ) -> Result<crate::UniversalExecutable, CompileError> {
         let inner_engine = self.inner_mut();
         let features = inner_engine.features();
@@ -113,43 +114,6 @@ impl UniversalEngine {
             .values()
             .map(|table_type| tunables.table_style(table_type))
             .collect();
-
-        // Compute the needed instrumentation
-        struct MaxStackCfg;
-        impl finite_wasm::max_stack::Config for MaxStackCfg {
-            fn size_of_value(&self, _ty: finite_wasm::wasmparser::ValType) -> u8 {
-                1
-            }
-            fn size_of_function_activation(&self, locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>) -> u64 {
-                // Number of locals plus 1 for function metadata
-                u64::try_from(locals.max_index().map(|l| l.saturating_add(2)).unwrap_or(1)).unwrap()
-            }
-        }
-        struct GasCfg;
-        macro_rules! gas_cost {
-            (@@mvp $_op:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_block) => {
-                0
-            };
-            (@@mvp $_op:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_end) => {
-                0
-            };
-            (@@$_proposal:ident $_op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident) => {
-                1 // TODO: replace with regular_op_cost before landing!
-            };
-
-            ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
-                $(
-                    fn $visit(&mut self $($(, $arg: $argty)*)?) -> u64 {
-                        gas_cost!(@@$proposal $op $({ $($arg: $argty),* })? => $visit)
-                    }
-                )*
-            };
-        }
-        impl<'a> finite_wasm::wasmparser::VisitOperator<'a> for GasCfg {
-            type Output = u64;
-            finite_wasm::wasmparser::for_each_operator!(gas_cost);
-        }
-        let instrumentation = finite_wasm::Module::new(binary, Some(&MaxStackCfg), Some(GasCfg)).map_err(CompileError::Instrument)?;
 
         // Compile the Module
         let compile_info = wasmer_compiler::CompileModuleInfo {
@@ -536,7 +500,44 @@ impl Engine for UniversalEngine {
         binary: &[u8],
         tunables: &dyn Tunables,
     ) -> Result<Box<dyn wasmer_engine::Executable>, CompileError> {
-        self.compile_universal(binary, tunables)
+        // Compute the needed instrumentation
+        struct MaxStackCfg;
+        impl finite_wasm::max_stack::Config for MaxStackCfg {
+            fn size_of_value(&self, _ty: finite_wasm::wasmparser::ValType) -> u8 {
+                1
+            }
+            fn size_of_function_activation(&self, locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>) -> u64 {
+                // Number of locals plus 1 for function metadata
+                u64::try_from(locals.max_index().map(|l| l.saturating_add(2)).unwrap_or(1)).unwrap()
+            }
+        }
+        struct GasCfg<'a>(&'a dyn Tunables);
+        macro_rules! gas_cost {
+            (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_block) => {
+                0
+            };
+            (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_end) => {
+                0
+            };
+            (@@$_proposal:ident $_op:ident $self:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident) => {
+                $self.0.regular_op_cost()
+            };
+
+            ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
+                $(
+                    fn $visit(&mut self $($(, $arg: $argty)*)?) -> u64 {
+                        gas_cost!(@@$proposal $op self $({ $($arg: $argty),* })? => $visit)
+                    }
+                )*
+            };
+        }
+        impl<'a, 'b> finite_wasm::wasmparser::VisitOperator<'a> for GasCfg<'b> {
+            type Output = u64;
+            finite_wasm::wasmparser::for_each_operator!(gas_cost);
+        }
+        let instrumentation = finite_wasm::Module::new(binary, Some(&MaxStackCfg), Some(GasCfg(tunables))).map_err(CompileError::Instrument)?;
+
+        self.compile_universal(binary, tunables, instrumentation)
             .map(|ex| Box::new(ex) as _)
     }
 

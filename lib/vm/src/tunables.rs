@@ -50,4 +50,7 @@ pub trait Tunables {
         style: &TableStyle,
         vm_definition_location: NonNull<VMTableDefinition>,
     ) -> Result<Arc<dyn Table>, String>;
+
+    /// Cost of a regular wasm operator.
+    fn regular_op_cost(&self) -> u64;
 }

@@ -27,6 +27,9 @@ pub struct BaseTunables {
 
     /// The size in bytes of the offset guard for dynamic heaps.
     pub dynamic_memory_offset_guard_size: u64,
+
+    /// The cost of a regular op.
+    pub regular_op_cost: u64,
 }
 
 impl BaseTunables {
@@ -61,7 +64,14 @@ impl BaseTunables {
             static_memory_bound,
             static_memory_offset_guard_size,
             dynamic_memory_offset_guard_size,
+            regular_op_cost: 0,
         }
+    }
+
+    /// Set the regular op cost for this compiler
+    pub fn set_regular_op_cost(&mut self, cost: u64) -> &mut Self {
+        self.regular_op_cost = cost;
+        self
     }
 }
 
@@ -143,6 +153,10 @@ impl Tunables for BaseTunables {
             &style,
             vm_definition_location,
         )?))
+    }
+
+    fn regular_op_cost(&self) -> u64 {
+        self.regular_op_cost
     }
 }
 
