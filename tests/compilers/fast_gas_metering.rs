@@ -51,7 +51,7 @@ fn get_module(store: &Store) -> Module {
             call 2
             call 0
         )
-        (func (export "bar")
+        (func (export "bar") (local i32 i32)
             call 0
             i32.const 100
             call 2
@@ -138,24 +138,29 @@ fn test_gas_intrinsic_in_start() {
     assert_eq!(gas_counter.gas_limit, 100);
 }
 
-#[test]
-fn test_gas_intrinsic_regular() {
-    let store = get_store(0);
-    let mut gas_counter = FastGasCounter::new(200);
+fn test_gas_regular(opcode_cost: u64) {
+    let store = get_store(opcode_cost);
+    let mut gas_counter = FastGasCounter::new(200 + 14 * opcode_cost);
     let module = get_module(&store);
-    static HITS: AtomicUsize = AtomicUsize::new(0);
+    let hits = std::sync::Arc::new(AtomicUsize::new(0));
     let instance = Instance::new_with_config(
         &module,
         unsafe { InstanceConfig::default().with_counter(ptr::addr_of_mut!(gas_counter)) },
         &imports! {
             "host" => {
-                "func" => Function::new(&store, FunctionType::new(vec![], vec![]), |_values| {
-                    HITS.fetch_add(1, SeqCst);
-                    Ok(vec![])
+                "func" => Function::new(&store, FunctionType::new(vec![], vec![]), {
+                    let hits = hits.clone();
+                    move |_values| {
+                        hits.fetch_add(1, SeqCst);
+                        Ok(vec![])
+                    }
                 }),
-                "has" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |_| {
-                    HITS.fetch_add(1, SeqCst);
-                    Ok(vec![])
+                "has" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), {
+                    let hits = hits.clone();
+                    move |_| {
+                        hits.fetch_add(1, SeqCst);
+                        Ok(vec![])
+                    }
                 }),
                 "gas" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |_| {
                     // It shall be never called, as call is intrinsified.
@@ -177,20 +182,33 @@ fn test_gas_intrinsic_regular() {
         .lookup_function("zoo")
         .expect("expected function zoo");
     // Ensure "func" was not called.
-    assert_eq!(HITS.load(SeqCst), 0);
+    assert_eq!(hits.load(SeqCst), 0);
     let e = bar_func.call(&[]);
     assert!(e.is_ok());
     // Ensure "func" was called.
-    assert_eq!(HITS.load(SeqCst), 1);
-    assert_eq!(gas_counter.burnt(), 100);
+    assert_eq!(hits.load(SeqCst), 1);
+    assert_eq!(gas_counter.burnt(), 100 + 6 * opcode_cost);
     let _e = foo_func.call(&[]).err().expect("error calling function");
     // Ensure "func" and "has" was called again.
-    assert_eq!(HITS.load(SeqCst), 4);
-    assert_eq!(gas_counter.burnt(), 242);
-    // Finally try to exhaust rather large limit.
-    gas_counter.gas_limit = 1_000_000_000_000_000;
-    let _e = zoo_func.call(&[]).err().expect("error calling function");
-    assert_eq!(gas_counter.burnt(), 1_000_000_000_000_242);
+    assert_eq!(hits.load(SeqCst), 4);
+    assert_eq!(gas_counter.burnt(), 242 + 15 * opcode_cost);
+    // not 12 * opcode_cost because the last call 0 never happens and a call is an instrumentation boundary
+    // Finally try to exhaust rather large limit
+    if opcode_cost == 0 {
+        gas_counter.gas_limit = 1_000_000_000_000_000;
+        let _e = zoo_func.call(&[]).err().expect("error calling function");
+        assert_eq!(gas_counter.burnt(), 1_000_000_000_000_242);
+    }
+}
+
+#[test]
+fn test_gas_intrinsic_regular() {
+    test_gas_regular(0);
+}
+
+#[test]
+fn test_gas_accounting_regular() {
+    test_gas_regular(3);
 }
 
 #[test]
