@@ -49,6 +49,7 @@ impl Compiler for SinglepassCompiler {
         compile_info: &CompileModuleInfo,
         module_translation: &ModuleTranslationState,
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'_>>,
+        tunables: &dyn wasmer_vm::Tunables,
         instrumentation: &finite_wasm::Module,
     ) -> Result<Compilation, CompileError> {
         /*if target.triple().operating_system == OperatingSystem::Windows {
@@ -114,6 +115,8 @@ impl Compiler for SinglepassCompiler {
                 tracing::info_span!("function", i = i.index()).in_scope(|| {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
+                    let stack_init_gas_cost = instrumentation.function_frame_sizes[i.index()].checked_mul(tunables.regular_op_cost()).ok_or_else(|| CompileError::Codegen(String::from("got function with frame init cost going beyond u64::MAX")))?;
+                    let stack_size = instrumentation.function_frame_sizes[i.index()].checked_add(instrumentation.function_operand_stack_sizes[i.index()]).ok_or_else(|| CompileError::Codegen(String::from("got function with frame size going beyond u64::MAX")))?;
                     let mut generator = FuncGen::new(
                         module,
                         module_translation,
@@ -123,9 +126,10 @@ impl Compiler for SinglepassCompiler {
                         &table_styles,
                         i,
                         calling_convention,
+                        stack_init_gas_cost,
                         &instrumentation.gas_offsets[i.index()],
                         &instrumentation.gas_costs[i.index()],
-                        instrumentation.function_stack_sizes[i.index()],
+                        stack_size,
                     )
                     .map_err(to_compile_error)?;
 

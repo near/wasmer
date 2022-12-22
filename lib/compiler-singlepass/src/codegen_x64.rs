@@ -93,6 +93,9 @@ pub(crate) struct FuncGen<'a> {
     /// Calling convention to use.
     calling_convention: CallingConvention,
 
+    /// Cost for initializing the stack of the function
+    stack_init_gas_cost: u64,
+
     /// Offsets at which to insert instrumentation points
     gas_offsets: &'a [usize],
 
@@ -405,6 +408,23 @@ impl<'a> FuncGen<'a> {
             None => return false,
         }
         return true;
+    }
+
+    fn emit_gas_const(&mut self, cost: u64) {
+        if cost > 0 { // without this, emit_add in emit_gas eliminates the add 0, which leaves OF clobbered
+            if let Ok(cost) = u32::try_from(cost) {
+                self.emit_gas(Location::Imm32(cost));
+            } else {
+                let cost_reg = self.machine.acquire_temp_gpr().unwrap();
+                self.assembler.emit_mov(
+                    Size::S64,
+                    Location::Imm64(cost),
+                    Location::GPR(cost_reg),
+                );
+                self.emit_gas(Location::GPR(cost_reg));
+                self.machine.release_temp_gpr(cost_reg);
+            }
+        }
     }
 
     fn emit_gas(&mut self, cost_location: Location) {
@@ -1813,6 +1833,9 @@ impl<'a> FuncGen<'a> {
         );
         self.assembler.emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
 
+        // Charge for the stack initialization
+        self.emit_gas_const(self.stack_init_gas_cost);
+
         // Initialize the locals
         let local_count = self.local_count();
         self.machine.init_locals(
@@ -1862,6 +1885,7 @@ impl<'a> FuncGen<'a> {
         _table_styles: &'a PrimaryMap<TableIndex, TableStyle>,
         local_func_index: LocalFunctionIndex,
         calling_convention: CallingConvention,
+        stack_init_gas_cost: u64,
         gas_offsets: &'a [usize],
         gas_costs: &'a [u64],
         stack_size: u64,
@@ -1902,6 +1926,7 @@ impl<'a> FuncGen<'a> {
             instructions_address_map: vec![],
             calling_convention,
             signature,
+            stack_init_gas_cost,
             gas_offsets,
             gas_costs,
             next_gas_offset_id: 0,
@@ -2000,20 +2025,7 @@ impl<'a> FuncGen<'a> {
         }
 
         if let Some(cost) = self.consume_gas_offset() {
-            if cost > 0 { // without this, emit_add in emit_gas eliminates the add 0, which leaves OF clobbered
-                if let Ok(cost) = u32::try_from(cost) {
-                    self.emit_gas(Location::Imm32(cost));
-                } else {
-                    let cost_reg = self.machine.acquire_temp_gpr().unwrap();
-                    self.assembler.emit_mov(
-                        Size::S64,
-                        Location::Imm64(cost),
-                        Location::GPR(cost_reg),
-                    );
-                    self.emit_gas(Location::GPR(cost_reg));
-                    self.machine.release_temp_gpr(cost_reg);
-                }
-            }
+            self.emit_gas_const(cost);
         }
 
         match op {

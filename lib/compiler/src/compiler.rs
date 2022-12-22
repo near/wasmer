@@ -116,6 +116,7 @@ pub trait Compiler: Send {
         module_translation: &ModuleTranslationState,
         // The list of function bodies
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'data>>,
+        tunables: &dyn wasmer_vm::Tunables,
         instrumentation: &finite_wasm::Module,
     ) -> Result<Compilation, CompileError>;
 

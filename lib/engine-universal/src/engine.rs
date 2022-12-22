@@ -137,6 +137,7 @@ impl UniversalEngine {
             // `module_translation_state`.
             translation.module_translation_state.as_ref().unwrap(),
             translation.function_body_inputs,
+            tunables,
             &instrumentation,
         )?;
         let data_initializers = translation
