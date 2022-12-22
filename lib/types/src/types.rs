@@ -623,7 +623,7 @@ pub struct InstanceConfig {
 }
 
 // Default stack limit, in 8-byte stack slots.
-const DEFAULT_STACK_LIMIT: i32 = 100 * 1024;
+const DEFAULT_STACK_LIMIT: i32 = 10 * 1024;
 
 impl InstanceConfig {
     /// Create default instance configuration.

@@ -2001,14 +2001,18 @@ impl<'a> FuncGen<'a> {
 
         if let Some(cost) = self.consume_gas_offset() {
             if cost > 0 { // without this, emit_add in emit_gas eliminates the add 0, which leaves OF clobbered
-                let cost_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Imm64(cost),
-                    Location::GPR(cost_reg),
-                );
-                self.emit_gas(Location::GPR(cost_reg));
-                self.machine.release_temp_gpr(cost_reg);
+                if let Ok(cost) = u32::try_from(cost) {
+                    self.emit_gas(Location::Imm32(cost));
+                } else {
+                    let cost_reg = self.machine.acquire_temp_gpr().unwrap();
+                    self.assembler.emit_mov(
+                        Size::S64,
+                        Location::Imm64(cost),
+                        Location::GPR(cost_reg),
+                    );
+                    self.emit_gas(Location::GPR(cost_reg));
+                    self.machine.release_temp_gpr(cost_reg);
+                }
             }
         }
 
@@ -6516,7 +6520,19 @@ impl<'a> FuncGen<'a> {
                 if self.control_stack.is_empty() {
                     self.assembler.emit_label(frame.br_label);
                     let local_count = self.local_count();
-                    self.machine.finalize_locals(
+                    self.machine.finalize_locals(&mut self.assembler);
+
+                    // Restore stack height
+                    self.assembler.emit_add(
+                        Size::S32,
+                        Location::Imm32(self.stack_size),
+                        Location::Memory(
+                            Machine::get_vmctx_reg(),
+                            self.vmoffsets.vmctx_stack_limit_begin() as i32,
+                        ),
+                    );
+
+                    self.machine.restore_registers(
                         &mut self.assembler,
                         self.calling_convention,
                         local_count,
@@ -8373,16 +8389,6 @@ impl<'a> FuncGen<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
         debug_assert!(self.next_gas_offset_id == self.gas_offsets.len(), "finalizing function but not all instrumentation points were inserted");
-
-        // Restore stack height
-        self.assembler.emit_add(
-            Size::S32,
-            Location::Imm32(self.stack_size),
-            Location::Memory(
-                Machine::get_vmctx_reg(),
-                self.vmoffsets.vmctx_stack_limit_begin() as i32,
-            ),
-        );
 
         // Generate actual code for special labels.
         self.assembler

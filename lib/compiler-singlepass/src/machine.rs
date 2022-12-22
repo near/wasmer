@@ -532,12 +532,7 @@ impl Machine {
         self.stack_offset.0 += locals_size;
     }
 
-    pub(crate) fn finalize_locals<E: Emitter>(
-        &mut self,
-        a: &mut E,
-        calling_convention: CallingConvention,
-        local_count: u32,
-    ) {
+    pub(crate) fn finalize_locals<E: Emitter>(&mut self, a: &mut E) {
         // Unwind stack to the "save area".
         a.emit_lea(
             Size::S64,
@@ -547,7 +542,14 @@ impl Machine {
             ),
             Location::GPR(GPR::RSP),
         );
+    }
 
+    pub(crate) fn restore_registers<E: Emitter>(
+        &mut self,
+        a: &mut E,
+        calling_convention: CallingConvention,
+        local_count: u32,
+    ) {
         if calling_convention == CallingConvention::WindowsFastcall {
             // Restore RSI and RDI
             a.emit_pop(Size::S64, Location::GPR(GPR::RSI));

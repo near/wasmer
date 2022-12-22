@@ -141,7 +141,7 @@ fn stack_limit_ok() {
         .lookup_function("main")
         .expect("expected function main");
     let e = main_func.call(&[]);
-    assert!(e.is_ok());
+    assert!(e.is_ok(), "got stack limit result: {:?}", e);
 }
 
 #[test]
