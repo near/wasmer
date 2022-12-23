@@ -94,10 +94,10 @@ pub trait Compiler: Send {
             deterministic_only: false,
             component_model: false,
             extended_const: false,
-            mutable_global: true,
+            mutable_global: features.mutable_global,
             relaxed_simd: false,
-            saturating_float_to_int: true,
-            sign_extension: true,
+            saturating_float_to_int: features.saturating_float_to_int,
+            sign_extension: features.sign_extension,
         };
         let mut validator = Validator::new_with_features(wasm_features);
         validator
