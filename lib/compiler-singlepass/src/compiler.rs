@@ -115,8 +115,20 @@ impl Compiler for SinglepassCompiler {
                 tracing::info_span!("function", i = i.index()).in_scope(|| {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
-                    let stack_init_gas_cost = instrumentation.function_frame_sizes[i.index()].checked_mul(tunables.regular_op_cost()).ok_or_else(|| CompileError::Codegen(String::from("got function with frame init cost going beyond u64::MAX")))?;
-                    let stack_size = instrumentation.function_frame_sizes[i.index()].checked_add(instrumentation.function_operand_stack_sizes[i.index()]).ok_or_else(|| CompileError::Codegen(String::from("got function with frame size going beyond u64::MAX")))?;
+                    let stack_init_gas_cost = instrumentation.function_frame_sizes[i.index()]
+                        .checked_mul(tunables.regular_op_cost())
+                        .ok_or_else(|| {
+                            CompileError::Codegen(String::from(
+                                "got function with frame init cost going beyond u64::MAX",
+                            ))
+                        })?;
+                    let stack_size = instrumentation.function_frame_sizes[i.index()]
+                        .checked_add(instrumentation.function_operand_stack_sizes[i.index()])
+                        .ok_or_else(|| {
+                            CompileError::Codegen(String::from(
+                                "got function with frame size going beyond u64::MAX",
+                            ))
+                        })?;
                     let mut generator = FuncGen::new(
                         module,
                         module_translation,

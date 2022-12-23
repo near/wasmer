@@ -507,7 +507,10 @@ impl Engine for UniversalEngine {
             fn size_of_value(&self, _ty: finite_wasm::wasmparser::ValType) -> u8 {
                 1
             }
-            fn size_of_function_activation(&self, locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>) -> u64 {
+            fn size_of_function_activation(
+                &self,
+                locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>,
+            ) -> u64 {
                 // Number of locals plus 1 for function metadata
                 u64::try_from(locals.max_index().map(|l| l.saturating_add(2)).unwrap_or(1)).unwrap()
             }
@@ -536,7 +539,9 @@ impl Engine for UniversalEngine {
             type Output = u64;
             finite_wasm::wasmparser::for_each_operator!(gas_cost);
         }
-        let instrumentation = finite_wasm::Module::new(binary, Some(&MaxStackCfg), Some(GasCfg(tunables))).map_err(CompileError::Instrument)?;
+        let instrumentation =
+            finite_wasm::Module::new(binary, Some(&MaxStackCfg), Some(GasCfg(tunables)))
+                .map_err(CompileError::Instrument)?;
 
         self.compile_universal(binary, tunables, instrumentation)
             .map(|ex| Box::new(ex) as _)

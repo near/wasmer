@@ -603,12 +603,7 @@ impl FastGasCounter {
 
 impl fmt::Display for FastGasCounter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "burnt: {} limit: {} ",
-            self.burnt(),
-            self.gas_limit,
-        )
+        write!(f, "burnt: {} limit: {} ", self.burnt(), self.gas_limit,)
     }
 }
 

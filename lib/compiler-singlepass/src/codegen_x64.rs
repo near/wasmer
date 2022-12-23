@@ -411,16 +411,14 @@ impl<'a> FuncGen<'a> {
     }
 
     fn emit_gas_const(&mut self, cost: u64) {
-        if cost > 0 { // without this, emit_add in emit_gas eliminates the add 0, which leaves OF clobbered
+        if cost > 0 {
+            // without this, emit_add in emit_gas eliminates the add 0, which leaves OF clobbered
             if let Ok(cost) = u32::try_from(cost) {
                 self.emit_gas(Location::Imm32(cost));
             } else {
                 let cost_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler.emit_mov(
-                    Size::S64,
-                    Location::Imm64(cost),
-                    Location::GPR(cost_reg),
-                );
+                self.assembler
+                    .emit_mov(Size::S64, Location::Imm64(cost), Location::GPR(cost_reg));
                 self.emit_gas(Location::GPR(cost_reg));
                 self.machine.release_temp_gpr(cost_reg);
             }
@@ -455,11 +453,8 @@ impl<'a> FuncGen<'a> {
             Location::GPR(current_burnt_reg),
         );
         // Compute new cost.
-        self.assembler.emit_add(
-            Size::S64,
-            cost_location,
-            Location::GPR(current_burnt_reg),
-        );
+        self.assembler
+            .emit_add(Size::S64, cost_location, Location::GPR(current_burnt_reg));
         self.assembler
             .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
         // Compare with the limit.
@@ -1816,11 +1811,8 @@ impl<'a> FuncGen<'a> {
 
         // Setup the registers (incl. defining the vmctx register)
         let local_count = self.local_count();
-        self.machine.setup_registers(
-            &mut self.assembler,
-            local_count,
-            self.calling_convention,
-        );
+        self.machine
+            .setup_registers(&mut self.assembler, local_count, self.calling_convention);
 
         // Verify stack height
         self.assembler.emit_sub(
@@ -1831,7 +1823,8 @@ impl<'a> FuncGen<'a> {
                 self.vmoffsets.vmctx_stack_limit_begin() as i32,
             ),
         );
-        self.assembler.emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
+        self.assembler
+            .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
 
         // Charge for the stack initialization
         self.emit_gas_const(self.stack_init_gas_cost);
@@ -1930,10 +1923,9 @@ impl<'a> FuncGen<'a> {
             gas_offsets,
             gas_costs,
             next_gas_offset_id: 0,
-            stack_size: u32::try_from(stack_size)
-                .map_err(|_| CodegenError {
-                    message: "one function has a stack more than u32::MAX deep".to_string()
-                })?,
+            stack_size: u32::try_from(stack_size).map_err(|_| CodegenError {
+                message: "one function has a stack more than u32::MAX deep".to_string(),
+            })?,
         };
         for param in module.signatures[sig_index].params() {
             fg.feed_local(1, type_to_wp_type(*param));
@@ -8400,7 +8392,10 @@ impl<'a> FuncGen<'a> {
 
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
-        debug_assert!(self.next_gas_offset_id == self.gas_offsets.len(), "finalizing function but not all instrumentation points were inserted");
+        debug_assert!(
+            self.next_gas_offset_id == self.gas_offsets.len(),
+            "finalizing function but not all instrumentation points were inserted"
+        );
 
         // Generate actual code for special labels.
         self.assembler
