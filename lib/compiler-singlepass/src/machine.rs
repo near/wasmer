@@ -1,7 +1,7 @@
 use crate::emitter_x64::*;
 use smallvec::smallvec;
 use smallvec::SmallVec;
-use wasmer_compiler::wasmparser::Type as WpType;
+use wasmer_compiler::wasmparser::ValType as WpType;
 use wasmer_compiler::CallingConvention;
 
 const NATIVE_PAGE_SIZE: usize = 4096;
