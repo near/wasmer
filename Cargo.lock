@@ -1949,7 +1949,7 @@ dependencies = [
  "wasmer-engine-near",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.94.0",
+ "wasmparser 0.96.0",
  "winapi",
 ]
 
@@ -2047,15 +2047,6 @@ dependencies = [
  "wasmer-vm-near",
  "wasmer-wast",
  "wat",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.94.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdac7e1d98d70913ae3b4923dd7419c8ea7bdfd4c44a240a0ba305d929b7f191"
-dependencies = [
- "indexmap",
 ]
 
 [[package]]
