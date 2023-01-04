@@ -93,7 +93,7 @@ pub fn translate_module<'data>(
             Payload::CustomSection(reader) => {
                 if reader.name() == "name" {
                     parse_name_section(
-                        NameSectionReader::new(reader.data(), reader.data_offset())?,
+                        NameSectionReader::new(reader.data(), reader.data_offset()),
                         environ,
                     )?;
                 } else {

@@ -27,11 +27,11 @@ use wasmer_types::{
     MemoryIndex, MemoryType, Mutability, Pages, SignatureIndex, TableIndex, TableType, Type, V128,
 };
 use wasmparser::{
-    self, Data, DataKind, DataSectionReader, Element, ElementItem, ElementItems, ElementKind,
+    self, Data, DataKind, DataSectionReader, Element, ElementItems, ElementKind,
     ElementSectionReader, Export, ExportSectionReader, ExternalKind, FunctionSectionReader,
     GlobalSectionReader, GlobalType as WPGlobalType, ImportSectionReader, MemorySectionReader,
-    NameMap, NameSectionReader, Naming, Operator, SectionReader, SectionWithLimitedItems,
-    TableSectionReader, Type as WPType, TypeRef, TypeSectionReader, ValType as WPValType,
+    NameMap, NameSectionReader, Naming, Operator, TableSectionReader, Type as WPType, TypeRef,
+    TypeSectionReader, ValType as WPValType,
 };
 
 /// Helper function translating wasmparser types to Wasm Type.
@@ -53,7 +53,7 @@ pub fn parse_type_section(
     module_translation_state: &mut ModuleTranslationState,
     environ: &mut ModuleEnvironment,
 ) -> WasmResult<()> {
-    let count = types.get_count();
+    let count = types.count();
     environ.reserve_signatures(count)?;
 
     for entry in types {
@@ -90,7 +90,7 @@ pub fn parse_import_section<'data>(
     imports: ImportSectionReader<'data>,
     environ: &mut ModuleEnvironment<'data>,
 ) -> WasmResult<()> {
-    environ.reserve_imports(imports.get_count())?;
+    environ.reserve_imports(imports.count())?;
 
     for entry in imports {
         let import = entry?;
@@ -155,7 +155,7 @@ pub fn parse_function_section(
     functions: FunctionSectionReader,
     environ: &mut ModuleEnvironment,
 ) -> WasmResult<()> {
-    let num_functions = functions.get_count();
+    let num_functions = functions.count();
     if num_functions == std::u32::MAX {
         // We reserve `u32::MAX` for our own use.
         return Err(WasmError::ImplLimitExceeded);
@@ -176,7 +176,7 @@ pub fn parse_table_section(
     tables: TableSectionReader,
     environ: &mut ModuleEnvironment,
 ) -> WasmResult<()> {
-    environ.reserve_tables(tables.get_count())?;
+    environ.reserve_tables(tables.count())?;
 
     for entry in tables {
         let table = entry?;
@@ -195,7 +195,7 @@ pub fn parse_memory_section(
     memories: MemorySectionReader,
     environ: &mut ModuleEnvironment,
 ) -> WasmResult<()> {
-    environ.reserve_memories(memories.get_count())?;
+    environ.reserve_memories(memories.count())?;
 
     for entry in memories {
         let mem = entry?;
@@ -216,7 +216,7 @@ pub fn parse_global_section(
     globals: GlobalSectionReader,
     environ: &mut ModuleEnvironment,
 ) -> WasmResult<()> {
-    environ.reserve_globals(globals.get_count())?;
+    environ.reserve_globals(globals.count())?;
 
     for entry in globals {
         let wasmparser::Global {
@@ -266,7 +266,7 @@ pub fn parse_export_section<'data>(
     exports: ExportSectionReader<'data>,
     environ: &mut ModuleEnvironment<'data>,
 ) -> WasmResult<()> {
-    environ.reserve_exports(exports.get_count())?;
+    environ.reserve_exports(exports.count())?;
 
     for entry in exports {
         let Export {
@@ -299,28 +299,30 @@ pub fn parse_start_section(index: u32, environ: &mut ModuleEnvironment) -> WasmR
 }
 
 fn read_elems(items: &ElementItems) -> WasmResult<Box<[FunctionIndex]>> {
-    let items_reader = items.get_items_reader()?;
-    let mut elems = Vec::with_capacity(usize::try_from(items_reader.get_count()).unwrap());
-    for item in items_reader {
-        let elem = match item? {
-            ElementItem::Func(index) => FunctionIndex::from_u32(index),
-            ElementItem::Expr(expr) => {
-                let mut e = expr.get_operators_reader();
-                let op = e.read()?;
-                let end = e.read()?;
-                e.ensure_end()?;
+    match items.clone() {
+        ElementItems::Functions(items) => items
+            .into_iter()
+            .map(|v| v.map(FunctionIndex::from_u32).map_err(WasmError::from))
+            .collect(),
+        ElementItems::Expressions(items) => {
+            let mut elems = Vec::with_capacity(usize::try_from(items.count()).unwrap());
+            for item in items.into_iter() {
+                let mut reader = item?.get_operators_reader();
+                let op = reader.read()?;
+                let end = reader.read()?;
+                reader.ensure_end()?;
+                use Operator::*;
                 match (op, end) {
-                    (Operator::RefFunc { function_index }, Operator::End) => {
-                        FunctionIndex::from_u32(function_index)
+                    (RefFunc { function_index }, End) => {
+                        elems.push(FunctionIndex::from_u32(function_index))
                     }
-                    (Operator::RefNull { .. }, Operator::End) => FunctionIndex::reserved_value(),
+                    (RefNull { .. }, End) => elems.push(FunctionIndex::reserved_value()),
                     _ => todo!("unexpected syntax for elems item initializer"),
                 }
             }
-        };
-        elems.push(elem);
+            Ok(elems.into_boxed_slice())
+        }
     }
-    Ok(elems.into_boxed_slice())
 }
 
 /// Parses the Element section of the wasm module.
@@ -328,7 +330,7 @@ pub fn parse_element_section<'data>(
     elements: ElementSectionReader<'data>,
     environ: &mut ModuleEnvironment,
 ) -> WasmResult<()> {
-    environ.reserve_table_initializers(elements.get_count())?;
+    environ.reserve_table_initializers(elements.count())?;
 
     for (index, entry) in elements.into_iter().enumerate() {
         let Element {
@@ -381,7 +383,7 @@ pub fn parse_data_section<'data>(
     data: DataSectionReader<'data>,
     environ: &mut ModuleEnvironment<'data>,
 ) -> WasmResult<()> {
-    environ.reserve_data_initializers(data.get_count())?;
+    environ.reserve_data_initializers(data.count())?;
 
     for (index, entry) in data.into_iter().enumerate() {
         let Data { kind, data, .. } = entry?;
@@ -426,7 +428,8 @@ pub fn parse_name_section<'data>(
     environ: &mut ModuleEnvironment<'data>,
 ) -> WasmResult<()> {
     use wasmparser::Name;
-    while let Ok(subsection) = names.read() {
+    while let Some(subsection) = names.next() {
+        let subsection = subsection?;
         match subsection {
             Name::Function(function_subsection) => {
                 if let Some(function_names) = parse_function_name_subsection(function_subsection) {
@@ -453,11 +456,11 @@ pub fn parse_name_section<'data>(
 }
 
 fn parse_function_name_subsection(
-    mut naming_reader: NameMap<'_>,
+    naming_reader: NameMap<'_>,
 ) -> Option<HashMap<FunctionIndex, &str>> {
     let mut function_names = HashMap::new();
-    for _ in 0..naming_reader.get_count() {
-        let Naming { index, name } = naming_reader.read().ok()?;
+    for name in naming_reader.into_iter() {
+        let Naming { index, name } = name.ok()?;
         if index == std::u32::MAX {
             // We reserve `u32::MAX` for our own use.
             return None;

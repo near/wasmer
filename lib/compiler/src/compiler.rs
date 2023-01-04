@@ -91,7 +91,7 @@ pub trait Compiler: Send {
             multi_memory: features.multi_memory,
             memory64: features.memory64,
             exceptions: features.exceptions,
-            deterministic_only: false,
+            floats: true,
             component_model: false,
             extended_const: false,
             mutable_global: features.mutable_global,
