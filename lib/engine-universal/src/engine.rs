@@ -117,6 +117,9 @@ impl UniversalEngine {
             (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_end) => {
                 0
             };
+            (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_else) => {
+                0
+            };
             (@@$_proposal:ident $_op:ident $self:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident) => {
                 $self.0.regular_op_cost()
             };
