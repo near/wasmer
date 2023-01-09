@@ -98,15 +98,27 @@ impl UniversalEngine {
         // Compute the needed instrumentation
         struct MaxStackCfg;
         impl finite_wasm::max_stack::Config for MaxStackCfg {
-            fn size_of_value(&self, _ty: finite_wasm::wasmparser::ValType) -> u8 {
-                1
+            fn size_of_value(&self, ty: finite_wasm::wasmparser::ValType) -> u8 {
+                use finite_wasm::wasmparser::ValType;
+                match ty {
+                    ValType::I32 => 4,
+                    ValType::I64 => 8,
+                    ValType::F32 => 4,
+                    ValType::F64 => 8,
+                    ValType::V128 => 16,
+                    ValType::FuncRef => 8,
+                    ValType::ExternRef => 8, // TODO: is this correct?
+                }
             }
             fn size_of_function_activation(
                 &self,
                 locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>,
             ) -> u64 {
-                // Number of locals plus 1 for function metadata
-                u64::try_from(locals.max_index().map(|l| l.saturating_add(2)).unwrap_or(1)).unwrap()
+                let mut res = 0;
+                res += locals.max_index().map(|l| u64::from(*l).saturating_add(1)).unwrap_or(0) * 8;
+                // TODO: make the above take into account the types of locals by adding an iter on PrefixSumVec that returns (count, type)
+                res += 32; // Rough accounting for rip, rbp and some registers spilled. Not exact.
+                res
             }
         }
         struct GasCfg<'a>(&'a dyn Tunables);

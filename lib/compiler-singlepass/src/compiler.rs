@@ -116,7 +116,7 @@ impl Compiler for SinglepassCompiler {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
                     let stack_init_gas_cost = instrumentation.function_frame_sizes[i.index()]
-                        .checked_mul(tunables.regular_op_cost())
+                        .checked_mul(tunables.regular_op_cost() / 8) // can run i64.const, so can init 8 bytes within one regular op
                         .ok_or_else(|| {
                             CompileError::Codegen(String::from(
                                 "got function with frame init cost going beyond u64::MAX",
