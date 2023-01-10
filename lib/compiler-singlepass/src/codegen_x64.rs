@@ -1812,7 +1812,7 @@ impl<'a> FuncGen<'a> {
         // Setup the registers (incl. defining the vmctx register)
         let local_count = self.local_count();
         self.machine
-            .setup_registers(&mut self.assembler, local_count, self.calling_convention);
+            .setup_registers(&mut self.assembler, local_count, self.signature.params().len() as u32, self.calling_convention);
 
         // Verify stack height
         self.assembler.emit_sub(

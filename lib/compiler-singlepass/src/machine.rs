@@ -378,6 +378,7 @@ impl Machine {
         &mut self,
         a: &mut E,
         n: u32,
+        n_params: u32,
         calling_convention: CallingConvention,
     ) {
         // Total size (in bytes) of the pre-allocated "static area" for this function's
@@ -403,7 +404,7 @@ impl Machine {
         // Allocate the stack, without actually writing to it.
         a.emit_sub(
             Size::S64,
-            Location::Imm32(static_area_size as _),
+            Location::Imm32(static_area_size as u32 + n_params),
             Location::GPR(GPR::RSP),
         );
 
@@ -415,6 +416,31 @@ impl Machine {
                 Location::GPR(*local_reg),
                 Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
             );
+        }
+
+        // Load in-register parameters into the allocated locations.
+        // Locals are allocated on the stack from higher address to lower address,
+        // so we won't skip the stack guard page here.
+        for i in 0..n_params {
+            // NB: the 0th parameter is used for passing around the internal VM data (vmctx).
+            let loc = Self::get_param_location((i + 1) as usize, calling_convention);
+            let local_loc = self.get_local_location(i);
+            match loc {
+                Location::GPR(_) => {
+                    a.emit_mov(Size::S64, loc, local_loc);
+                }
+                Location::Memory(_, _) => match local_loc {
+                    Location::GPR(_) => {
+                        a.emit_mov(Size::S64, loc, local_loc);
+                    }
+                    Location::Memory(_, _) => {
+                        a.emit_mov(Size::S64, loc, Location::GPR(GPR::RAX));
+                        a.emit_mov(Size::S64, Location::GPR(GPR::RAX), local_loc);
+                    }
+                    _ => unreachable!(),
+                },
+                _ => unreachable!(),
+            }
         }
 
         // Save R15 for vmctx use.
@@ -451,7 +477,7 @@ impl Machine {
         n_params: u32,
         calling_convention: CallingConvention,
     ) {
-        let locals_size = (n as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
+        let locals_size = ((n - n_params) as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
 
         // Allocate the stack, without actually writing to it.
         a.emit_sub(
@@ -462,31 +488,6 @@ impl Machine {
 
         // Save the offset of register save area.
         self.save_area_offset = Some(MachineStackOffset(self.stack_offset.0));
-
-        // Load in-register parameters into the allocated locations.
-        // Locals are allocated on the stack from higher address to lower address,
-        // so we won't skip the stack guard page here.
-        for i in 0..n_params {
-            // NB: the 0th parameter is used for passing around the internal VM data (vmctx).
-            let loc = Self::get_param_location((i + 1) as usize, calling_convention);
-            let local_loc = self.get_local_location(i);
-            match loc {
-                Location::GPR(_) => {
-                    a.emit_mov(Size::S64, loc, local_loc);
-                }
-                Location::Memory(_, _) => match local_loc {
-                    Location::GPR(_) => {
-                        a.emit_mov(Size::S64, loc, local_loc);
-                    }
-                    Location::Memory(_, _) => {
-                        a.emit_mov(Size::S64, loc, Location::GPR(GPR::RAX));
-                        a.emit_mov(Size::S64, Location::GPR(GPR::RAX), local_loc);
-                    }
-                    _ => unreachable!(),
-                },
-                _ => unreachable!(),
-            }
-        }
 
         // Stack probe.
         //
