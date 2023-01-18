@@ -2,10 +2,12 @@ use crate::address_map::get_function_address_map;
 use crate::config::IntrinsicKind;
 use crate::{config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
 use dynasmrt::{x64::X64Relocation, DynamicLabel, VecAssembler};
+use finite_wasm::gas::InstrumentationKind;
 use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
 use std::convert::TryFrom;
 use std::iter;
+use std::slice;
 use wasmer_compiler::wasmparser::{BlockType as WpBlockType, MemArg, Operator, ValType as WpType};
 use wasmer_compiler::{
     CallingConvention, CompiledFunction, CompiledFunctionFrameInfo, CustomSection,
@@ -96,14 +98,8 @@ pub(crate) struct FuncGen<'a> {
     /// Cost for initializing the stack of the function
     stack_init_gas_cost: u64,
 
-    /// Offsets at which to insert instrumentation points
-    gas_offsets: &'a [usize],
-
-    /// Gas costs at each instrumentation point
-    gas_costs: &'a [u64],
-
-    /// Next instrumentation point, as an index into gas_offsets (that may be beyond bounds)
-    next_gas_offset_id: usize,
+    /// Iterator over the gas instrumentation points
+    gas_iter: iter::Peekable<iter::Zip<slice::Iter<'a, usize>, /* iter::Zip< */ slice::Iter<'a, u64> /*, slice::Iter<'a, InstrumentationKind>> */>>,
 
     /// Maximum size of the stack for this function
     stack_size: u32,
@@ -425,10 +421,13 @@ impl<'a> FuncGen<'a> {
         }
     }
 
+    /// Emit a gas charge operation. The gas amount is stored in `cost_location`, which must be either an imm32 or a GPR
+    // (this is because emit_add can only take up to an imm32)
     fn emit_gas(&mut self, cost_location: Location) {
-        if cost_location == Location::Imm32(0) || cost_location == Location::Imm64(0) {
+        if cost_location == Location::Imm32(0) {
             return; // skip, which we must do because emit_add optimizes out the add 0 which leaves OF clobbered otherwise
         }
+        assert!(matches!(cost_location, Location::Imm32(_) | Location::GPR(_)), "emit_gas can take only an imm32 or a gpr argument");
 
         let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
         let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
@@ -456,7 +455,7 @@ impl<'a> FuncGen<'a> {
         self.assembler
             .emit_add(Size::S64, cost_location, Location::GPR(current_burnt_reg));
         self.assembler
-            .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
+            .emit_jmp(Condition::Carry, self.special_labels.integer_overflow);
         // Compare with the limit.
         self.assembler.emit_cmp(
             Size::S64,
@@ -1824,7 +1823,7 @@ impl<'a> FuncGen<'a> {
             ),
         );
         self.assembler
-            .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
+            .emit_jmp(Condition::Carry, self.special_labels.stack_overflow);
 
         // Charge for the stack initialization
         self.emit_gas_const(self.stack_init_gas_cost);
@@ -1881,6 +1880,7 @@ impl<'a> FuncGen<'a> {
         stack_init_gas_cost: u64,
         gas_offsets: &'a [usize],
         gas_costs: &'a [u64],
+        _gas_kinds: &'a [InstrumentationKind],
         stack_size: u64,
     ) -> Result<FuncGen<'a>, CodegenError> {
         let func_index = module.func_index(local_func_index);
@@ -1920,9 +1920,7 @@ impl<'a> FuncGen<'a> {
             calling_convention,
             signature,
             stack_init_gas_cost,
-            gas_offsets,
-            gas_costs,
-            next_gas_offset_id: 0,
+            gas_iter: gas_offsets.iter().zip(gas_costs.iter() /* .zip(gas_kinds.iter()) */).peekable(),
             stack_size: u32::try_from(stack_size).map_err(|_| CodegenError {
                 message: "one function has a stack more than u32::MAX deep".to_string(),
             })?,
@@ -1970,26 +1968,24 @@ impl<'a> FuncGen<'a> {
     }
 
     /// Consume offset self.src_loc, return Some(cost) iff there must be an instrumentation point here
-    fn consume_gas_offset(&mut self) -> Option<u64> {
-        if self.gas_offsets.get(self.next_gas_offset_id) == Some(&(self.src_loc as usize)) {
-            let res = self.gas_costs[self.next_gas_offset_id];
-            self.next_gas_offset_id += 1;
-            Some(res)
-        } else {
-            None
+    fn consume_gas_offset(&mut self /*, should_be_unreachable: bool */) -> Option<u64> {
+        if let Some(&(&offset, &cost /* (&cost, &kind) */)) = self.gas_iter.peek() {
+            if offset == self.src_loc as usize {
+                // assert!(matches!(kind, InstrumentationKind::Unreachable) == should_be_unreachable, "gas computation results are not of the expected reachability: kind is {:?}, expected reachability is {:?}", kind, !should_be_unreachable);
+                self.gas_iter.next().unwrap();
+                return Some(cost);
+            }
         }
+        None
     }
 
     #[tracing::instrument(skip(self))]
     pub(crate) fn feed_operator(&mut self, op: Operator) -> Result<(), CodegenError> {
         assert!(self.fp_stack.len() <= self.value_stack.len());
 
-        let was_unreachable;
+        let was_unreachable = self.unreachable_depth > 0;
 
-        if self.unreachable_depth > 0 {
-            was_unreachable = true;
-            self.consume_gas_offset(); // do not instrument unreachable code
-
+        if was_unreachable {
             match op {
                 Operator::Block { .. } | Operator::Loop { .. } | Operator::If { .. } => {
                     self.unreachable_depth += 1;
@@ -2010,13 +2006,12 @@ impl<'a> FuncGen<'a> {
                 _ => {}
             }
             if self.unreachable_depth > 0 {
+                self.consume_gas_offset(/* true */); // do not instrument unreachable code
                 return Ok(());
             }
-        } else {
-            was_unreachable = false;
         }
 
-        if let Some(cost) = self.consume_gas_offset() {
+        if let Some(cost) = self.consume_gas_offset(/* false */) {
             self.emit_gas_const(cost);
         }
 
@@ -8393,7 +8388,7 @@ impl<'a> FuncGen<'a> {
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
         debug_assert!(
-            self.next_gas_offset_id == self.gas_offsets.len(),
+            self.gas_iter.next().is_none(),
             "finalizing function but not all instrumentation points were inserted"
         );
 

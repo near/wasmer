@@ -404,7 +404,7 @@ impl Machine {
         // Allocate the stack, without actually writing to it.
         a.emit_sub(
             Size::S64,
-            Location::Imm32(static_area_size as u32 + n_params),
+            Location::Imm32(static_area_size as u32 + n_params.saturating_sub(Self::LOCAL_REGISTERS.len() as u32) * 8),
             Location::GPR(GPR::RSP),
         );
 
@@ -429,6 +429,8 @@ impl Machine {
                 Location::GPR(_) => {
                     a.emit_mov(Size::S64, loc, local_loc);
                 }
+                // TODO: move Location::Memory args init into init_locals down below
+                // Registers *must* stay here because we’re using registers between setup_registers and init_locals
                 Location::Memory(_, _) => match local_loc {
                     Location::GPR(_) => {
                         a.emit_mov(Size::S64, loc, local_loc);
@@ -475,9 +477,9 @@ impl Machine {
         a: &mut E,
         n: u32,
         n_params: u32,
-        calling_convention: CallingConvention,
+        _calling_convention: CallingConvention,
     ) {
-        let locals_size = ((n - n_params) as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
+        let locals_size = ((n - n_params.saturating_sub(Self::LOCAL_REGISTERS.len() as u32)) as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
 
         // Allocate the stack, without actually writing to it.
         a.emit_sub(

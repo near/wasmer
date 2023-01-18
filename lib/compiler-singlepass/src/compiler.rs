@@ -141,6 +141,7 @@ impl Compiler for SinglepassCompiler {
                         stack_init_gas_cost,
                         &instrumentation.gas_offsets[i.index()],
                         &instrumentation.gas_costs[i.index()],
+                        &instrumentation.gas_kinds[i.index()],
                         stack_size,
                     )
                     .map_err(to_compile_error)?;
