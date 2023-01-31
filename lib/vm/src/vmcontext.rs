@@ -1107,7 +1107,7 @@ impl VMContext {
     /// be a `VMContext` allocated as part of an `Instance`.
     #[allow(clippy::cast_ptr_alignment)]
     #[inline]
-    pub(crate) unsafe fn instance(&self) -> &Instance {
+    pub unsafe fn instance(&self) -> &Instance {
         &*((self as *const Self as *mut u8).offset(-Instance::vmctx_offset()) as *const Instance)
     }
 

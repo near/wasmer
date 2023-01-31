@@ -1,11 +1,13 @@
 use crate::emitter_x64::*;
 use smallvec::smallvec;
 use smallvec::SmallVec;
+use std::convert::TryFrom;
 use wasmer_compiler::wasmparser::ValType as WpType;
 use wasmer_compiler::CallingConvention;
 
 const NATIVE_PAGE_SIZE: usize = 4096;
 
+#[derive(Clone, Copy)]
 struct MachineStackOffset(usize);
 
 pub(crate) struct Machine {
@@ -182,6 +184,24 @@ impl Machine {
         self.set_xmm_unused(xmm);
     }
 
+    fn increase_rsp(&mut self, a: &mut impl Emitter, sz: usize) {
+        a.emit_add(
+            Size::S64,
+            Location::Imm32(u32::try_from(sz).unwrap()),
+            Location::GPR(GPR::RSP),
+        );
+        self.stack_offset.0 -= sz;
+    }
+
+    fn decrease_rsp(&mut self, a: &mut impl Emitter, sz: usize) {
+        a.emit_sub(
+            Size::S64,
+            Location::Imm32(u32::try_from(sz).unwrap()),
+            Location::GPR(GPR::RSP),
+        );
+        self.stack_offset.0 += sz;
+    }
+
     /// Acquires locations from the machine state.
     ///
     /// If the returned locations are used for stack value, `release_location` needs to be called on them;
@@ -206,9 +226,8 @@ impl Machine {
             let loc = if let Some(x) = loc {
                 x
             } else {
-                self.stack_offset.0 += 8;
                 delta_stack_offset += 8;
-                Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32))
+                Location::Memory(GPR::RBP, -((self.stack_offset.0 + delta_stack_offset) as i32))
             };
             if let Location::GPR(x) = loc {
                 self.set_gpr_used(x);
@@ -219,11 +238,7 @@ impl Machine {
         }
 
         if delta_stack_offset != 0 {
-            assembler.emit_sub(
-                Size::S64,
-                Location::Imm32(delta_stack_offset as u32),
-                Location::GPR(GPR::RSP),
-            );
+            self.decrease_rsp(assembler, delta_stack_offset);
         }
         if zeroed {
             for i in 0..tys.len() {
@@ -252,10 +267,9 @@ impl Machine {
                         unreachable!();
                     }
                     let offset = (-x) as usize;
-                    if offset != self.stack_offset.0 {
+                    if offset != self.stack_offset.0 - delta_stack_offset {
                         unreachable!();
                     }
-                    self.stack_offset.0 -= 8;
                     delta_stack_offset += 8;
                 }
                 _ => {}
@@ -263,11 +277,7 @@ impl Machine {
         }
 
         if delta_stack_offset != 0 {
-            assembler.emit_add(
-                Size::S64,
-                Location::Imm32(delta_stack_offset as u32),
-                Location::GPR(GPR::RSP),
-            );
+            self.increase_rsp(assembler, delta_stack_offset);
         }
     }
 
@@ -300,20 +310,15 @@ impl Machine {
                     unreachable!();
                 }
                 let offset = (-x) as usize;
-                if offset != self.stack_offset.0 {
+                if offset != self.stack_offset.0 - delta_stack_offset {
                     unreachable!();
                 }
-                self.stack_offset.0 -= 8;
                 delta_stack_offset += 8;
             }
         }
 
         if delta_stack_offset != 0 {
-            assembler.emit_add(
-                Size::S64,
-                Location::Imm32(delta_stack_offset as u32),
-                Location::GPR(GPR::RSP),
-            );
+            self.increase_rsp(assembler, delta_stack_offset);
         }
     }
 
@@ -323,7 +328,6 @@ impl Machine {
         locs: &[Location],
     ) {
         let mut delta_stack_offset: usize = 0;
-        let mut stack_offset = self.stack_offset.0;
 
         for loc in locs.iter().rev() {
             if let Location::Memory(GPR::RBP, x) = *loc {
@@ -331,15 +335,15 @@ impl Machine {
                     unreachable!();
                 }
                 let offset = (-x) as usize;
-                if offset != stack_offset {
+                if offset != self.stack_offset.0 - delta_stack_offset {
                     unreachable!();
                 }
-                stack_offset -= 8;
                 delta_stack_offset += 8;
             }
         }
 
         if delta_stack_offset != 0 {
+            // DO NOT use increase_rsp, as we don’t want to change stack_offset
             assembler.emit_add(
                 Size::S64,
                 Location::Imm32(delta_stack_offset as u32),
@@ -374,6 +378,24 @@ impl Machine {
             })
     }
 
+    // `setup_registers`, `init_locals`, `finalize_locals` and `restore_registers` work together,
+    // the first two making up the function prologue (with a stack check and gas charge in-between),
+    // and the second two making up the function epilogue (with the stack height reset in-between).
+    //
+    // Together, they build the following stack, with `N = min(n, LOCAL_REGISTERS.len())`:
+    // +-------------------+--------+
+    // |  Return Pointer   |   8B   |
+    // |     Saved RBP     |   8B   |  <-  RBP
+    // | LOCAL_REGISTERS 0 |   8B   |
+    // |        ...        |        |
+    // | LOCAL_REGISTERS N |   8B   |
+    // |     Saved R15     |   8B   |
+    // |  (Win FastC) RDI  |   8B   |
+    // |  (Win FastC) RSI  |   8B   |  <-  save_area_offset
+    // |      Local 0      |   8B   |  <-  locals_offset
+    // |        ...        |        |
+    // |      Local n      |   8B   |  <-  RSP, stack_offset (at end of init_locals, will keep moving during fn codegen)
+    // +-------------------+--------+
     pub(crate) fn setup_registers<E: Emitter>(
         &mut self,
         a: &mut E,
@@ -391,36 +413,46 @@ impl Machine {
         // Callee-saved R15 for vmctx.
         static_area_size += 8;
 
-        // For Windows ABI, save RDI and RSI
-        if calling_convention == CallingConvention::WindowsFastcall {
-            static_area_size += 8 * 2;
-        }
-
-        // The offset pointing at the very first local. Right now `static_area_size` is pointing at
-        // the end address of the 0th local, not at the start address, so we add `8` bytes to fix
-        // this up.
-        self.locals_offset = MachineStackOffset(static_area_size + 8);
-
-        // Allocate the stack, without actually writing to it.
-        a.emit_sub(
-            Size::S64,
-            Location::Imm32(static_area_size as u32 + n_params.saturating_sub(Self::LOCAL_REGISTERS.len() as u32) * 8),
-            Location::GPR(GPR::RSP),
-        );
+        // Allocate the stack
+        self.decrease_rsp(a, static_area_size);
 
         // Save callee-saved registers
-        for local_reg in Self::LOCAL_REGISTERS.iter().take(n as usize) {
-            self.stack_offset.0 += 8;
+        for (i, local_reg) in Self::LOCAL_REGISTERS.iter().take(n as usize).enumerate() {
             a.emit_mov(
                 Size::S64,
                 Location::GPR(*local_reg),
-                Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
+                Location::Memory(GPR::RBP, -((i + 1) as i32) * 8),
             );
         }
 
-        // Load in-register parameters into the allocated locations.
+        // Save R15 for vmctx use.
+        a.emit_mov(
+            Size::S64,
+            Location::GPR(GPR::R15),
+            Location::Memory(GPR::RSP, 0),
+        );
+
+        // For Windows ABI, save RDI and RSI
+        if calling_convention == CallingConvention::WindowsFastcall {
+            self.decrease_rsp(a, 8 * 2);
+            for (i, reg) in [GPR::RSI, GPR::RDI].iter().enumerate() {
+                a.emit_mov(
+                    Size::S64,
+                    Location::GPR(*reg),
+                    Location::Memory(GPR::RSP, i as i32 * 8),
+                );
+            }
+        }
+
+        // Save the offset of register save area.
+        self.save_area_offset = Some(MachineStackOffset(self.stack_offset.0));
+
+        // Load in-register parameters into the allocated locations for register parameters.
         // Locals are allocated on the stack from higher address to lower address,
         // so we won't skip the stack guard page here.
+        self.locals_offset = MachineStackOffset(self.stack_offset.0 + 8); // + 8 because locals_offset is supposed to point to 1st local
+        let params_size = (n_params as usize).saturating_sub(Self::LOCAL_REGISTERS.len()).checked_mul(8).unwrap();
+        self.decrease_rsp(a, params_size);
         for i in 0..n_params {
             // NB: the 0th parameter is used for passing around the internal VM data (vmctx).
             let loc = Self::get_param_location((i + 1) as usize, calling_convention);
@@ -429,7 +461,7 @@ impl Machine {
                 Location::GPR(_) => {
                     a.emit_mov(Size::S64, loc, local_loc);
                 }
-                // TODO: move Location::Memory args init into init_locals down below
+                // TODO: move Location::Memory args init into init_locals down below so it happens after instrumentation
                 // Registers *must* stay here because we’re using registers between setup_registers and init_locals
                 Location::Memory(_, _) => match local_loc {
                     Location::GPR(_) => {
@@ -442,25 +474,6 @@ impl Machine {
                     _ => unreachable!(),
                 },
                 _ => unreachable!(),
-            }
-        }
-
-        // Save R15 for vmctx use.
-        self.stack_offset.0 += 8;
-        a.emit_mov(
-            Size::S64,
-            Location::GPR(GPR::R15),
-            Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
-        );
-
-        if calling_convention == CallingConvention::WindowsFastcall {
-            for reg in [GPR::RDI, GPR::RSI] {
-                self.stack_offset.0 += 8;
-                a.emit_mov(
-                    Size::S64,
-                    Location::GPR(reg),
-                    Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
-                );
             }
         }
 
@@ -479,17 +492,10 @@ impl Machine {
         n_params: u32,
         _calling_convention: CallingConvention,
     ) {
-        let locals_size = ((n - n_params.saturating_sub(Self::LOCAL_REGISTERS.len() as u32)) as usize).saturating_sub(Self::LOCAL_REGISTERS.len()) * 8;
+        let locals_size = (n as usize).saturating_sub(Self::LOCAL_REGISTERS.len().saturating_sub(n_params as usize)).checked_mul(8).unwrap();
 
         // Allocate the stack, without actually writing to it.
-        a.emit_sub(
-            Size::S64,
-            Location::Imm32(locals_size as _),
-            Location::GPR(GPR::RSP),
-        );
-
-        // Save the offset of register save area.
-        self.save_area_offset = Some(MachineStackOffset(self.stack_offset.0));
+        self.decrease_rsp(a, locals_size);
 
         // Stack probe.
         //
@@ -530,9 +536,6 @@ impl Machine {
             );
             a.emit_rep_stosq();
         }
-
-        // Add the size of all locals allocated to stack.
-        self.stack_offset.0 += locals_size;
     }
 
     pub(crate) fn finalize_locals<E: Emitter>(&mut self, a: &mut E) {

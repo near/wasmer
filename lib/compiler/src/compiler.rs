@@ -98,6 +98,7 @@ pub trait Compiler: Send {
             relaxed_simd: false,
             saturating_float_to_int: features.saturating_float_to_int,
             sign_extension: features.sign_extension,
+            memory_control: false,
         };
         let mut validator = Validator::new_with_features(wasm_features);
         validator
@@ -117,7 +118,7 @@ pub trait Compiler: Send {
         // The list of function bodies
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'data>>,
         tunables: &dyn wasmer_vm::Tunables,
-        instrumentation: &finite_wasm::Module,
+        instrumentation: &finite_wasm::AnalysisOutcome,
     ) -> Result<Compilation, CompileError>;
 
     /// Compiles a module into a native object file.

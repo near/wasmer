@@ -51,6 +51,12 @@ pub trait Tunables: Sync {
         vm_definition_location: NonNull<VMTableDefinition>,
     ) -> Result<Arc<dyn Table>, String>;
 
-    /// Cost of a regular wasm operator.
-    fn regular_op_cost(&self) -> u64;
+    /// Instrumentation configuration: stack limiter config
+    fn stack_limiter_cfg(&self) -> Box<dyn finite_wasm::max_stack::SizeConfig>;
+
+    /// Instrumentation configuration: gas accounting config
+    fn gas_cfg(&self) -> Box<dyn wasmparser::VisitOperator<Output = u64>>;
+
+    /// Cost for initializing a stack frame
+    fn stack_init_gas_cost(&self, frame_size: u64) -> u64;
 }

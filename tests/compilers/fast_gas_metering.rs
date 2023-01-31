@@ -140,7 +140,7 @@ fn test_gas_intrinsic_in_start() {
 
 fn test_gas_regular(opcode_cost: u64) {
     let store = get_store(opcode_cost);
-    let mut gas_counter = FastGasCounter::new(200 + 14 * opcode_cost);
+    let mut gas_counter = FastGasCounter::new(200 + 11 * opcode_cost);
     let module = get_module(&store);
     let hits = std::sync::Arc::new(AtomicUsize::new(0));
     let instance = Instance::new_with_config(
@@ -187,12 +187,11 @@ fn test_gas_regular(opcode_cost: u64) {
     assert!(e.is_ok());
     // Ensure "func" was called.
     assert_eq!(hits.load(SeqCst), 1);
-    assert_eq!(gas_counter.burnt(), 100 + 6 * opcode_cost);
+    assert_eq!(gas_counter.burnt(), 100 + 3 * opcode_cost);
     let _e = foo_func.call(&[]).err().expect("error calling function");
     // Ensure "func" and "has" was called again.
     assert_eq!(hits.load(SeqCst), 4);
-    assert_eq!(gas_counter.burnt(), 242 + 15 * opcode_cost);
-    // not 12 * opcode_cost because the last call 0 never happens and a call is an instrumentation boundary
+    assert_eq!(gas_counter.burnt(), 242 + 11 * opcode_cost);
     // Finally try to exhaust rather large limit
     if opcode_cost == 0 {
         gas_counter.gas_limit = 1_000_000_000_000_000;

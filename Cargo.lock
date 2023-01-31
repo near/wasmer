@@ -551,7 +551,7 @@ dependencies = [
  "num-traits",
  "prefix-sum-vec",
  "thiserror",
- "wasmparser 0.95.0",
+ "wasmparser 0.98.1",
  "wasmprinter",
 ]
 
@@ -1026,9 +1026,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "prefix-sum-vec"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "743f7c34da26a48b4e11ccddf6a7d8993a4a7f1292ac45e54eda1f94d3a639e0"
+checksum = "aa06bd51638b6e76ac9ba9b6afb4164fa647bd2916d722f2623fbb6d1ed8bdba"
 
 [[package]]
 name = "pretty-hex"
@@ -1888,7 +1888,7 @@ dependencies = [
  "tracing",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.96.0",
+ "wasmparser 0.98.1",
 ]
 
 [[package]]
@@ -1949,7 +1949,7 @@ dependencies = [
  "wasmer-engine-near",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.96.0",
+ "wasmparser 0.98.1",
  "winapi",
 ]
 
@@ -1959,8 +1959,10 @@ version = "2.4.0"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
+ "finite-wasm",
  "indexmap",
  "more-asserts",
+ "prefix-sum-vec",
  "target-lexicon",
  "tempfile",
  "thiserror",
@@ -1993,6 +1995,7 @@ dependencies = [
  "backtrace",
  "cc",
  "cfg-if 1.0.0",
+ "finite-wasm",
  "indexmap",
  "libc",
  "memoffset 0.6.5",
@@ -2002,6 +2005,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "wasmer-types-near",
+ "wasmparser 0.98.1",
  "winapi",
 ]
 
@@ -2051,9 +2055,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.95.0"
+version = "0.96.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2ea896273ea99b15132414be1da01ab0d8836415083298ecaffbe308eaac87a"
+checksum = "adde01ade41ab9a5d10ec8ed0bb954238cf8625b5cd5a13093d6de2ad9c2be1a"
 dependencies = [
  "indexmap",
  "url",
@@ -2061,9 +2065,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.96.0"
+version = "0.98.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adde01ade41ab9a5d10ec8ed0bb954238cf8625b5cd5a13093d6de2ad9c2be1a"
+checksum = "8724c724dc595495979c055f4bd8b7ed9fab1069623178a28016ae43a9666f36"
 dependencies = [
  "indexmap",
  "url",

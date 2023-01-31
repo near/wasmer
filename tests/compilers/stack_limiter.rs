@@ -230,5 +230,5 @@ fn deep_but_sane() {
         .expect("expected function main");
 
     let e = main_func.call(&[]);
-    assert!(e.is_ok());
+    assert!(e.is_ok(), "expected successful result was instead {:?}", e);
 }

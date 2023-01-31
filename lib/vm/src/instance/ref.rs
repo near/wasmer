@@ -122,7 +122,7 @@ impl InstanceRef {
 
     /// Get a reference to the `Instance`.
     #[inline]
-    pub(crate) fn as_ref(&self) -> &Instance {
+    pub fn as_ref(&self) -> &Instance {
         (&*self.0).as_ref()
     }
 

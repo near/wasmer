@@ -99,7 +99,12 @@ pub(crate) struct FuncGen<'a> {
     stack_init_gas_cost: u64,
 
     /// Iterator over the gas instrumentation points
-    gas_iter: iter::Peekable<iter::Zip<slice::Iter<'a, usize>, /* iter::Zip< */ slice::Iter<'a, u64> /*, slice::Iter<'a, InstrumentationKind>> */>>,
+    gas_iter: iter::Peekable<
+        iter::Zip<
+            slice::Iter<'a, usize>,
+            slice::Iter<'a, u64>,
+        >,
+    >,
 
     /// Maximum size of the stack for this function
     stack_size: u32,
@@ -427,7 +432,10 @@ impl<'a> FuncGen<'a> {
         if cost_location == Location::Imm32(0) {
             return; // skip, which we must do because emit_add optimizes out the add 0 which leaves OF clobbered otherwise
         }
-        assert!(matches!(cost_location, Location::Imm32(_) | Location::GPR(_)), "emit_gas can take only an imm32 or a gpr argument");
+        assert!(
+            matches!(cost_location, Location::Imm32(_) | Location::GPR(_)),
+            "emit_gas can take only an imm32 or a gpr argument"
+        );
 
         let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
         let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
@@ -1810,8 +1818,12 @@ impl<'a> FuncGen<'a> {
 
         // Setup the registers (incl. defining the vmctx register)
         let local_count = self.local_count();
-        self.machine
-            .setup_registers(&mut self.assembler, local_count, self.signature.params().len() as u32, self.calling_convention);
+        self.machine.setup_registers(
+            &mut self.assembler,
+            local_count,
+            self.signature.params().len() as u32,
+            self.calling_convention,
+        );
 
         // Verify stack height
         self.assembler.emit_sub(
@@ -1920,7 +1932,10 @@ impl<'a> FuncGen<'a> {
             calling_convention,
             signature,
             stack_init_gas_cost,
-            gas_iter: gas_offsets.iter().zip(gas_costs.iter() /* .zip(gas_kinds.iter()) */).peekable(),
+            gas_iter: gas_offsets
+                .iter()
+                .zip(gas_costs.iter())
+                .peekable(),
             stack_size: u32::try_from(stack_size).map_err(|_| CodegenError {
                 message: "one function has a stack more than u32::MAX deep".to_string(),
             })?,

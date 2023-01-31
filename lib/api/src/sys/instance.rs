@@ -181,4 +181,10 @@ impl Instance {
             None => Err(ExportError::Missing("not found".into())),
         }
     }
+
+    // Used internally by wast only
+    #[doc(hidden)]
+    pub fn handle(&self) -> std::sync::MutexGuard<'_, InstanceHandle> {
+        self.handle.lock().unwrap()
+    }
 }

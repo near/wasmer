@@ -14,17 +14,19 @@ edition = "2018"
 name = "wasmer_vm"
 
 [dependencies]
-wasmer-types = { path = "../types", package = "wasmer-types-near", version = "=2.4.0" }
-region = "3.0"
+backtrace = "0.3"
+cfg-if = "1.0"
+finite-wasm = { path = "../../../finite-wasm" }
+indexmap = { version = "1.6" }
 libc = { version = "^0.2", default-features = false }
 memoffset = "0.6"
-indexmap = { version = "1.6" }
-thiserror = "1.0"
 more-asserts = "0.2"
-cfg-if = "1.0"
-backtrace = "0.3"
+region = "3.0"
 rkyv = { version = "0.7.20" }
+thiserror = "1.0"
 tracing = "0.1"
+wasmer-types = { path = "../types", package = "wasmer-types-near", version = "=2.4.0" }
+wasmparser = "0.98.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["winbase", "memoryapi", "errhandlingapi"] }

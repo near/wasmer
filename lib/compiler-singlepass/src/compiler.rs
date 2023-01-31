@@ -50,7 +50,7 @@ impl Compiler for SinglepassCompiler {
         module_translation: &ModuleTranslationState,
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'_>>,
         tunables: &dyn wasmer_vm::Tunables,
-        instrumentation: &finite_wasm::Module,
+        instrumentation: &finite_wasm::AnalysisOutcome,
     ) -> Result<Compilation, CompileError> {
         /*if target.triple().operating_system == OperatingSystem::Windows {
             return Err(CompileError::UnsupportedTarget(
@@ -115,13 +115,8 @@ impl Compiler for SinglepassCompiler {
                 tracing::info_span!("function", i = i.index()).in_scope(|| {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
-                    let stack_init_gas_cost = instrumentation.function_frame_sizes[i.index()]
-                        .checked_mul(tunables.regular_op_cost() / 8) // can run i64.const, so can init 8 bytes within one regular op
-                        .ok_or_else(|| {
-                            CompileError::Codegen(String::from(
-                                "got function with frame init cost going beyond u64::MAX",
-                            ))
-                        })?;
+                    let stack_init_gas_cost = tunables
+                        .stack_init_gas_cost(instrumentation.function_frame_sizes[i.index()]);
                     let stack_size = instrumentation.function_frame_sizes[i.index()]
                         .checked_add(instrumentation.function_operand_stack_sizes[i.index()])
                         .ok_or_else(|| {
