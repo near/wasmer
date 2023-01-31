@@ -227,7 +227,10 @@ impl Machine {
                 x
             } else {
                 delta_stack_offset += 8;
-                Location::Memory(GPR::RBP, -((self.stack_offset.0 + delta_stack_offset) as i32))
+                Location::Memory(
+                    GPR::RBP,
+                    -((self.stack_offset.0 + delta_stack_offset) as i32),
+                )
             };
             if let Location::GPR(x) = loc {
                 self.set_gpr_used(x);
@@ -451,7 +454,10 @@ impl Machine {
         // Locals are allocated on the stack from higher address to lower address,
         // so we won't skip the stack guard page here.
         self.locals_offset = MachineStackOffset(self.stack_offset.0 + 8); // + 8 because locals_offset is supposed to point to 1st local
-        let params_size = (n_params as usize).saturating_sub(Self::LOCAL_REGISTERS.len()).checked_mul(8).unwrap();
+        let params_size = (n_params as usize)
+            .saturating_sub(Self::LOCAL_REGISTERS.len())
+            .checked_mul(8)
+            .unwrap();
         self.decrease_rsp(a, params_size);
         for i in 0..n_params {
             // NB: the 0th parameter is used for passing around the internal VM data (vmctx).
@@ -492,7 +498,14 @@ impl Machine {
         n_params: u32,
         _calling_convention: CallingConvention,
     ) {
-        let locals_size = (n as usize).saturating_sub(Self::LOCAL_REGISTERS.len().saturating_sub(n_params as usize)).checked_mul(8).unwrap();
+        let locals_size = (n as usize)
+            .saturating_sub(
+                Self::LOCAL_REGISTERS
+                    .len()
+                    .saturating_sub(n_params as usize),
+            )
+            .checked_mul(8)
+            .unwrap();
 
         // Allocate the stack, without actually writing to it.
         self.decrease_rsp(a, locals_size);

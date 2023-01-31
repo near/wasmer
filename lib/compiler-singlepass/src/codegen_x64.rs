@@ -99,12 +99,7 @@ pub(crate) struct FuncGen<'a> {
     stack_init_gas_cost: u64,
 
     /// Iterator over the gas instrumentation points
-    gas_iter: iter::Peekable<
-        iter::Zip<
-            slice::Iter<'a, usize>,
-            slice::Iter<'a, u64>,
-        >,
-    >,
+    gas_iter: iter::Peekable<iter::Zip<slice::Iter<'a, usize>, slice::Iter<'a, u64>>>,
 
     /// Maximum size of the stack for this function
     stack_size: u32,
@@ -1932,10 +1927,7 @@ impl<'a> FuncGen<'a> {
             calling_convention,
             signature,
             stack_init_gas_cost,
-            gas_iter: gas_offsets
-                .iter()
-                .zip(gas_costs.iter())
-                .peekable(),
+            gas_iter: gas_offsets.iter().zip(gas_costs.iter()).peekable(),
             stack_size: u32::try_from(stack_size).map_err(|_| CodegenError {
                 message: "one function has a stack more than u32::MAX deep".to_string(),
             })?,
