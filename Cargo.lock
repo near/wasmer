@@ -544,14 +544,16 @@ dependencies = [
 
 [[package]]
 name = "finite-wasm"
-version = "0.1.0"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6b821e04f9b8562f75e2c3a1806d629084a78e7f154aadac9e8230ab9efd1d7"
 dependencies = [
  "bitvec",
  "dissimilar",
  "num-traits",
  "prefix-sum-vec",
  "thiserror",
- "wasmparser 0.98.1",
+ "wasmparser",
  "wasmprinter",
 ]
 
@@ -1888,7 +1890,7 @@ dependencies = [
  "tracing",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.98.1",
+ "wasmparser",
 ]
 
 [[package]]
@@ -1949,7 +1951,7 @@ dependencies = [
  "wasmer-engine-near",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.98.1",
+ "wasmparser",
  "winapi",
 ]
 
@@ -2005,7 +2007,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "wasmer-types-near",
- "wasmparser 0.98.1",
+ "wasmparser",
  "winapi",
 ]
 
@@ -2055,19 +2057,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.96.0"
+version = "0.99.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adde01ade41ab9a5d10ec8ed0bb954238cf8625b5cd5a13093d6de2ad9c2be1a"
-dependencies = [
- "indexmap",
- "url",
-]
-
-[[package]]
-name = "wasmparser"
-version = "0.98.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8724c724dc595495979c055f4bd8b7ed9fab1069623178a28016ae43a9666f36"
+checksum = "9ef3b717afc67f848f412d4f02c127dd3e35a0eecd58c684580414df4fde01d3"
 dependencies = [
  "indexmap",
  "url",
@@ -2075,12 +2067,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.45"
+version = "0.2.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3045e1aa2cac847f4f94a1e25db9f084a947aeff47d9099fb9c5ccd16d335040"
+checksum = "27c13dff901f9354fa9a6a877152d9c5642513645985635c9b83bcca99e40ea1"
 dependencies = [
  "anyhow",
- "wasmparser 0.96.0",
+ "wasmparser",
 ]
 
 [[package]]
