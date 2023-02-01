@@ -408,7 +408,7 @@ impl<'a> FuncGen<'a> {
 
     fn emit_gas_const(&mut self, cost: u64) {
         if cost > 0 {
-            // without this, emit_add in emit_gas eliminates the add 0, which leaves OF clobbered
+            // without this, emit_add in emit_gas eliminates the add 0, which leaves CF clobbered
             if let Ok(cost) = u32::try_from(cost) {
                 self.emit_gas(Location::Imm32(cost));
             } else {

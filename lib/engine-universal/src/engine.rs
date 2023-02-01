@@ -98,11 +98,9 @@ impl UniversalEngine {
         // Compute the needed instrumentation
         let instrumentation = finite_wasm::Analysis::new()
             .with_stack(tunables.stack_limiter_cfg())
-            .with_gas(
-                tunables.gas_cfg() as Box<dyn 'static + wasmparser::VisitOperator<Output = u64>>
-            )
+            .with_gas(tunables.gas_cfg())
             .analyze(binary)
-            .map_err(CompileError::Instrument)?;
+            .map_err(CompileError::Analyze)?;
 
         let inner_engine = self.inner_mut();
         let features = inner_engine.features();

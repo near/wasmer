@@ -204,6 +204,14 @@ impl finite_wasm::max_stack::SizeConfig for SimpleMaxStackCfg {
 struct SimpleGasCostCfg(u64);
 
 macro_rules! gas_cost {
+    ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
+        $(
+            fn $visit(&mut self $($(, $arg: $argty)*)?) -> u64 {
+                gas_cost!(@@$proposal $op self $({ $($arg: $argty),* })? => $visit)
+            }
+        )*
+    };
+
     (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_block) => {
         0
     };
@@ -215,14 +223,6 @@ macro_rules! gas_cost {
     };
     (@@$_proposal:ident $_op:ident $self:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident) => {
         $self.0
-    };
-
-    ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
-        $(
-            fn $visit(&mut self $($(, $arg: $argty)*)?) -> u64 {
-                gas_cost!(@@$proposal $op self $({ $($arg: $argty),* })? => $visit)
-            }
-        )*
     };
 }
 
