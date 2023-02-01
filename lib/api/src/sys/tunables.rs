@@ -241,6 +241,7 @@ mod tests {
             static_memory_bound: Pages(2048),
             static_memory_offset_guard_size: 128,
             dynamic_memory_offset_guard_size: 256,
+            regular_op_cost: 0,
         };
 
         // No maximum

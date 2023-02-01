@@ -59,7 +59,7 @@ pub use crate::resolver::{
 pub use crate::sig_registry::{SignatureRegistry, VMSharedSignatureIndex};
 pub use crate::table::{LinearTable, Table, TableElement, TableStyle};
 pub use crate::trap::*;
-pub use crate::tunables::Tunables;
+pub use crate::tunables::{TestTunables, Tunables};
 pub use crate::vmcontext::{
     FunctionBodyPtr, FunctionExtent, SectionBodyPtr, VMBuiltinFunctionIndex,
     VMCallerCheckedAnyfunc, VMContext, VMDynamicFunctionContext, VMFunctionBody,

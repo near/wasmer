@@ -60,3 +60,62 @@ pub trait Tunables: Sync {
     /// Cost for initializing a stack frame
     fn stack_init_gas_cost(&self, frame_size: u64) -> u64;
 }
+
+#[doc(hidden)]
+pub struct TestTunables;
+
+impl Tunables for TestTunables {
+    fn memory_style(&self, _memory: &MemoryType) -> MemoryStyle {
+        unimplemented!()
+    }
+
+    fn table_style(&self, _table: &TableType) -> TableStyle {
+        unimplemented!()
+    }
+
+    fn create_host_memory(
+        &self,
+        _ty: &MemoryType,
+        _style: &MemoryStyle,
+    ) -> Result<Arc<dyn Memory>, MemoryError> {
+        unimplemented!()
+    }
+
+    unsafe fn create_vm_memory(
+        &self,
+        _ty: &MemoryType,
+        _style: &MemoryStyle,
+        _vm_definition_location: NonNull<VMMemoryDefinition>,
+    ) -> Result<Arc<dyn Memory>, MemoryError> {
+        unimplemented!()
+    }
+
+    fn create_host_table(
+        &self,
+        _ty: &TableType,
+        _style: &TableStyle,
+    ) -> Result<Arc<dyn Table>, String> {
+        unimplemented!()
+    }
+
+    unsafe fn create_vm_table(
+        &self,
+        _ty: &TableType,
+        _style: &TableStyle,
+        _vm_definition_location: NonNull<VMTableDefinition>,
+    ) -> Result<Arc<dyn Table>, String> {
+        unimplemented!()
+    }
+
+    fn stack_limiter_cfg(&self) -> Box<dyn finite_wasm::max_stack::SizeConfig> {
+        unimplemented!()
+    }
+
+    fn gas_cfg(&self) -> Box<dyn wasmparser::VisitOperator<Output = u64>> {
+        unimplemented!()
+    }
+
+    fn stack_init_gas_cost(&self, _frame_size: u64) -> u64 {
+        unimplemented!()
+    }
+}
