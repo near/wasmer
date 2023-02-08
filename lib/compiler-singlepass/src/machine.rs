@@ -498,12 +498,12 @@ impl Machine {
         n_params: u32,
         _calling_convention: CallingConvention,
     ) {
-        let locals_size = (n as usize)
-            .saturating_sub(
-                Self::LOCAL_REGISTERS
-                    .len()
-                    .saturating_sub(n_params as usize),
-            )
+        let registers_remaining_for_locals = Self::LOCAL_REGISTERS
+            .len()
+            .saturating_sub(n_params as usize);
+        let locals_to_init = (n - n_params) as usize;
+        let locals_size = locals_to_init
+            .saturating_sub(registers_remaining_for_locals)
             .checked_mul(8)
             .unwrap();
 
