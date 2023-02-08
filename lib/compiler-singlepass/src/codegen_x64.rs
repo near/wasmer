@@ -407,17 +407,14 @@ impl<'a> FuncGen<'a> {
     }
 
     fn emit_gas_const(&mut self, cost: u64) {
-        if cost > 0 {
-            // without this, emit_add in emit_gas eliminates the add 0, which leaves CF clobbered
-            if let Ok(cost) = u32::try_from(cost) {
-                self.emit_gas(Location::Imm32(cost));
-            } else {
-                let cost_reg = self.machine.acquire_temp_gpr().unwrap();
-                self.assembler
-                    .emit_mov(Size::S64, Location::Imm64(cost), Location::GPR(cost_reg));
-                self.emit_gas(Location::GPR(cost_reg));
-                self.machine.release_temp_gpr(cost_reg);
-            }
+        if let Ok(cost) = u32::try_from(cost) {
+            self.emit_gas(Location::Imm32(cost));
+        } else {
+            let cost_reg = self.machine.acquire_temp_gpr().unwrap();
+            self.assembler
+                .emit_mov(Size::S64, Location::Imm64(cost), Location::GPR(cost_reg));
+            self.emit_gas(Location::GPR(cost_reg));
+            self.machine.release_temp_gpr(cost_reg);
         }
     }
 
@@ -425,7 +422,7 @@ impl<'a> FuncGen<'a> {
     // (this is because emit_add can only take up to an imm32)
     fn emit_gas(&mut self, cost_location: Location) {
         if cost_location == Location::Imm32(0) {
-            return; // skip, which we must do because emit_add optimizes out the add 0 which leaves OF clobbered otherwise
+            return; // skip, which we must do because emit_add optimizes out the add 0 which leaves CF clobbered otherwise
         }
         assert!(
             matches!(cost_location, Location::Imm32(_) | Location::GPR(_)),
