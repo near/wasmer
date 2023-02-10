@@ -585,17 +585,14 @@ pub struct FastGasCounter {
     pub burnt_gas: u64,
     /// Hard gas limit for execution
     pub gas_limit: u64,
-    /// Single WASM opcode cost
-    pub opcode_cost: u64,
 }
 
 impl FastGasCounter {
     /// New fast gas counter.
-    pub fn new(limit: u64, opcode: u64) -> Self {
+    pub fn new(limit: u64) -> Self {
         FastGasCounter {
             burnt_gas: 0,
             gas_limit: limit,
-            opcode_cost: opcode,
         }
     }
     /// Amount of gas burnt, maybe load as atomic to avoid aliasing issues.
@@ -606,13 +603,7 @@ impl FastGasCounter {
 
 impl fmt::Display for FastGasCounter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "burnt: {} limit: {} op_cost: {} ",
-            self.burnt(),
-            self.gas_limit,
-            self.opcode_cost
-        )
+        write!(f, "burnt: {} limit: {} ", self.burnt(), self.gas_limit,)
     }
 }
 
@@ -626,8 +617,8 @@ pub struct InstanceConfig {
     pub stack_limit: i32,
 }
 
-// Default stack limit, in 8-byte stack slots.
-const DEFAULT_STACK_LIMIT: i32 = 100 * 1024;
+// Default stack limit, in bytes.
+const DEFAULT_STACK_LIMIT: i32 = 1024 * 1024;
 
 impl InstanceConfig {
     /// Create default instance configuration.
@@ -635,7 +626,6 @@ impl InstanceConfig {
         let result = Rc::new(UnsafeCell::new(FastGasCounter {
             burnt_gas: 0,
             gas_limit: u64::MAX,
-            opcode_cost: 0,
         }));
         Self {
             gas_counter: result.get(),

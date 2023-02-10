@@ -51,14 +51,14 @@ fn get_module(store: &Store) -> Module {
             call 2
             call 0
         )
-        (func (export "bar")
+        (func (export "bar") (local i32 i32)
             call 0
             i32.const 100
             call 2
         )
         (func (export "zoo")
             loop
-                i32.const 100
+                i32.const 1_000_000_000
                 call 2
                 br 0
             end
@@ -92,16 +92,19 @@ fn get_module_tricky_arg(store: &Store) -> Module {
     Module::new(&store, &wat).unwrap()
 }
 
-fn get_store() -> Store {
+fn get_store(regular_op_cost: u64) -> Store {
     let compiler = Singlepass::default();
-    let store = Store::new(&Universal::new(compiler).engine());
+    let engine = Universal::new(compiler).engine();
+    let mut tunables = BaseTunables::for_target(engine.target());
+    tunables.set_regular_op_cost(regular_op_cost);
+    let store = Store::new_with_tunables(&engine, tunables);
     store
 }
 
 #[test]
 fn test_gas_intrinsic_in_start() {
-    let store = get_store();
-    let mut gas_counter = FastGasCounter::new(300, 3);
+    let store = get_store(0);
+    let mut gas_counter = FastGasCounter::new(100);
     let module = get_module_with_start(&store);
     static HITS: AtomicUsize = AtomicUsize::new(0);
     let result = Instance::new_with_config(
@@ -131,29 +134,33 @@ fn test_gas_intrinsic_in_start() {
     // Ensure "func" was called twice.
     assert_eq!(HITS.swap(0, SeqCst), 2);
     // Ensure gas was partially spent.
-    assert_eq!(gas_counter.burnt(), 426);
-    assert_eq!(gas_counter.gas_limit, 300);
-    assert_eq!(gas_counter.opcode_cost, 3);
+    assert_eq!(gas_counter.burnt(), 142);
+    assert_eq!(gas_counter.gas_limit, 100);
 }
 
-#[test]
-fn test_gas_intrinsic_regular() {
-    let store = get_store();
-    let mut gas_counter = FastGasCounter::new(500, 3);
+fn test_gas_regular(opcode_cost: u64) {
+    let store = get_store(opcode_cost);
+    let mut gas_counter = FastGasCounter::new(200 + 11 * opcode_cost);
     let module = get_module(&store);
-    static HITS: AtomicUsize = AtomicUsize::new(0);
+    let hits = std::sync::Arc::new(AtomicUsize::new(0));
     let instance = Instance::new_with_config(
         &module,
         unsafe { InstanceConfig::default().with_counter(ptr::addr_of_mut!(gas_counter)) },
         &imports! {
             "host" => {
-                "func" => Function::new(&store, FunctionType::new(vec![], vec![]), |_values| {
-                    HITS.fetch_add(1, SeqCst);
-                    Ok(vec![])
+                "func" => Function::new(&store, FunctionType::new(vec![], vec![]), {
+                    let hits = hits.clone();
+                    move |_values| {
+                        hits.fetch_add(1, SeqCst);
+                        Ok(vec![])
+                    }
                 }),
-                "has" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |_| {
-                    HITS.fetch_add(1, SeqCst);
-                    Ok(vec![])
+                "has" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), {
+                    let hits = hits.clone();
+                    move |_| {
+                        hits.fetch_add(1, SeqCst);
+                        Ok(vec![])
+                    }
                 }),
                 "gas" => Function::new(&store, FunctionType::new(vec![ValType::I32], vec![]), |_| {
                     // It shall be never called, as call is intrinsified.
@@ -175,26 +182,37 @@ fn test_gas_intrinsic_regular() {
         .lookup_function("zoo")
         .expect("expected function zoo");
     // Ensure "func" was not called.
-    assert_eq!(HITS.load(SeqCst), 0);
+    assert_eq!(hits.load(SeqCst), 0);
     let e = bar_func.call(&[]);
     assert!(e.is_ok());
     // Ensure "func" was called.
-    assert_eq!(HITS.load(SeqCst), 1);
-    assert_eq!(gas_counter.burnt(), 300);
+    assert_eq!(hits.load(SeqCst), 1);
+    assert_eq!(gas_counter.burnt(), 100 + 3 * opcode_cost);
     let _e = foo_func.call(&[]).err().expect("error calling function");
     // Ensure "func" and "has" was called again.
-    assert_eq!(HITS.load(SeqCst), 4);
-    assert_eq!(gas_counter.burnt(), 726);
-    // Finally try to exhaust rather large limit.
-    gas_counter.gas_limit = 10_000_000_000_000_000;
-    gas_counter.opcode_cost = 100_000_000;
-    let _e = zoo_func.call(&[]).err().expect("error calling function");
-    assert_eq!(gas_counter.burnt(), 10_000_000_000_000_726);
+    assert_eq!(hits.load(SeqCst), 4);
+    assert_eq!(gas_counter.burnt(), 242 + 11 * opcode_cost);
+    // Finally try to exhaust rather large limit
+    if opcode_cost == 0 {
+        gas_counter.gas_limit = 1_000_000_000_000_000;
+        let _e = zoo_func.call(&[]).err().expect("error calling function");
+        assert_eq!(gas_counter.burnt(), 1_000_000_000_000_242);
+    }
+}
+
+#[test]
+fn test_gas_intrinsic_regular() {
+    test_gas_regular(0);
+}
+
+#[test]
+fn test_gas_accounting_regular() {
+    test_gas_regular(3);
 }
 
 #[test]
 fn test_gas_intrinsic_default() {
-    let store = get_store();
+    let store = get_store(0);
     let module = get_module(&store);
     static HITS: AtomicUsize = AtomicUsize::new(0);
     let instance = Instance::new(
@@ -238,7 +256,7 @@ fn test_gas_intrinsic_default() {
 
 #[test]
 fn test_gas_intrinsic_tricky() {
-    let store = get_store();
+    let store = get_store(0);
     let module = get_module_tricky_arg(&store);
     static BURNT_GAS: AtomicUsize = AtomicUsize::new(0);
     static HITS: AtomicUsize = AtomicUsize::new(0);

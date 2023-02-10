@@ -59,7 +59,7 @@ pub type ImportInitializerFuncPtr<ResultErr = *mut ffi::c_void> =
 /// to ensure that the `vmctx` field is last. See the documentation of
 /// the `vmctx` field to learn more.
 #[repr(C)]
-pub(crate) struct Instance {
+pub struct Instance {
     pub(crate) artifact: Arc<dyn Artifact>,
 
     /// External configuration for instance.
@@ -386,7 +386,7 @@ impl Instance {
         result
     }
 
-    fn reset_stack_meter(&self) {
+    pub fn reset_stack_meter(&self) {
         unsafe {
             *(self.stack_limit_ptr()) = *(self.stack_limit_initial_ptr());
         }
@@ -946,7 +946,7 @@ impl InstanceHandle {
     }
 
     /// Return a reference to the contained `Instance`.
-    pub(crate) fn instance(&self) -> &InstanceRef {
+    pub fn instance(&self) -> &InstanceRef {
         &self.instance
     }
 

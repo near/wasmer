@@ -49,6 +49,8 @@ impl Compiler for SinglepassCompiler {
         compile_info: &CompileModuleInfo,
         module_translation: &ModuleTranslationState,
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'_>>,
+        tunables: &dyn wasmer_vm::Tunables,
+        instrumentation: &finite_wasm::AnalysisOutcome,
     ) -> Result<Compilation, CompileError> {
         /*if target.triple().operating_system == OperatingSystem::Windows {
             return Err(CompileError::UnsupportedTarget(
@@ -113,6 +115,15 @@ impl Compiler for SinglepassCompiler {
                 tracing::info_span!("function", i = i.index()).in_scope(|| {
                     let reader =
                         wasmer_compiler::FunctionReader::new(input.module_offset, input.data);
+                    let stack_init_gas_cost = tunables
+                        .stack_init_gas_cost(instrumentation.function_frame_sizes[i.index()]);
+                    let stack_size = instrumentation.function_frame_sizes[i.index()]
+                        .checked_add(instrumentation.function_operand_stack_sizes[i.index()])
+                        .ok_or_else(|| {
+                            CompileError::Codegen(String::from(
+                                "got function with frame size going beyond u64::MAX",
+                            ))
+                        })?;
                     let mut generator = FuncGen::new(
                         module,
                         module_translation,
@@ -122,6 +133,11 @@ impl Compiler for SinglepassCompiler {
                         &table_styles,
                         i,
                         calling_convention,
+                        stack_init_gas_cost,
+                        &instrumentation.gas_offsets[i.index()],
+                        &instrumentation.gas_costs[i.index()],
+                        &instrumentation.gas_kinds[i.index()],
+                        stack_size,
                     )
                     .map_err(to_compile_error)?;
 
@@ -241,6 +257,7 @@ mod tests {
         CompileModuleInfo,
         ModuleTranslationState,
         PrimaryMap<LocalFunctionIndex, FunctionBodyData<'a>>,
+        finite_wasm::AnalysisOutcome,
     ) {
         let compile_info = CompileModuleInfo {
             features: Features::new(),
@@ -250,7 +267,19 @@ mod tests {
         };
         let module_translation = ModuleTranslationState::new();
         let function_body_inputs = PrimaryMap::<LocalFunctionIndex, FunctionBodyData<'_>>::new();
-        (compile_info, module_translation, function_body_inputs)
+        let analysis = finite_wasm::AnalysisOutcome {
+            function_frame_sizes: Vec::new(),
+            function_operand_stack_sizes: Vec::new(),
+            gas_offsets: Vec::new(),
+            gas_costs: Vec::new(),
+            gas_kinds: Vec::new(),
+        };
+        (
+            compile_info,
+            module_translation,
+            function_body_inputs,
+            analysis,
+        )
     }
 
     #[test]
@@ -268,8 +297,15 @@ mod tests {
 
         // Compile for 32bit Linux
         let linux32 = Target::new(triple!("i686-unknown-linux-gnu"), CpuFeature::for_host());
-        let (mut info, translation, inputs) = dummy_compilation_ingredients();
-        let result = compiler.compile_module(&linux32, &mut info, &translation, inputs);
+        let (mut info, translation, inputs, analysis) = dummy_compilation_ingredients();
+        let result = compiler.compile_module(
+            &linux32,
+            &mut info,
+            &translation,
+            inputs,
+            &wasmer_vm::TestTunables,
+            &analysis,
+        );
         match result.unwrap_err() {
             CompileError::UnsupportedTarget(name) => assert_eq!(name, "i686"),
             error => panic!("Unexpected error: {:?}", error),
@@ -277,8 +313,15 @@ mod tests {
 
         // Compile for win32
         let win32 = Target::new(triple!("i686-pc-windows-gnu"), CpuFeature::for_host());
-        let (mut info, translation, inputs) = dummy_compilation_ingredients();
-        let result = compiler.compile_module(&win32, &mut info, &translation, inputs);
+        let (mut info, translation, inputs, analysis) = dummy_compilation_ingredients();
+        let result = compiler.compile_module(
+            &win32,
+            &mut info,
+            &translation,
+            inputs,
+            &wasmer_vm::TestTunables,
+            &analysis,
+        );
         match result.unwrap_err() {
             CompileError::UnsupportedTarget(name) => assert_eq!(name, "i686"), // Windows should be checked before architecture
             error => panic!("Unexpected error: {:?}", error),

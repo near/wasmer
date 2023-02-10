@@ -123,14 +123,6 @@ impl Instance {
         config: InstanceConfig,
         resolver: &dyn Resolver,
     ) -> Result<Self, InstantiationError> {
-        unsafe {
-            if (*config.gas_counter).opcode_cost > i32::MAX as u64 {
-                // Fast gas counter logic assumes that individual opcode cost is not too big.
-                return Err(InstantiationError::HostEnvInitialization(
-                    HostEnvInitError::IncorrectGasMeteringConfig,
-                ));
-            }
-        }
         let handle = module.instantiate(resolver, config)?;
         let instance = Self {
             handle: Arc::new(Mutex::new(handle)),
@@ -188,5 +180,11 @@ impl Instance {
             Some(_) => Err(ExportError::IncompatibleType),
             None => Err(ExportError::Missing("not found".into())),
         }
+    }
+
+    // Used internally by wast only
+    #[doc(hidden)]
+    pub fn handle(&self) -> std::sync::MutexGuard<'_, InstanceHandle> {
+        self.handle.lock().unwrap()
     }
 }

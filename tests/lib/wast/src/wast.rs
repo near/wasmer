@@ -399,6 +399,7 @@ impl Wast {
         args: &[Val],
     ) -> Result<Vec<Val>> {
         let instance = self.get_instance(instance_name.as_deref())?;
+        instance.handle().instance().as_ref().reset_stack_meter();
         let func: Function = instance
             .lookup_function(field)
             .expect("should find the function");

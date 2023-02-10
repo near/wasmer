@@ -34,6 +34,7 @@ pub(crate) enum Location {
     MemoryAddTriple(GPR, GPR, i32),
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Condition {
     None,

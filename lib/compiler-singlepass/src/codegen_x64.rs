@@ -1,12 +1,13 @@
 use crate::address_map::get_function_address_map;
 use crate::config::IntrinsicKind;
 use crate::{config::Singlepass, emitter_x64::*, machine::Machine, x64_decl::*};
-use dynasmrt::{x64::X64Relocation, AssemblyOffset, DynamicLabel, DynasmApi, VecAssembler};
+use dynasmrt::{x64::X64Relocation, DynamicLabel, VecAssembler};
+use finite_wasm::gas::InstrumentationKind;
 use memoffset::offset_of;
 use smallvec::{smallvec, SmallVec};
-use std::cmp::max;
 use std::convert::TryFrom;
 use std::iter;
+use std::slice;
 use wasmer_compiler::wasmparser::{BlockType as WpBlockType, MemArg, Operator, ValType as WpType};
 use wasmer_compiler::{
     CallingConvention, CompiledFunction, CompiledFunctionFrameInfo, CustomSection,
@@ -65,12 +66,6 @@ pub(crate) struct FuncGen<'a> {
     /// Value stack.
     value_stack: Vec<Location>,
 
-    /// Max stack depth.
-    max_stack_depth: usize,
-
-    /// Location to patch when we know the max stack depth.
-    stack_check_offset: AssemblyOffset,
-
     /// Metadata about floating point values on the stack.
     fp_stack: Vec<FloatValue>,
 
@@ -99,6 +94,15 @@ pub(crate) struct FuncGen<'a> {
 
     /// Calling convention to use.
     calling_convention: CallingConvention,
+
+    /// Cost for initializing the stack of the function
+    stack_init_gas_cost: u64,
+
+    /// Iterator over the gas instrumentation points
+    gas_iter: iter::Peekable<iter::Zip<slice::Iter<'a, usize>, slice::Iter<'a, u64>>>,
+
+    /// Maximum size of the stack for this function
+    stack_size: u32,
 }
 
 struct SpecialLabelSet {
@@ -276,15 +280,7 @@ impl<'a> FuncGen<'a> {
         loc
     }
 
-    fn update_max_stack_depth(&mut self) {
-        self.max_stack_depth = max(
-            self.max_stack_depth,
-            self.value_stack.len() + self.fp_stack.len(),
-        );
-    }
-
     fn pop_value_released(&mut self) -> Location {
-        self.update_max_stack_depth();
         let loc = self
             .value_stack
             .pop()
@@ -321,7 +317,6 @@ impl<'a> FuncGen<'a> {
         //
         // Canonicalization state will be lost across function calls, so early canonicalization
         // is necessary here.
-        self.update_max_stack_depth();
         while let Some(fp) = self.fp_stack.last() {
             if fp.depth >= self.value_stack.len() {
                 let index = fp.depth - self.value_stack.len();
@@ -411,14 +406,34 @@ impl<'a> FuncGen<'a> {
         return true;
     }
 
-    fn emit_gas(&mut self, count_location: Location) {
+    fn emit_gas_const(&mut self, cost: u64) {
+        if let Ok(cost) = u32::try_from(cost) {
+            self.emit_gas(Location::Imm32(cost));
+        } else {
+            let cost_reg = self.machine.acquire_temp_gpr().unwrap();
+            self.assembler
+                .emit_mov(Size::S64, Location::Imm64(cost), Location::GPR(cost_reg));
+            self.emit_gas(Location::GPR(cost_reg));
+            self.machine.release_temp_gpr(cost_reg);
+        }
+    }
+
+    /// Emit a gas charge operation. The gas amount is stored in `cost_location`, which must be either an imm32 or a GPR
+    // (this is because emit_add can only take up to an imm32)
+    fn emit_gas(&mut self, cost_location: Location) {
+        if cost_location == Location::Imm32(0) {
+            return; // skip, which we must do because emit_add optimizes out the add 0 which leaves CF clobbered otherwise
+        }
+        assert!(
+            matches!(cost_location, Location::Imm32(_) | Location::GPR(_)),
+            "emit_gas can take only an imm32 or a gpr argument"
+        );
+
         let counter_offset = offset_of!(FastGasCounter, burnt_gas) as i32;
         let gas_limit_offset = offset_of!(FastGasCounter, gas_limit) as i32;
-        let opcode_cost_offset = offset_of!(FastGasCounter, opcode_cost) as i32;
         // Recheck offsets, to make sure offsets will never change.
         assert_eq!(counter_offset, 0);
         assert_eq!(gas_limit_offset, 8);
-        assert_eq!(opcode_cost_offset, 16);
         let base_reg = self.machine.acquire_temp_gpr().unwrap();
         // Load gas counter base.
         self.assembler.emit_mov(
@@ -436,26 +451,11 @@ impl<'a> FuncGen<'a> {
             Location::Memory(base_reg, counter_offset),
             Location::GPR(current_burnt_reg),
         );
-        // Read opcode cost.
-        let count_reg = self.machine.acquire_temp_gpr().unwrap();
-        self.assembler.emit_mov(
-            Size::S64,
-            Location::Memory(base_reg, opcode_cost_offset),
-            Location::GPR(count_reg),
-        );
-        // Multiply instruction count by opcode cost.
-        match count_location {
-            Location::Imm32(imm) => self.assembler.emit_imul_imm32_gpr64(imm, count_reg),
-            _ => assert!(false),
-        }
         // Compute new cost.
-        self.assembler.emit_add(
-            Size::S64,
-            Location::GPR(count_reg),
-            Location::GPR(current_burnt_reg),
-        );
         self.assembler
-            .emit_jmp(Condition::Overflow, self.special_labels.integer_overflow);
+            .emit_add(Size::S64, cost_location, Location::GPR(current_burnt_reg));
+        self.assembler
+            .emit_jmp(Condition::Carry, self.special_labels.integer_overflow);
         // Compare with the limit.
         self.assembler.emit_cmp(
             Size::S64,
@@ -474,7 +474,6 @@ impl<'a> FuncGen<'a> {
         );
         self.machine.release_temp_gpr(base_reg);
         self.machine.release_temp_gpr(current_burnt_reg);
-        self.machine.release_temp_gpr(count_reg);
     }
 
     fn emit_trap(&mut self, code: TrapCode) {
@@ -1801,53 +1800,6 @@ impl<'a> FuncGen<'a> {
         self.assembler.emit_label(end);
     }
 
-    fn emit_stack_check(&mut self, enter: bool, depth: usize) {
-        if enter {
-            // Here we must use value we do not yet know, so we write 0x7fff_ffff and patch it later.
-            self.assembler.emit_sub(
-                Size::S32,
-                Location::Imm32(0x7fff_ffff),
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
-                ),
-            );
-            // TODO: make it cleaner, now we assume instruction with 32-bit immediate at the end.
-            // Recheck offsets, if change above instruction to anything else.
-            self.stack_check_offset = AssemblyOffset(self.assembler.offset().0 - 4);
-            self.assembler
-                .emit_jmp(Condition::Signed, self.special_labels.stack_overflow);
-        } else {
-            {
-                // Patch earlier stack checker with now known max stack depth.
-                assert!(self.stack_check_offset.0 > 0);
-                let mut alter = self.assembler.alter();
-                alter.goto(self.stack_check_offset);
-                // TODO: check that the value before was 0x7fff_ffff
-                alter.push_u32(depth as u32);
-            }
-            self.assembler.emit_add(
-                Size::S32,
-                Location::Imm32(depth as u32),
-                Location::Memory(
-                    Machine::get_vmctx_reg(),
-                    self.vmoffsets.vmctx_stack_limit_begin() as i32,
-                ),
-            );
-        }
-    }
-
-    fn emit_function_stack_check(&mut self, enter: bool) {
-        // `local_types` include parameters as well.
-        let depth = self.local_count() as usize
-            + self.max_stack_depth
-            // we add 4 to ensure that deep recursion is prohibited even for local and argument free
-            // functions, as they still use stack space for the saved frame base and return address,
-            // along with spill area for callee-saved registers.
-            + 4;
-        self.emit_stack_check(enter, depth);
-    }
-
     pub(crate) fn emit_head(&mut self) -> Result<(), CodegenError> {
         // TODO: Patchpoint is not emitted for now, and ARM trampoline is not prepended.
 
@@ -1856,7 +1808,31 @@ impl<'a> FuncGen<'a> {
         self.assembler
             .emit_mov(Size::S64, Location::GPR(GPR::RSP), Location::GPR(GPR::RBP));
 
-        // Initialize locals.
+        // Setup the registers (incl. defining the vmctx register)
+        let local_count = self.local_count();
+        self.machine.setup_registers(
+            &mut self.assembler,
+            local_count,
+            self.signature.params().len() as u32,
+            self.calling_convention,
+        );
+
+        // Verify stack height
+        self.assembler.emit_sub(
+            Size::S32,
+            Location::Imm32(self.stack_size),
+            Location::Memory(
+                Machine::get_vmctx_reg(),
+                self.vmoffsets.vmctx_stack_limit_begin() as i32,
+            ),
+        );
+        self.assembler
+            .emit_jmp(Condition::Carry, self.special_labels.stack_overflow);
+
+        // Charge for the stack initialization
+        self.emit_gas_const(self.stack_init_gas_cost);
+
+        // Initialize the locals
         let local_count = self.local_count();
         self.machine.init_locals(
             &mut self.assembler,
@@ -1864,8 +1840,6 @@ impl<'a> FuncGen<'a> {
             self.signature.params().len() as u32,
             self.calling_convention,
         );
-
-        self.emit_function_stack_check(true);
 
         self.assembler
             .emit_sub(Size::S64, Location::Imm32(32), Location::GPR(GPR::RSP)); // simulate "red zone" if not supported by the platform
@@ -1907,6 +1881,11 @@ impl<'a> FuncGen<'a> {
         _table_styles: &'a PrimaryMap<TableIndex, TableStyle>,
         local_func_index: LocalFunctionIndex,
         calling_convention: CallingConvention,
+        stack_init_gas_cost: u64,
+        gas_offsets: &'a [usize],
+        gas_costs: &'a [u64],
+        _gas_kinds: &'a [InstrumentationKind],
+        stack_size: u64,
     ) -> Result<FuncGen<'a>, CodegenError> {
         let func_index = module.func_index(local_func_index);
         let sig_index = module.functions[func_index];
@@ -1934,8 +1913,6 @@ impl<'a> FuncGen<'a> {
             local_types: wasmer_types::partial_sum_map::PartialSumMap::new(),
             assembler,
             value_stack: vec![],
-            max_stack_depth: 0,
-            stack_check_offset: AssemblyOffset(0),
             fp_stack: vec![],
             control_stack: vec![],
             machine: Machine::new(),
@@ -1946,6 +1923,11 @@ impl<'a> FuncGen<'a> {
             instructions_address_map: vec![],
             calling_convention,
             signature,
+            stack_init_gas_cost,
+            gas_iter: gas_offsets.iter().zip(gas_costs.iter()).peekable(),
+            stack_size: u32::try_from(stack_size).map_err(|_| CodegenError {
+                message: "one function has a stack more than u32::MAX deep".to_string(),
+            })?,
         };
         for param in module.signatures[sig_index].params() {
             fg.feed_local(1, type_to_wp_type(*param));
@@ -1989,15 +1971,25 @@ impl<'a> FuncGen<'a> {
             .expect("local index out of bounds")
     }
 
+    /// Consume offset self.src_loc, return Some(cost) iff there must be an instrumentation point here
+    fn consume_gas_offset(&mut self /*, should_be_unreachable: bool */) -> Option<u64> {
+        if let Some(&(&offset, &cost /* (&cost, &kind) */)) = self.gas_iter.peek() {
+            if offset == self.src_loc as usize {
+                // assert!(matches!(kind, InstrumentationKind::Unreachable) == should_be_unreachable, "gas computation results are not of the expected reachability: kind is {:?}, expected reachability is {:?}", kind, !should_be_unreachable);
+                self.gas_iter.next().unwrap();
+                return Some(cost);
+            }
+        }
+        None
+    }
+
     #[tracing::instrument(skip(self))]
     pub(crate) fn feed_operator(&mut self, op: Operator) -> Result<(), CodegenError> {
         assert!(self.fp_stack.len() <= self.value_stack.len());
 
-        let was_unreachable;
+        let was_unreachable = self.unreachable_depth > 0;
 
-        if self.unreachable_depth > 0 {
-            was_unreachable = true;
-
+        if was_unreachable {
             match op {
                 Operator::Block { .. } | Operator::Loop { .. } | Operator::If { .. } => {
                     self.unreachable_depth += 1;
@@ -2018,10 +2010,13 @@ impl<'a> FuncGen<'a> {
                 _ => {}
             }
             if self.unreachable_depth > 0 {
+                self.consume_gas_offset(/* true */); // do not instrument unreachable code
                 return Ok(());
             }
-        } else {
-            was_unreachable = false;
+        }
+
+        if let Some(cost) = self.consume_gas_offset(/* false */) {
+            self.emit_gas_const(cost);
         }
 
         match op {
@@ -5415,8 +5410,6 @@ impl<'a> FuncGen<'a> {
                     }
                 }
 
-                self.update_max_stack_depth();
-
                 let mut frame = self.control_stack.last_mut().unwrap();
 
                 let released: &[Location] = &self.value_stack[frame.value_stack_depth..];
@@ -6529,10 +6522,20 @@ impl<'a> FuncGen<'a> {
 
                 if self.control_stack.is_empty() {
                     self.assembler.emit_label(frame.br_label);
-                    self.update_max_stack_depth();
-                    self.emit_function_stack_check(false);
                     let local_count = self.local_count();
-                    self.machine.finalize_locals(
+                    self.machine.finalize_locals(&mut self.assembler);
+
+                    // Restore stack height
+                    self.assembler.emit_add(
+                        Size::S32,
+                        Location::Imm32(self.stack_size),
+                        Location::Memory(
+                            Machine::get_vmctx_reg(),
+                            self.vmoffsets.vmctx_stack_limit_begin() as i32,
+                        ),
+                    );
+
+                    self.machine.restore_registers(
                         &mut self.assembler,
                         self.calling_convention,
                         local_count,
@@ -6560,7 +6563,6 @@ impl<'a> FuncGen<'a> {
                     let released = &self.value_stack[frame.value_stack_depth..];
                     self.machine
                         .release_locations(&mut self.assembler, released);
-                    self.update_max_stack_depth();
                     self.value_stack.truncate(frame.value_stack_depth);
                     self.fp_stack.truncate(frame.fp_stack_depth);
 
@@ -8389,6 +8391,11 @@ impl<'a> FuncGen<'a> {
 
     #[tracing::instrument(skip_all)]
     pub(crate) fn finalize(mut self, data: &FunctionBodyData) -> CompiledFunction {
+        debug_assert!(
+            self.gas_iter.next().is_none(),
+            "finalizing function but not all instrumentation points were inserted"
+        );
+
         // Generate actual code for special labels.
         self.assembler
             .emit_label(self.special_labels.integer_division_by_zero);

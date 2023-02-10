@@ -95,6 +95,13 @@ impl UniversalEngine {
         binary: &[u8],
         tunables: &dyn Tunables,
     ) -> Result<crate::UniversalExecutable, CompileError> {
+        // Compute the needed instrumentation
+        let instrumentation = finite_wasm::Analysis::new()
+            .with_stack(tunables.stack_limiter_cfg())
+            .with_gas(tunables.gas_cfg())
+            .analyze(binary)
+            .map_err(CompileError::Analyze)?;
+
         let inner_engine = self.inner_mut();
         let features = inner_engine.features();
         let compiler = inner_engine.compiler()?;
@@ -136,6 +143,8 @@ impl UniversalEngine {
             // `module_translation_state`.
             translation.module_translation_state.as_ref().unwrap(),
             translation.function_body_inputs,
+            tunables,
+            &instrumentation,
         )?;
         let data_initializers = translation
             .data_initializers
