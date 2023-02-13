@@ -38,8 +38,7 @@ fn main() {
         let mut serializer = AllocSerializer::<1024>::default();
         let pos = rkyv::ser::Serializer::serialize_value(&mut serializer, &executable).unwrap();
         let data = serializer.into_serializer().into_inner();
-        let data: &[u8] = &std::hint::black_box(data);
-        let archive = unsafe { rkyv::archived_value::<UniversalExecutable>(data, pos) };
+        let archive = unsafe { rkyv::archived_value::<UniversalExecutable>(&data, pos) };
         let mut deserializer = SharedDeserializeMap::new();
         let owned: UniversalExecutable = rkyv::Deserialize::deserialize(archive, &mut deserializer)
             .expect("could not convert to owned executable");
