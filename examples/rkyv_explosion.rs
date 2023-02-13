@@ -1,15 +1,24 @@
-use wasmer_engine::Executable;
+use rkyv::de::deserializers::SharedDeserializeMap;
+use rkyv::ser::serializers::AllocSerializer;
+use std::{ptr::NonNull, sync::Arc};
+use wasmer_compiler::CpuFeature;
+use wasmer_compiler_singlepass::Singlepass;
+use wasmer_engine_universal::{Universal, UniversalExecutable};
+use wasmer_types::{MemoryType, TableType};
+use wasmer_vm::{
+    Memory, MemoryError, MemoryStyle, Table, TableStyle, VMMemoryDefinition, VMTableDefinition,
+};
 
 fn main() {
     let seeds = [2, 3, 5, 7, 11, 13, 17, 21];
     for seed in seeds {
         let contract = std::fs::read(format!("examples/code{seed}")).unwrap();
-        let mut features = wasmer_compiler::CpuFeature::set();
-        features.insert(wasmer_compiler::CpuFeature::AVX);
+        let mut features = CpuFeature::set();
+        features.insert(CpuFeature::AVX);
         let triple = "x86_64-unknown-linux-gnu".parse().unwrap();
         let target = wasmer_compiler::Target::new(triple, features);
-        let compiler = wasmer_compiler_singlepass::Singlepass::new();
-        let engine = wasmer_engine_universal::Universal::new(compiler)
+        let compiler = Singlepass::new();
+        let engine = Universal::new(compiler)
             .target(target)
             .features(wasmer_compiler::Features {
                 threads: false,
@@ -24,16 +33,15 @@ fn main() {
                 exceptions: false,
             })
             .engine();
-        let executable = engine.compile_universal(&contract, &Tunables).unwrap();
-        let serialized = executable.serialize().unwrap();
-        let serialized = std::hint::black_box(serialized);
 
-        let executable = unsafe {
-            wasmer_engine_universal::UniversalExecutableRef::deserialize(&serialized)
-                .expect("could not deserialize?!")
-        };
-        let owned = executable
-            .to_owned()
+        let executable = engine.compile_universal(&contract, &Tunables).unwrap();
+        let mut serializer = AllocSerializer::<1024>::default();
+        let pos = rkyv::ser::Serializer::serialize_value(&mut serializer, &executable).unwrap();
+        let data = serializer.into_serializer().into_inner();
+        let data: &[u8] = &std::hint::black_box(data);
+        let archive = unsafe { rkyv::archived_value::<UniversalExecutable>(data, pos) };
+        let mut deserializer = SharedDeserializeMap::new();
+        let owned: UniversalExecutable = rkyv::Deserialize::deserialize(archive, &mut deserializer)
             .expect("could not convert to owned executable");
         println!("{:#?}", owned);
     }
@@ -41,48 +49,44 @@ fn main() {
 
 struct Tunables;
 impl wasmer_vm::Tunables for Tunables {
-    fn memory_style(&self, memory: &wasmer_types::MemoryType) -> wasmer_vm::MemoryStyle {
-        wasmer_vm::MemoryStyle::Static {
+    fn memory_style(&self, memory: &MemoryType) -> MemoryStyle {
+        MemoryStyle::Static {
             bound: memory.maximum.unwrap_or(wasmer_types::Pages(10)),
             offset_guard_size: 0x10000u64,
         }
     }
 
-    fn table_style(&self, _table: &wasmer_types::TableType) -> wasmer_vm::TableStyle {
-        wasmer_vm::TableStyle::CallerChecksSignature
+    fn table_style(&self, _table: &TableType) -> TableStyle {
+        TableStyle::CallerChecksSignature
     }
 
     fn create_host_memory(
         &self,
-        _: &wasmer_types::MemoryType,
-        _: &wasmer_vm::MemoryStyle,
-    ) -> Result<std::sync::Arc<dyn wasmer_vm::Memory>, wasmer_vm::MemoryError> {
+        _: &MemoryType,
+        _: &MemoryStyle,
+    ) -> Result<Arc<dyn Memory>, MemoryError> {
         todo!()
     }
 
     unsafe fn create_vm_memory(
         &self,
-        _: &wasmer_types::MemoryType,
-        _: &wasmer_vm::MemoryStyle,
-        _vm_definition_location: std::ptr::NonNull<wasmer_vm::VMMemoryDefinition>,
-    ) -> Result<std::sync::Arc<dyn wasmer_vm::Memory>, wasmer_vm::MemoryError> {
+        _: &MemoryType,
+        _: &MemoryStyle,
+        _vm_definition_location: NonNull<VMMemoryDefinition>,
+    ) -> Result<Arc<dyn Memory>, MemoryError> {
         todo!()
     }
 
-    fn create_host_table(
-        &self,
-        _: &wasmer_types::TableType,
-        _: &wasmer_vm::TableStyle,
-    ) -> Result<std::sync::Arc<dyn wasmer_vm::Table>, String> {
+    fn create_host_table(&self, _: &TableType, _: &TableStyle) -> Result<Arc<dyn Table>, String> {
         todo!()
     }
 
     unsafe fn create_vm_table(
         &self,
-        _: &wasmer_types::TableType,
-        _: &wasmer_vm::TableStyle,
-        _: std::ptr::NonNull<wasmer_vm::VMTableDefinition>,
-    ) -> Result<std::sync::Arc<dyn wasmer_vm::Table>, String> {
+        _: &TableType,
+        _: &TableStyle,
+        _: NonNull<VMTableDefinition>,
+    ) -> Result<Arc<dyn Table>, String> {
         todo!()
     }
 }

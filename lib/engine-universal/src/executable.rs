@@ -26,8 +26,10 @@ const MAGIC_HEADER: [u8; 32] = {
 /// A 0-copy view of the encoded `UniversalExecutable` payload.
 #[derive(Clone, Copy)]
 pub struct UniversalExecutableRef<'a> {
-    buffer: &'a [u8],
-    archive: &'a ArchivedUniversalExecutable,
+    /// bah
+    pub buffer: &'a [u8],
+    /// bah
+    pub archive: &'a ArchivedUniversalExecutable,
 }
 
 impl<'a> std::ops::Deref for UniversalExecutableRef<'a> {
