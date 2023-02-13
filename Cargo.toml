@@ -127,6 +127,10 @@ name = "many_functions"
 harness = false
 
 [[example]]
+name = "rkyv-explosion"
+path = "examples/rkyv_explosion.rs"
+
+[[example]]
 name = "early-exit"
 path = "examples/early_exit.rs"
 required-features = ["cranelift"]

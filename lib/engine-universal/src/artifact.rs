@@ -18,6 +18,7 @@ use wasmer_vm::{
 };
 
 /// A compiled wasm module, containing everything necessary for instantiation.
+#[derive(Debug)]
 pub struct UniversalArtifact {
     // TODO: figure out how to allocate fewer distinct structures onto heap. Maybe have an arena…?
     pub(crate) engine: crate::UniversalEngine,

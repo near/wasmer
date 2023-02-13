@@ -8,6 +8,7 @@ use wasmer_types::entity::{BoxedSlice, PrimaryMap};
 use wasmer_types::{FunctionIndex, GlobalIndex, MemoryIndex, TableIndex};
 
 /// Type of the import.
+#[derive(Debug)]
 pub enum VMImportType {
     /// A function import.
     Function {
@@ -25,6 +26,7 @@ pub enum VMImportType {
 }
 
 /// A module import.
+#[derive(Debug)]
 pub struct VMImport {
     /// This is passed to the `resolve` method.
     ///
