@@ -9,6 +9,7 @@
 use crate::VMBuiltinFunctionIndex;
 use more_asserts::assert_lt;
 use std::convert::TryFrom;
+use std::mem::align_of;
 use wasmer_types::{
     FunctionIndex, GlobalIndex, LocalGlobalIndex, LocalMemoryIndex, LocalTableIndex, MemoryIndex,
     ModuleInfo, SignatureIndex, TableIndex,
@@ -377,6 +378,15 @@ impl VMOffsets {
     }
 }
 
+/// Offset base by num_items items of size item_size, panicking on overflow
+fn offset_by(base: u32, num_items: u32, prev_item_size: u32, next_item_align: usize) -> u32 {
+    align(
+        base.checked_add(num_items.checked_mul(prev_item_size).unwrap())
+            .unwrap(),
+        next_item_align as u32,
+    )
+}
+
 /// Offsets for [`VMContext`].
 ///
 /// [`VMContext`]: crate::vmcontext::VMContext
@@ -389,122 +399,113 @@ impl VMOffsets {
     /// The offset of the `tables` array.
     #[allow(clippy::erasing_op)]
     pub fn vmctx_imported_functions_begin(&self) -> u32 {
-        self.vmctx_signature_ids_begin()
-            .checked_add(
-                self.num_signature_ids
-                    .checked_mul(u32::from(self.size_of_vmshared_signature_index()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_signature_ids_begin(),
+            self.num_signature_ids,
+            u32::from(self.size_of_vmshared_signature_index()),
+            align_of::<crate::VMFunctionImport>(),
+        )
     }
 
     /// The offset of the `tables` array.
     #[allow(clippy::identity_op)]
     pub fn vmctx_imported_tables_begin(&self) -> u32 {
-        self.vmctx_imported_functions_begin()
-            .checked_add(
-                self.num_imported_functions
-                    .checked_mul(u32::from(self.size_of_vmfunction_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_imported_functions_begin(),
+            self.num_imported_functions,
+            u32::from(self.size_of_vmfunction_import()),
+            align_of::<crate::VMTableImport>(),
+        )
     }
 
     /// The offset of the `memories` array.
     pub fn vmctx_imported_memories_begin(&self) -> u32 {
-        self.vmctx_imported_tables_begin()
-            .checked_add(
-                self.num_imported_tables
-                    .checked_mul(u32::from(self.size_of_vmtable_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_imported_tables_begin(),
+            self.num_imported_tables,
+            u32::from(self.size_of_vmtable_import()),
+            align_of::<crate::VMMemoryImport>(),
+        )
     }
 
     /// The offset of the `globals` array.
     pub fn vmctx_imported_globals_begin(&self) -> u32 {
-        self.vmctx_imported_memories_begin()
-            .checked_add(
-                self.num_imported_memories
-                    .checked_mul(u32::from(self.size_of_vmmemory_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_imported_memories_begin(),
+            self.num_imported_memories,
+            u32::from(self.size_of_vmmemory_import()),
+            align_of::<crate::VMGlobalImport>(),
+        )
     }
 
     /// The offset of the `tables` array.
     pub fn vmctx_tables_begin(&self) -> u32 {
-        self.vmctx_imported_globals_begin()
-            .checked_add(
-                self.num_imported_globals
-                    .checked_mul(u32::from(self.size_of_vmglobal_import()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_imported_globals_begin(),
+            self.num_imported_globals,
+            u32::from(self.size_of_vmglobal_import()),
+            align_of::<crate::VMTableImport>(),
+        )
     }
 
     /// The offset of the `memories` array.
     pub fn vmctx_memories_begin(&self) -> u32 {
-        self.vmctx_tables_begin()
-            .checked_add(
-                self.num_local_tables
-                    .checked_mul(u32::from(self.size_of_vmtable_definition()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_tables_begin(),
+            self.num_local_tables,
+            u32::from(self.size_of_vmtable_definition()),
+            align_of::<crate::VMMemoryDefinition>(),
+        )
     }
 
     /// The offset of the `globals` array.
     pub fn vmctx_globals_begin(&self) -> u32 {
-        let offset = self
-            .vmctx_memories_begin()
-            .checked_add(
-                self.num_local_memories
-                    .checked_mul(u32::from(self.size_of_vmmemory_definition()))
-                    .unwrap(),
-            )
-            .unwrap();
-        align(offset, 16)
+        offset_by(
+            self.vmctx_memories_begin(),
+            self.num_local_memories,
+            u32::from(self.size_of_vmmemory_definition()),
+            align_of::<crate::VMGlobalDefinition>(),
+        )
     }
 
     /// The offset of the builtin functions array.
     pub fn vmctx_builtin_functions_begin(&self) -> u32 {
-        self.vmctx_globals_begin()
-            .checked_add(
-                self.num_local_globals
-                    .checked_mul(u32::from(self.size_of_vmglobal_local()))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_globals_begin(),
+            self.num_local_globals,
+            u32::from(self.size_of_vmglobal_local()),
+            align_of::<crate::vmcontext::VMBuiltinFunctionsArray>(),
+        )
     }
 
     /// The offset of the trap handler.
     pub fn vmctx_trap_handler_begin(&self) -> u32 {
-        self.vmctx_builtin_functions_begin()
-            .checked_add(
-                VMBuiltinFunctionIndex::builtin_functions_total_number()
-                    .checked_mul(u32::from(self.pointer_size))
-                    .unwrap(),
-            )
-            .unwrap()
+        offset_by(
+            self.vmctx_builtin_functions_begin(),
+            VMBuiltinFunctionIndex::builtin_functions_total_number(),
+            u32::from(self.pointer_size),
+            align_of::<fn()>(),
+        )
     }
 
     /// The offset of the gas limiter pointer.
     pub fn vmctx_gas_limiter_pointer(&self) -> u32 {
-        self.vmctx_trap_handler_begin()
-            .checked_add(if self.has_trap_handlers {
-                u32::from(self.pointer_size)
-            } else {
-                0u32
-            })
-            .unwrap()
+        offset_by(
+            self.vmctx_trap_handler_begin(),
+            if self.has_trap_handlers { 1 } else { 0 },
+            u32::from(self.pointer_size),
+            align_of::<*mut wasmer_types::FastGasCounter>(),
+        )
     }
 
     /// The offset of the current stack limit.
     pub fn vmctx_stack_limit_begin(&self) -> u32 {
-        self.vmctx_gas_limiter_pointer()
-            .checked_add(u32::from(self.pointer_size))
-            .unwrap()
+        offset_by(
+            self.vmctx_gas_limiter_pointer(),
+            1,
+            u32::from(self.pointer_size),
+            align_of::<u32>(),
+        )
     }
 
     /// The offset of the initial stack limit.
