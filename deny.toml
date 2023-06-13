@@ -35,6 +35,9 @@ skip = [
     { name = "gimli", version = "=0.25.0" },
     { name = "semver", version = "=0.11.0" },
 ]
+skip-tree = [
+    { name = "cranelift-frontend", version = "0.76.0" },
+]
 
 [sources]
 unknown-registry = "deny"

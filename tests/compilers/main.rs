@@ -1,5 +1,6 @@
 //! This test suite does all the tests that involve any compiler
-//! implementation, such as: singlepass.
+//! implementation, such as: singlepass, cranelift or llvm depending
+//! on what's available on the target.
 
 #[macro_use]
 extern crate compiler_test_derive;

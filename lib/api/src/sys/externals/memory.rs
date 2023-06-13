@@ -1,8 +1,10 @@
-use crate::sys::exports::Exportable;
+use crate::sys::exports::{ExportError, Exportable};
+use crate::sys::externals::Extern;
 use crate::sys::store::Store;
 use crate::sys::{MemoryType, MemoryView};
 use std::convert::TryInto;
 use std::slice;
+use std::sync::Arc;
 use wasmer_types::{Pages, ValueType};
 use wasmer_vm::{Export, MemoryError, VMMemory};
 
@@ -54,14 +56,6 @@ impl Memory {
                 instance_ref: None,
             },
         })
-    }
-
-    /// Create a `Memory` from `VMMemory`.
-    pub fn from_vmmemory(store: &Store, vm_memory: VMMemory) -> Self {
-        Self {
-            store: store.clone(),
-            vm_memory,
-        }
     }
 
     /// Returns the [`MemoryType`] of the `Memory`.
@@ -154,6 +148,43 @@ impl Memory {
         self.vm_memory.from.size()
     }
 
+    /// Grow memory by the specified amount of WebAssembly [`Pages`] and return
+    /// the previous memory size.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use wasmer::{Memory, MemoryType, Pages, Store, Type, Value, WASM_MAX_PAGES};
+    /// # let store = Store::default();
+    /// #
+    /// let m = Memory::new(&store, MemoryType::new(1, Some(3), false)).unwrap();
+    /// let p = m.grow(2).unwrap();
+    ///
+    /// assert_eq!(p, Pages(1));
+    /// assert_eq!(m.size(), Pages(3));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if memory can't be grown by the specified amount
+    /// of pages.
+    ///
+    /// ```should_panic
+    /// # use wasmer::{Memory, MemoryType, Pages, Store, Type, Value, WASM_MAX_PAGES};
+    /// # let store = Store::default();
+    /// #
+    /// let m = Memory::new(&store, MemoryType::new(1, Some(1), false)).unwrap();
+    ///
+    /// // This results in an error: `MemoryError::CouldNotGrow`.
+    /// let s = m.grow(1).unwrap();
+    /// ```
+    pub fn grow<IntoPages>(&self, delta: IntoPages) -> Result<Pages, MemoryError>
+    where
+        IntoPages: Into<Pages>,
+    {
+        self.vm_memory.from.grow(delta.into())
+    }
+
     /// Return a "view" of the currently accessible memory. By
     /// default, the view is unsynchronized, using regular memory
     /// accesses. You can force a memory view to use atomic accesses
@@ -193,11 +224,35 @@ impl Memory {
         unsafe { MemoryView::new(base as _, length as u32) }
     }
 
+    /// A shortcut to [`Self::view::<u8>`][self::view].
+    ///
+    /// This code is going to be refactored. Use it as your own risks.
+    #[doc(hidden)]
+    pub fn uint8view(&self) -> MemoryView<u8> {
+        self.view()
+    }
+
     pub(crate) fn from_vm_export(store: &Store, vm_memory: VMMemory) -> Self {
         Self {
             store: store.clone(),
             vm_memory,
         }
+    }
+
+    /// Returns whether or not these two memories refer to the same data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use wasmer::{Memory, MemoryType, Store, Value};
+    /// # let store = Store::default();
+    /// #
+    /// let m = Memory::new(&store, MemoryType::new(1, None, false)).unwrap();
+    ///
+    /// assert!(m.same(&m));
+    /// ```
+    pub fn same(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.vm_memory.from, &other.vm_memory.from)
     }
 
     /// Get access to the backing VM value for this extern. This function is for
@@ -228,5 +283,19 @@ impl Clone for Memory {
 impl<'a> Exportable<'a> for Memory {
     fn to_export(&self) -> Export {
         self.vm_memory.clone().into()
+    }
+
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
+        match _extern {
+            Extern::Memory(memory) => Ok(memory),
+            _ => Err(ExportError::IncompatibleType),
+        }
+    }
+
+    fn into_weak_instance_ref(&mut self) {
+        self.vm_memory
+            .instance_ref
+            .as_mut()
+            .map(|v| *v = v.downgrade());
     }
 }

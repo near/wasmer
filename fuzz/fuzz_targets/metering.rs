@@ -5,6 +5,7 @@ use std::sync::Arc;
 use wasm_smith::{Config, ConfiguredModule};
 use wasmer::wasmparser::Operator;
 use wasmer::{imports, CompilerConfig, Instance, Module, Store};
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
 use wasmer_middlewares::Metering;
 
@@ -50,7 +51,7 @@ fuzz_target!(|module: WasmSmithModule| {
         return;
     }
 
-    let mut compiler = Singlepass::default();
+    let mut compiler = Cranelift::default();
     compiler.canonicalize_nans(true);
     compiler.enable_verifier();
     let metering = Arc::new(Metering::new(10, cost));

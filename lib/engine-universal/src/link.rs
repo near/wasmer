@@ -168,7 +168,6 @@ fn apply_relocation(
 
 /// Links a module, patching the allocated functions with the
 /// required relocations and jump tables.
-#[tracing::instrument(skip_all)]
 pub fn link_module(
     allocated_functions: &PrimaryMap<LocalFunctionIndex, VMLocalFunction>,
     jt_offsets: impl Fn(LocalFunctionIndex, JumpTable) -> wasmer_compiler::CodeOffset,

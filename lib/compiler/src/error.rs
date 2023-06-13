@@ -28,10 +28,6 @@ pub enum CompileError {
     #[cfg_attr(feature = "std", error("Validation error: {0}"))]
     Validate(String),
 
-    /// Finite-wasm failed to handle the module.
-    #[cfg_attr(feature = "std", error("Finite-wasm analysis error: {0}"))]
-    Analyze(finite_wasm::Error),
-
     /// The compiler doesn't support a Wasm feature
     #[cfg_attr(feature = "std", error("Feature {0} is not yet supported"))]
     UnsupportedFeature(String),

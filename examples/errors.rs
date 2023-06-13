@@ -8,13 +8,13 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example errors --release --features "singlepass"
+//! cargo run --example errors --release --features "cranelift"
 //! ```
 //!
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Instance, Module, Store};
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Singlepass::default()).engine());
+    let store = Store::new(&Universal::new(Cranelift::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -60,8 +60,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Let's get it.
     let div_by_zero = instance
-        .lookup_function("div_by_zero")
-        .ok_or("could not find `div_by_zero` export")?
+        .exports
+        .get_function("div_by_zero")?
         .native::<(), i32>()?;
 
     println!("Calling `div_by_zero` function...");

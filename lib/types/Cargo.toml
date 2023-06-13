@@ -16,17 +16,12 @@ name = "wasmer_types"
 [dependencies]
 thiserror = "1.0"
 indexmap = { version = "1.6" }
-num-traits = "0.2.15"
 rkyv = { version = "0.7.20" }
-
-[dev-dependencies]
-bolero = "0.6.0"
 
 [features]
 default = ["std"]
 std = []
 core = []
 
-[[test]]
-name = "partial-sum-map"
-harness = false
+# experimental / in-development features
+experimental-reference-types-extern-ref = []

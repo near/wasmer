@@ -10,13 +10,13 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example imported-global --release --features "singlepass"
+//! cargo run --example imported-global --release --features "cranelift"
 //! ```
 //!
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Global, Instance, Module, Store, Value};
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Singlepass::default()).engine());
+    let store = Store::new(&Universal::new(Cranelift::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -66,12 +66,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The Wasm module only imports some globals. We'll have to interact
     // with them either using the Global API or exported functions.
     let get_some = instance
-        .lookup_function("get_some")
-        .ok_or("could not find `get_some` export")?
+        .exports
+        .get_function("get_some")?
         .native::<(), f32>()?;
     let get_other = instance
-        .lookup_function("get_other")
-        .ok_or("could not find `get_other` export")?
+        .exports
+        .get_function("get_other")?
         .native::<(), f32>()?;
 
     let some_result = get_some.call()?;
@@ -103,8 +103,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Changes made to global through exported functions will
     // be reflected on the host side.
     let set_other = instance
-        .lookup_function("set_other")
-        .ok_or("could not find `set_other` export")?
+        .exports
+        .get_function("set_other")?
         .native::<f32, ()>()?;
     set_other.call(42.0)?;
 

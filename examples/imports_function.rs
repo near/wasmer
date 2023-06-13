@@ -12,13 +12,13 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example imported-function --release --features "singlepass"
+//! cargo run --example imported-function --release --features "cranelift"
 //! ```
 //!
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Function, FunctionType, Instance, Module, Store, Type, Value};
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Singlepass::default()).engine());
+    let store = Store::new(&Universal::new(Cranelift::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -86,8 +86,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // The Wasm module exports a function called `sum`. Let's get it.
     let sum = instance
-        .lookup_function("sum")
-        .ok_or("could not find `sum` export")?
+        .exports
+        .get_function("sum")?
         .native::<(i32, i32), i32>()?;
 
     println!("Calling `sum` function...");

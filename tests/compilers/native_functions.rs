@@ -322,9 +322,8 @@ fn static_host_function_with_env(config: crate::Config) -> anyhow::Result<()> {
         Ok((d * 4.0, c * 3.0, b * 2, a * 1))
     }
 
-    #[derive(Clone)]
+    #[derive(WasmerEnv, Clone)]
     struct Env(Arc<Mutex<i32>>);
-    impl WasmerEnv for Env {}
 
     impl std::ops::Deref for Env {
         type Target = Arc<Mutex<i32>>;
@@ -397,9 +396,8 @@ fn dynamic_host_function_without_env(config: crate::Config) -> anyhow::Result<()
 fn dynamic_host_function_with_env(config: crate::Config) -> anyhow::Result<()> {
     let store = config.store();
 
-    #[derive(Clone)]
+    #[derive(WasmerEnv, Clone)]
     struct Env(Arc<Mutex<i32>>);
-    impl WasmerEnv for Env {}
 
     impl std::ops::Deref for Env {
         type Target = Arc<Mutex<i32>>;

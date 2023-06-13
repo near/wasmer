@@ -59,7 +59,7 @@ pub type ImportInitializerFuncPtr<ResultErr = *mut ffi::c_void> =
 /// to ensure that the `vmctx` field is last. See the documentation of
 /// the `vmctx` field to learn more.
 #[repr(C)]
-pub struct Instance {
+pub(crate) struct Instance {
     pub(crate) artifact: Arc<dyn Artifact>,
 
     /// External configuration for instance.
@@ -386,7 +386,7 @@ impl Instance {
         result
     }
 
-    pub fn reset_stack_meter(&self) {
+    fn reset_stack_meter(&self) {
         unsafe {
             *(self.stack_limit_ptr()) = *(self.stack_limit_initial_ptr());
         }
@@ -946,7 +946,7 @@ impl InstanceHandle {
     }
 
     /// Return a reference to the contained `Instance`.
-    pub fn instance(&self) -> &InstanceRef {
+    pub(crate) fn instance(&self) -> &InstanceRef {
         &self.instance
     }
 
@@ -1172,7 +1172,6 @@ impl InstanceHandle {
 ///   visible to code in `wasmer_vm`, so it's the caller's responsibility to ensure these
 ///   functions are called with the correct type.
 /// - `instance_ptr` must point to a valid `wasmer::Instance`.
-#[tracing::instrument(skip_all)]
 pub unsafe fn initialize_host_envs<Err: Sized>(
     handle: &std::sync::Mutex<InstanceHandle>,
     instance_ptr: *const ffi::c_void,

@@ -141,7 +141,7 @@ fn stack_limit_ok() {
         .lookup_function("main")
         .expect("expected function main");
     let e = main_func.call(&[]);
-    assert!(e.is_ok(), "got stack limit result: {:?}", e);
+    assert!(e.is_ok());
 }
 
 #[test]
@@ -230,5 +230,5 @@ fn deep_but_sane() {
         .expect("expected function main");
 
     let e = main_func.call(&[]);
-    assert!(e.is_ok(), "expected successful result was instead {:?}", e);
+    assert!(e.is_ok());
 }

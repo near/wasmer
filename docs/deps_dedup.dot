@@ -14,7 +14,7 @@ digraph dependencies {
 	n13 [label="wasmer-cache", color=orange];
 	n14 [label="wasmer-cli", color=orange];
 
-
+        
 	subgraph cluster_compiler {
 		label="Compilers";
 		color=brown;
@@ -40,7 +40,7 @@ digraph dependencies {
         n6;
         n7;
         }
-
+        
 
 	subgraph cluster_abi {
 		label="Provided ABIs";

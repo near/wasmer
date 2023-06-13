@@ -6,13 +6,13 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example exported-memory --release --features "singlepass"
+//! cargo run --example exported-memory --release --features "cranelift"
 //! ```
 //!
 //! Ready?
 
 use wasmer::{imports, wat2wasm, Array, Instance, Module, Store, WasmPtr};
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,9 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   (global $offset i32 (i32.const 42))
   (global $length (mut i32) (i32.const 13))
 
-  (func (export "load_offset") (result i32)
-    global.get $offset)
-  (func (export "load_length") (result i32)
+  (func (export "load") (result i32 i32)
+    global.get $offset
     global.get $length)
 
   (data (global.get $offset) "Hello, World!"))
@@ -38,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Singlepass::default()).engine());
+    let store = Store::new(&Universal::new(Cranelift::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -51,23 +50,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Let's instantiate the Wasm module.
     let instance = Instance::new(&module, &import_object)?;
 
-    let load_offset = instance
-        .lookup_function("load_offset")
-        .ok_or("could not find `load_offset` export")?
-        .native::<(), WasmPtr<u8, Array>>()?;
-    let load_length = instance
-        .lookup_function("load_length")
-        .ok_or("could not find `load_length` export")?
-        .native::<(), i32>()?;
+    let load = instance
+        .exports
+        .get_native_function::<(), (WasmPtr<u8, Array>, i32)>("load")?;
 
     // Here we go.
     //
     // The Wasm module exports a memory under "mem". Let's get it.
-    let memory = match instance.lookup("mem") {
-        Some(wasmer::Export::Memory(m)) => m,
-        _ => return Err("could not find `mem` as an exported memory".into()),
-    };
-    let memory = wasmer::Memory::from_vmmemory(&store, memory);
+    let memory = instance.exports.get_memory("mem")?;
 
     // Now that we have the exported memory, let's get some
     // information about it.
@@ -87,16 +77,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Fortunately, the Wasm module exports a `load` function
     // which will tell us the offset and length of the string.
-    let ptr = load_offset.call()?;
+    let (ptr, length) = load.call()?;
     println!("String offset: {:?}", ptr.offset());
-    let length = load_length.call()?;
     println!("String length: {:?}", length);
 
     // We now know where to fin our string, let's read it.
     //
     // We will get bytes out of the memory so we need to
     // decode them into a string.
-    let str = ptr.get_utf8_string(&memory, length as u32).unwrap();
+    let str = ptr.get_utf8_string(memory, length as u32).unwrap();
     println!("Memory contents: {:?}", str);
 
     // What about changing the contents of the memory with a more
@@ -105,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // To do that, we'll dereference our pointer and change the content
     // of each `Cell`
     let new_str = b"Hello, Wasmer!";
-    let values = ptr.deref(&memory, 0, new_str.len() as u32).unwrap();
+    let values = ptr.deref(memory, 0, new_str.len() as u32).unwrap();
     for i in 0..new_str.len() {
         values[i].set(new_str[i]);
     }
@@ -117,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // before.
     println!("New string length: {:?}", new_str.len());
 
-    let str = ptr.get_utf8_string(&memory, new_str.len() as u32).unwrap();
+    let str = ptr.get_utf8_string(memory, new_str.len() as u32).unwrap();
     println!("New memory contents: {:?}", str);
 
     // Much better, don't you think?

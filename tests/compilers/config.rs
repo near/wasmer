@@ -2,6 +2,8 @@ use wasmer::{CompilerConfig, Engine as WasmerEngine, Features, Store};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Compiler {
+    LLVM,
+    Cranelift,
     Singlepass,
 }
 
@@ -52,6 +54,14 @@ impl Config {
         #[cfg(not(feature = "engine"))]
         compile_error!("Plese enable at least one engine via the features");
         match &self.engine {
+            #[cfg(feature = "dylib")]
+            Engine::Dylib => {
+                let mut engine = wasmer_engine_dylib::Dylib::new(compiler_config);
+                if let Some(ref features) = self.features {
+                    engine = engine.features(features.clone())
+                }
+                Box::new(engine.engine())
+            }
             #[cfg(feature = "universal")]
             Engine::Universal => {
                 let mut engine = wasmer_engine_universal::Universal::new(compiler_config);
@@ -70,6 +80,8 @@ impl Config {
 
     pub fn engine_headless(&self) -> Box<dyn WasmerEngine> {
         match &self.engine {
+            #[cfg(feature = "dylib")]
+            Engine::Dylib => Box::new(wasmer_engine_dylib::Dylib::headless().engine()),
             #[cfg(feature = "universal")]
             Engine::Universal => Box::new(wasmer_engine_universal::Universal::headless().engine()),
             #[allow(unreachable_patterns)]
@@ -82,6 +94,20 @@ impl Config {
 
     pub fn compiler_config(&self, canonicalize_nans: bool) -> Box<dyn CompilerConfig> {
         match &self.compiler {
+            #[cfg(feature = "cranelift")]
+            Compiler::Cranelift => {
+                let mut compiler = wasmer_compiler_cranelift::Cranelift::new();
+                compiler.canonicalize_nans(canonicalize_nans);
+                compiler.enable_verifier();
+                Box::new(compiler)
+            }
+            #[cfg(feature = "llvm")]
+            Compiler::LLVM => {
+                let mut compiler = wasmer_compiler_llvm::LLVM::new();
+                compiler.canonicalize_nans(canonicalize_nans);
+                compiler.enable_verifier();
+                Box::new(compiler)
+            }
             #[cfg(feature = "singlepass")]
             Compiler::Singlepass => {
                 let mut compiler = wasmer_compiler_singlepass::Singlepass::new();

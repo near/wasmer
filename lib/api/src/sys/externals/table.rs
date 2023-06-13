@@ -1,4 +1,5 @@
-use crate::sys::exports::Exportable;
+use crate::sys::exports::{ExportError, Exportable};
+use crate::sys::externals::Extern;
 use crate::sys::store::Store;
 use crate::sys::types::{Val, ValFuncRef};
 use crate::sys::RuntimeError;
@@ -67,9 +68,68 @@ impl Table {
         &self.store
     }
 
+    /// Retrieves an element of the table at the provided `index`.
+    pub fn get(&self, index: u32) -> Option<Val> {
+        let item = self.vm_table.from.get(index)?;
+        Some(ValFuncRef::from_table_reference(item, &self.store))
+    }
+
+    /// Sets an element `val` in the Table at the provided `index`.
+    pub fn set(&self, index: u32, val: Val) -> Result<(), RuntimeError> {
+        let item = val.into_table_reference(&self.store)?;
+        set_table_item(self.vm_table.from.as_ref(), index, item)
+    }
+
     /// Retrieves the size of the `Table` (in elements)
     pub fn size(&self) -> u32 {
         self.vm_table.from.size()
+    }
+
+    /// Grows the size of the `Table` by `delta`, initializating
+    /// the elements with the provided `init` value.
+    ///
+    /// It returns the previous size of the `Table` in case is able
+    /// to grow the Table successfully.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `delta` is out of bounds for the table.
+    pub fn grow(&self, delta: u32, init: Val) -> Result<u32, RuntimeError> {
+        let item = init.into_table_reference(&self.store)?;
+        self.vm_table
+            .from
+            .grow(delta, item)
+            .ok_or_else(|| RuntimeError::new(format!("failed to grow table by `{}`", delta)))
+    }
+
+    /// Copies the `len` elements of `src_table` starting at `src_index`
+    /// to the destination table `dst_table` at index `dst_index`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the range is out of bounds of either the source or
+    /// destination tables.
+    pub fn copy(
+        dst_table: &Self,
+        dst_index: u32,
+        src_table: &Self,
+        src_index: u32,
+        len: u32,
+    ) -> Result<(), RuntimeError> {
+        if !Store::same(&dst_table.store, &src_table.store) {
+            return Err(RuntimeError::new(
+                "cross-`Store` table copies are not supported",
+            ));
+        }
+        RuntimeTable::copy(
+            dst_table.vm_table.from.as_ref(),
+            src_table.vm_table.from.as_ref(),
+            dst_index,
+            src_index,
+            len,
+        )
+        .map_err(RuntimeError::from_trap)?;
+        Ok(())
     }
 
     pub(crate) fn from_vm_export(store: &Store, vm_table: VMTable) -> Self {
@@ -112,5 +172,19 @@ impl Clone for Table {
 impl<'a> Exportable<'a> for Table {
     fn to_export(&self) -> Export {
         self.vm_table.clone().into()
+    }
+
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
+        match _extern {
+            Extern::Table(table) => Ok(table),
+            _ => Err(ExportError::IncompatibleType),
+        }
+    }
+
+    fn into_weak_instance_ref(&mut self) {
+        self.vm_table
+            .instance_ref
+            .as_mut()
+            .map(|v| *v = v.downgrade());
     }
 }

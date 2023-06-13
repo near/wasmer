@@ -26,28 +26,42 @@ target_version = "2.1.0"
 # TODO: generate this by parsing toml files
 dep_graph = {
     "wasmer-types": set([]),
+    "wasmer-derive": set([]),
     "wasmer-vm": set(["wasmer-types"]),
     "wasmer-compiler": set(["wasmer-vm", "wasmer-types"]),
     "wasmer-object": set(["wasmer-types", "wasmer-compiler"]),
     "wasmer-engine": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
     "wasmer-compiler-singlepass": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
+    "wasmer-compiler-cranelift": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
+    "wasmer-compiler-llvm": set(["wasmer-types", "wasmer-vm", "wasmer-compiler"]),
     "wasmer-engine-universal": set(["wasmer-types", "wasmer-vm", "wasmer-compiler", "wasmer-engine"]),
-    "wasmer": set(["wasmer-vm", "wasmer-compiler-singlepass",
-                   "wasmer-compiler", "wasmer-engine", "wasmer-engine-universal",
-                   "wasmer-types"]),
+    "wasmer-engine-dylib": set(["wasmer-types", "wasmer-vm", "wasmer-compiler", "wasmer-engine",
+                                 "wasmer-object"]),
+    "wasmer-engine-staticlib": set(["wasmer-types", "wasmer-vm", "wasmer-compiler", "wasmer-engine",
+                                      "wasmer-object"]),
+    "wasmer": set(["wasmer-vm", "wasmer-compiler-singlepass", "wasmer-compiler-cranelift",
+                   "wasmer-compiler-llvm", "wasmer-compiler", "wasmer-engine", "wasmer-engine-universal",
+                   "wasmer-engine-dylib", "wasmer-engine-staticlib", "wasmer-types", "wasmer-derive"]),
+    "wasmer-cache": set(["wasmer"]),
 }
 
 # where each crate is located in the `lib` directory
 # TODO: this could also be generated from the toml files
 location = {
     "wasmer-types": "types",
+    "wasmer-derive": "derive",
     "wasmer-vm": "vm",
     "wasmer-compiler": "compiler",
     "wasmer-object": "object",
     "wasmer-engine": "engine",
     "wasmer-compiler-singlepass": "compiler-singlepass",
+    "wasmer-compiler-cranelift": "compiler-cranelift",
+    "wasmer-compiler-llvm": "compiler-llvm",
     "wasmer-engine": "engine",
     "wasmer-engine-universal": "engine-universal",
+    "wasmer-engine-dylib": "engine-dylib",
+    "wasmer-engine-staticlib": "engine-staticlib",
+    "wasmer-cache": "cache",
     "wasmer": "api",
 }
 

@@ -55,6 +55,18 @@ where
     pub(crate) fn arg_kind(&self) -> VMFunctionKind {
         self.exported.vm_function.kind
     }
+
+    /// Get access to the backing VM value for this extern. This function is for
+    /// tests it should not be called by users of the Wasmer API.
+    ///
+    /// # Safety
+    /// This function is unsafe to call outside of tests for the wasmer crate
+    /// because there is no stability guarantee for the returned type and we may
+    /// make breaking changes to it at any time or remove this method.
+    #[doc(hidden)]
+    pub unsafe fn get_vm_function(&self) -> &wasmer_vm::VMFunction {
+        &self.exported.vm_function
+    }
 }
 
 /*
@@ -208,6 +220,22 @@ macro_rules! impl_native_traits {
                 }
             }
 
+        }
+
+        #[allow(unused_parens)]
+        impl<'a, $( $x, )* Rets> crate::sys::exports::ExportableWithGenerics<'a, ($( $x ),*), Rets> for NativeFunc<( $( $x ),* ), Rets>
+        where
+            $( $x: FromToNativeWasmType, )*
+            Rets: WasmTypeList,
+        {
+            fn get_self_from_extern_with_generics(_extern: crate::sys::externals::Extern) -> Result<Self, crate::sys::exports::ExportError> {
+                use crate::sys::exports::Exportable;
+                crate::Function::get_self_from_extern(_extern)?.native().map_err(|_| crate::sys::exports::ExportError::IncompatibleType)
+            }
+
+            fn into_weak_instance_ref(&mut self) {
+                self.exported.vm_function.instance_ref.as_mut().map(|v| *v = v.downgrade());
+            }
         }
     };
 }

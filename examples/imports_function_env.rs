@@ -14,14 +14,14 @@
 //! You can run the example directly by executing in Wasmer root:
 //!
 //! ```shell
-//! cargo run --example imported-function-env --release --features "singlepass"
+//! cargo run --example imported-function-env --release --features "cranelift"
 //! ```
 //!
 //! Ready?
 
 use std::sync::{Arc, Mutex};
 use wasmer::{imports, wat2wasm, Function, Instance, Module, Store, WasmerEnv};
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that we don't need to specify the engine/compiler if we want to use
     // the default provided by Wasmer.
     // You can use `Store::default()` for that.
-    let store = Store::new(&Universal::new(Singlepass::default()).engine());
+    let store = Store::new(&Universal::new(Cranelift::default()).engine());
 
     println!("Compiling module...");
     // Let's compile the Wasm module.
@@ -69,11 +69,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // possible to know the size of the `Env` at compile time (i.e it has to
     // implement the `Sized` trait) and that it implement the `WasmerEnv` trait.
     // We derive a default implementation of `WasmerEnv` here.
-    #[derive(Clone)]
+    #[derive(WasmerEnv, Clone)]
     struct Env {
         counter: Arc<Mutex<i32>>,
     }
-    impl WasmerEnv for Env {}
 
     // Create the functions
     fn get_counter(env: &Env) -> i32 {
@@ -102,8 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // The Wasm module exports a function called `increment_counter_loop`. Let's get it.
     let increment_counter_loop = instance
-        .lookup_function("increment_counter_loop")
-        .ok_or("could not find `increment_counter_loop` export")?
+        .exports
+        .get_function("increment_counter_loop")?
         .native::<i32, i32>()?;
 
     let counter_value: i32 = *shared_counter.lock().unwrap();

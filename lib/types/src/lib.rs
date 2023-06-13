@@ -62,7 +62,6 @@ mod initializers;
 mod memory_view;
 mod module;
 mod native;
-pub mod partial_sum_map;
 mod types;
 mod units;
 mod values;

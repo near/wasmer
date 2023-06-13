@@ -2,6 +2,7 @@ use crate::sys::store::Store;
 use crate::sys::InstantiationError;
 use std::fmt;
 use std::io;
+use std::path::Path;
 use std::sync::Arc;
 use thiserror::Error;
 use wasmer_compiler::CompileError;
@@ -97,7 +98,6 @@ impl Module {
     /// # }
     /// ```
     #[allow(unreachable_code)]
-    #[tracing::instrument(skip_all)]
     pub fn new(store: &Store, bytes: impl AsRef<[u8]>) -> Result<Self, CompileError> {
         #[cfg(feature = "wat")]
         let bytes = wat::parse_bytes(bytes.as_ref()).map_err(|e| {
@@ -110,29 +110,72 @@ impl Module {
         Self::from_binary(store, bytes.as_ref())
     }
 
+    /// Creates a new WebAssembly module from a file path.
+    pub fn from_file(store: &Store, file: impl AsRef<Path>) -> Result<Self, IoCompileError> {
+        let file_ref = file.as_ref();
+        let wasm_bytes = std::fs::read(file_ref)?;
+        let module = Self::new(store, &wasm_bytes)?;
+        // Set the module name to the absolute path of the filename.
+        // This is useful for debugging the stack traces.
+        Ok(module)
+    }
+
     /// Creates a new WebAssembly module from a binary.
     ///
     /// Opposed to [`Module::new`], this function is not compatible with
     /// the WebAssembly text format (if the "wat" feature is enabled for
     /// this crate).
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn from_binary(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
-        store.engine().validate(binary)?;
-        let module = {
-            let executable = store.engine().compile(binary, store.tunables())?;
-            let artifact = store.engine().load(&*executable)?;
-            match artifact.downcast_arc::<UniversalArtifact>() {
-                Ok(universal) => Self {
-                    store: store.clone(),
-                    artifact: universal,
-                },
-                // We're are probably given an externally defined artifact type
-                // which I imagine we don't care about for now since this entire crate
-                // is only used for tests and this crate only defines universal engine.
-                Err(_) => panic!("unhandled artifact type"),
-            }
-        };
+    pub fn from_binary(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
+        Self::validate(store, binary)?;
+        unsafe { Self::from_binary_unchecked(store, binary) }
+    }
+
+    /// Creates a new WebAssembly module skipping any kind of validation.
+    ///
+    /// # Safety
+    ///
+    /// This can speed up compilation time a bit, but it should be only used
+    /// in environments where the WebAssembly modules are trusted and validated
+    /// beforehand.
+    pub unsafe fn from_binary_unchecked(
+        store: &Store,
+        binary: &[u8],
+    ) -> Result<Self, CompileError> {
+        let module = Self::compile(store, binary)?;
         Ok(module)
+    }
+
+    /// Validates a new WebAssembly Module given the configuration
+    /// in the Store.
+    ///
+    /// This validation is normally pretty fast and checks the enabled
+    /// WebAssembly features in the Store Engine to assure deterministic
+    /// validation of the Module.
+    pub fn validate(store: &Store, binary: &[u8]) -> Result<(), CompileError> {
+        store.engine().validate(binary)
+    }
+
+    fn compile(store: &Store, binary: &[u8]) -> Result<Self, CompileError> {
+        let executable = store.engine().compile(binary, store.tunables())?;
+        let artifact = store.engine().load(&*executable)?;
+        match artifact.downcast_arc::<UniversalArtifact>() {
+            Ok(universal) => Ok(Self::from_universal_artifact(store, universal)),
+            // We're are probably given an externally defined artifact type
+            // which I imagine we don't care about for now since this entire crate
+            // is only used for tests and this crate only defines universal engine.
+            Err(_) => panic!("unhandled artifact type"),
+        }
+    }
+
+    /// Make a Module from Artifact...
+    pub fn from_universal_artifact(
+        store: &Store,
+        artifact: Arc<wasmer_engine_universal::UniversalArtifact>,
+    ) -> Self {
+        Self {
+            store: store.clone(),
+            artifact,
+        }
     }
 
     pub(crate) fn instantiate(

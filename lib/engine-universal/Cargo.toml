@@ -14,22 +14,17 @@ edition = "2018"
 name = "wasmer_engine_universal"
 
 [dependencies]
-finite-wasm = "0.3.0"
-wasmer-compiler = { path = "../compiler", version = "=2.4.0", package = "wasmer-compiler-near", features = ["translator"] }
-wasmer-engine = { path = "../engine", package = "wasmer-engine-near", version = "=2.4.0" }
 wasmer-types = { path = "../types", version = "=2.4.0", package = "wasmer-types-near" }
+wasmer-compiler = { path = "../compiler", version = "=2.4.0", package = "wasmer-compiler-near", features = ["translator"] }
 wasmer-vm = { path = "../vm", version = "=2.4.0", package = "wasmer-vm-near" }
-
-cfg-if = "1.0"
-enumset = "1.0"
+wasmer-engine = { path = "../engine", package = "wasmer-engine-near", version = "=2.4.0" }
 # flexbuffers = { path = "../../../flatbuffers/rust/flexbuffers", version = "0.1.0" }
-leb128 = "0.2"
-prefix-sum-vec = "0.1.1"
 region = "3.0"
+cfg-if = "1.0"
+leb128 = "0.2"
 rkyv = "0.7.31"
+enumset = "1.0"
 thiserror = "1"
-tracing = "0.1"
-wasmparser = "0.99.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["winnt", "impl-default"] }

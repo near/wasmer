@@ -6,7 +6,7 @@
     missing_docs,
     trivial_numeric_casts,
     unused_extern_crates,
-    rustdoc::broken_intra_doc_links
+    broken_intra_doc_links
 )]
 #![warn(unused_import_braces)]
 #![cfg_attr(
@@ -86,6 +86,10 @@
 //!   transform WebAssembly into executable code:
 //!   * [`wasmer-compiler-singlepass`] provides a fast compilation-time
 //!     but an unoptimized runtime speed,
+//!   * [`wasmer-compiler-cranelift`] provides the right balance between
+//!     compilation-time and runtime performance, useful for development,
+//!   * [`wasmer-compiler-llvm`] provides a deeply optimized executable
+//!     code with the fastest runtime speed, ideal for production.
 //!
 //! * **Headless mode** — Once a WebAssembly module has been compiled, it
 //!   is possible to serialize it in a file for example, and later execute
@@ -287,6 +291,14 @@
 //! set defaults.
 //!
 //! The features that enable new functionality are:
+//! - `cranelift`
+#![cfg_attr(feature = "cranelift", doc = "(enabled),")]
+#![cfg_attr(not(feature = "cranelift"), doc = "(disabled),")]
+//!   enables Wasmer's [Cranelift compiler][wasmer-compiler-cranelift],
+//! - `llvm`
+#![cfg_attr(feature = "llvm", doc = "(enabled),")]
+#![cfg_attr(not(feature = "llvm"), doc = "(disabled),")]
+//!   enables Wasmer's [LLVM compiler][wasmer-compiler-lvm],
 //! - `singlepass`
 #![cfg_attr(feature = "singlepass", doc = "(enabled),")]
 #![cfg_attr(not(feature = "singlepass"), doc = "(disabled),")]
@@ -307,6 +319,14 @@
 //! The features that set defaults come in sets that are mutually exclusive.
 //!
 //! The first set is the default compiler set:
+//! - `default-cranelift`
+#![cfg_attr(feature = "default-cranelift", doc = "(enabled),")]
+#![cfg_attr(not(feature = "default-cranelift"), doc = "(disabled),")]
+//!   set Wasmer's Cranelift compiler as the default,
+//! - `default-llvm`
+#![cfg_attr(feature = "default-llvm", doc = "(enabled),")]
+#![cfg_attr(not(feature = "default-llvm"), doc = "(disabled),")]
+//!   set Wasmer's LLVM compiler as the default,
 //! - `default-singlepass`
 #![cfg_attr(feature = "default-singlepass", doc = "(enabled),")]
 #![cfg_attr(not(feature = "default-singlepass"), doc = "(disabled),")]
@@ -339,6 +359,8 @@
 //! [`wasmer-engine-dylib`]: https://docs.rs/wasmer-engine-dylib/
 //! [`wasmer-engine-staticlib`]: https://docs.rs/wasmer-engine-staticlib/
 //! [`wasmer-compiler-singlepass`]: https://docs.rs/wasmer-compiler-singlepass/
+//! [`wasmer-compiler-llvm`]: https://docs.rs/wasmer-compiler-llvm/
+//! [`wasmer-compiler-cranelift`]: https://docs.rs/wasmer-compiler-cranelift/
 //! [`wasmer-wasi`]: https://docs.rs/wasmer-wasi/
 //! [`wasm-pack`]: https://github.com/rustwasm/wasm-pack/
 //! [`wasm-bindgen`]: https://github.com/rustwasm/wasm-bindgen

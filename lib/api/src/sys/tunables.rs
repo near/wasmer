@@ -27,9 +27,6 @@ pub struct BaseTunables {
 
     /// The size in bytes of the offset guard for dynamic heaps.
     pub dynamic_memory_offset_guard_size: u64,
-
-    /// The cost of a regular op.
-    pub regular_op_cost: u64,
 }
 
 impl BaseTunables {
@@ -64,14 +61,7 @@ impl BaseTunables {
             static_memory_bound,
             static_memory_offset_guard_size,
             dynamic_memory_offset_guard_size,
-            regular_op_cost: 0,
         }
-    }
-
-    /// Set the regular op cost for this compiler
-    pub fn set_regular_op_cost(&mut self, cost: u64) -> &mut Self {
-        self.regular_op_cost = cost;
-        self
     }
 }
 
@@ -154,81 +144,6 @@ impl Tunables for BaseTunables {
             vm_definition_location,
         )?))
     }
-
-    fn stack_init_gas_cost(&self, stack_size: u64) -> u64 {
-        (self.regular_op_cost / 8).saturating_mul(stack_size)
-    }
-
-    /// Instrumentation configuration: stack limiter config
-    fn stack_limiter_cfg(&self) -> Box<dyn finite_wasm::max_stack::SizeConfig> {
-        Box::new(SimpleMaxStackCfg)
-    }
-
-    /// Instrumentation configuration: gas accounting config
-    fn gas_cfg(&self) -> Box<dyn finite_wasm::wasmparser::VisitOperator<Output = u64>> {
-        Box::new(SimpleGasCostCfg(self.regular_op_cost))
-    }
-}
-
-struct SimpleMaxStackCfg;
-
-impl finite_wasm::max_stack::SizeConfig for SimpleMaxStackCfg {
-    fn size_of_value(&self, ty: finite_wasm::wasmparser::ValType) -> u8 {
-        use finite_wasm::wasmparser::ValType;
-        match ty {
-            ValType::I32 => 4,
-            ValType::I64 => 8,
-            ValType::F32 => 4,
-            ValType::F64 => 8,
-            ValType::V128 => 16,
-            ValType::FuncRef => 8,
-            ValType::ExternRef => 8,
-        }
-    }
-    fn size_of_function_activation(
-        &self,
-        locals: &prefix_sum_vec::PrefixSumVec<finite_wasm::wasmparser::ValType, u32>,
-    ) -> u64 {
-        let mut res = 0;
-        res += locals
-            .max_index()
-            .map(|l| u64::from(*l).saturating_add(1))
-            .unwrap_or(0)
-            * 8;
-        // TODO: make the above take into account the types of locals by adding an iter on PrefixSumVec that returns (count, type)
-        res += 32; // Rough accounting for rip, rbp and some registers spilled. Not exact.
-        res
-    }
-}
-
-struct SimpleGasCostCfg(u64);
-
-macro_rules! gas_cost {
-    ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*) => {
-        $(
-            fn $visit(&mut self $($(, $arg: $argty)*)?) -> u64 {
-                gas_cost!(@@$proposal $op self $({ $($arg: $argty),* })? => $visit)
-            }
-        )*
-    };
-
-    (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_block) => {
-        0
-    };
-    (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_end) => {
-        0
-    };
-    (@@mvp $_op:ident $_self:ident $({ $($_arg:ident: $_argty:ty),* })? => visit_else) => {
-        0
-    };
-    (@@$_proposal:ident $_op:ident $self:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident) => {
-        $self.0
-    };
-}
-
-impl<'a> finite_wasm::wasmparser::VisitOperator<'a> for SimpleGasCostCfg {
-    type Output = u64;
-    finite_wasm::wasmparser::for_each_operator!(gas_cost);
 }
 
 #[cfg(test)]
@@ -241,7 +156,6 @@ mod tests {
             static_memory_bound: Pages(2048),
             static_memory_offset_guard_size: 128,
             dynamic_memory_offset_guard_size: 256,
-            regular_op_cost: 0,
         };
 
         // No maximum

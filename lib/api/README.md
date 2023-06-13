@@ -60,13 +60,17 @@ Wasmer is not only fast, but also designed to be *highly customizable*:
   transform WebAssembly into executable code:
   * [`wasmer-compiler-singlepass`] provides a fast compilation-time
     but an unoptimized runtime speed,
-
+  * [`wasmer-compiler-cranelift`] provides the right balance between
+    compilation-time and runtime performance, useful for development,
+  * [`wasmer-compiler-llvm`] provides a deeply optimized executable
+    code with the fastest runtime speed, ideal for production.
+    
 * **Headless mode** — Once a WebAssembly module has been compiled, it
   is possible to serialize it in a file for example, and later execute
   it with Wasmer with headless mode turned on. Headless Wasmer has no
   compiler, which makes it more portable and faster to load. It's
   ideal for constrainted environments.
-
+  
 * **Cross-compilation** — Most compilers support cross-compilation. It
   means it possible to pre-compile a WebAssembly module targetting a
   different architecture or platform and serialize it, to then run it
@@ -98,5 +102,7 @@ Made with ❤️ by the Wasmer team, for the community
 
 [`wasmer-engine-universal`]: https://github.com/wasmerio/wasmer/tree/master/lib/engine-universal
 [`wasmer-engine-dylib`]: https://github.com/wasmerio/wasmer/tree/master/lib/engine-dylib
-[`wasmer-engine-staticlib`]: https://github.com/wasmerio/wasmer/tree/master/lib/engine-staticlib
+[`wasmer-engine-staticlib`]: https://github.com/wasmerio/wasmer/tree/master/lib/engine-staticlib 
 [`wasmer-compiler-singlepass`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-singlepass
+[`wasmer-compiler-cranelift`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-cranelift
+[`wasmer-compiler-llvm`]: https://github.com/wasmerio/wasmer/tree/master/lib/compiler-llvm

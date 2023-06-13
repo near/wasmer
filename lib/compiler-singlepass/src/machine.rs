@@ -1,48 +1,29 @@
 use crate::emitter_x64::*;
 use smallvec::smallvec;
 use smallvec::SmallVec;
-use std::convert::TryFrom;
-use wasmer_compiler::wasmparser::ValType as WpType;
+use std::cmp;
+use std::collections::HashSet;
+use wasmer_compiler::wasmparser::Type as WpType;
 use wasmer_compiler::CallingConvention;
 
 const NATIVE_PAGE_SIZE: usize = 4096;
 
-#[derive(Clone, Copy)]
 struct MachineStackOffset(usize);
 
 pub(crate) struct Machine {
-    used_gprs: u32, // Bitset for the used GPRs, 1 means used
-    used_xmms: u32, // Bitset for the used XMMs, 1 means used
+    used_gprs: HashSet<GPR>,
+    used_xmms: HashSet<XMM>,
     stack_offset: MachineStackOffset,
     save_area_offset: Option<MachineStackOffset>,
-    /// Memory location at which local variables begin.
-    ///
-    /// Populated in `init_locals`.
-    locals_offset: MachineStackOffset,
 }
-
-/// Returns an u32 that has as 1 bits the ones matching registers passed as parameters
-macro_rules! bitset_of_regs {
-    ($( $r:expr ),*) => {{
-        $( (1u32 << ($r as u32)) )|*
-    }}
-}
-
-// Note: the below asserts are because we currently use u32 for used_gprs and used_xmms
-// Feel free to increase the number in this assert by making them bigger if needed
-#[allow(dead_code)]
-const _GPRS_FIT_IN_U32: () = assert!(GPR::num_gprs() <= 32);
-#[allow(dead_code)]
-const _XMMS_FIT_IN_U32: () = assert!(XMM::num_xmms() <= 32);
 
 impl Machine {
     pub(crate) fn new() -> Self {
         Machine {
-            used_gprs: 0,
-            used_xmms: 0,
+            used_gprs: HashSet::new(),
+            used_xmms: HashSet::new(),
             stack_offset: MachineStackOffset(0),
             save_area_offset: None,
-            locals_offset: MachineStackOffset(0),
         }
     }
 
@@ -50,33 +31,20 @@ impl Machine {
         self.stack_offset.0
     }
 
-    fn get_used_in<T>(mut v: u32, to_return_type: impl Fn(u8) -> T) -> Vec<T> {
-        let mut n = 0u8;
-        let mut res = Vec::with_capacity(v.count_ones() as usize);
-        while v != 0 {
-            n += v.trailing_zeros() as u8;
-            res.push(to_return_type(n));
-            v >>= v.trailing_zeros() + 1;
-            n += 1;
-        }
-        res
-    }
-
     pub(crate) fn get_used_gprs(&self) -> Vec<GPR> {
-        Self::get_used_in(self.used_gprs, |r| GPR::from_repr(r).unwrap())
+        let mut result = self.used_gprs.iter().cloned().collect::<Vec<_>>();
+        result.sort_unstable();
+        result
     }
 
     pub(crate) fn get_used_xmms(&self) -> Vec<XMM> {
-        Self::get_used_in(self.used_xmms, |r| XMM::from_repr(r).unwrap())
+        let mut result = self.used_xmms.iter().cloned().collect::<Vec<_>>();
+        result.sort_unstable();
+        result
     }
 
     pub(crate) fn get_vmctx_reg() -> GPR {
         GPR::R15
-    }
-
-    fn pick_one_in(v: u32) -> Option<u8> {
-        let r = v.trailing_zeros() as u8;
-        (r != 32).then_some(r)
     }
 
     /// Picks an unused general purpose register for local/stack/argument use.
@@ -84,8 +52,13 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_gpr(&self) -> Option<GPR> {
         use GPR::*;
-        const REGS: u32 = bitset_of_regs!(RSI, RDI, R8, R9, R10, R11);
-        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::from_repr(r).unwrap())
+        static REGS: &[GPR] = &[RSI, RDI, R8, R9, R10, R11];
+        for r in REGS {
+            if !self.used_gprs.contains(r) {
+                return Some(*r);
+            }
+        }
+        None
     }
 
     /// Picks an unused general purpose register for internal temporary use.
@@ -93,61 +66,33 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_temp_gpr(&self) -> Option<GPR> {
         use GPR::*;
-        const REGS: u32 = bitset_of_regs!(RAX, RCX, RDX);
-        Self::pick_one_in(!self.used_gprs & REGS).map(|r| GPR::from_repr(r).unwrap())
-    }
-
-    fn get_gpr_used(&self, r: GPR) -> bool {
-        if 0 != (self.used_gprs & bitset_of_regs!(r)) {
-            true
-        } else {
-            false
+        static REGS: &[GPR] = &[RAX, RCX, RDX];
+        for r in REGS {
+            if !self.used_gprs.contains(r) {
+                return Some(*r);
+            }
         }
-    }
-
-    fn set_gpr_used(&mut self, r: GPR) {
-        self.used_gprs |= bitset_of_regs!(r);
-    }
-
-    fn set_gpr_unused(&mut self, r: GPR) {
-        self.used_gprs &= !bitset_of_regs!(r);
-    }
-
-    fn get_xmm_used(&self, r: XMM) -> bool {
-        if 0 != (self.used_xmms & bitset_of_regs!(r)) {
-            true
-        } else {
-            false
-        }
-    }
-
-    fn set_xmm_used(&mut self, r: XMM) {
-        self.used_xmms |= bitset_of_regs!(r);
-    }
-
-    fn set_xmm_unused(&mut self, r: XMM) {
-        self.used_xmms &= !bitset_of_regs!(r);
+        None
     }
 
     /// Acquires a temporary GPR.
     pub(crate) fn acquire_temp_gpr(&mut self) -> Option<GPR> {
         let gpr = self.pick_temp_gpr();
         if let Some(x) = gpr {
-            self.set_gpr_used(x);
+            self.used_gprs.insert(x);
         }
         gpr
     }
 
     /// Releases a temporary GPR.
     pub(crate) fn release_temp_gpr(&mut self, gpr: GPR) {
-        assert!(self.get_gpr_used(gpr));
-        self.set_gpr_unused(gpr);
+        assert!(self.used_gprs.remove(&gpr));
     }
 
     /// Specify that a given register is in use.
     pub(crate) fn reserve_unused_temp_gpr(&mut self, gpr: GPR) -> GPR {
-        assert!(!self.get_gpr_used(gpr));
-        self.set_gpr_used(gpr);
+        assert!(!self.used_gprs.contains(&gpr));
+        self.used_gprs.insert(gpr);
         gpr
     }
 
@@ -156,8 +101,13 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_xmm(&self) -> Option<XMM> {
         use XMM::*;
-        const REGS: u32 = bitset_of_regs!(XMM3, XMM4, XMM5, XMM6, XMM7);
-        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::from_repr(r).unwrap())
+        static REGS: &[XMM] = &[XMM3, XMM4, XMM5, XMM6, XMM7];
+        for r in REGS {
+            if !self.used_xmms.contains(r) {
+                return Some(*r);
+            }
+        }
+        None
     }
 
     /// Picks an unused XMM register for internal temporary use.
@@ -165,41 +115,27 @@ impl Machine {
     /// This method does not mark the register as used.
     pub(crate) fn pick_temp_xmm(&self) -> Option<XMM> {
         use XMM::*;
-        const REGS: u32 = bitset_of_regs!(XMM0, XMM1, XMM2);
-        Self::pick_one_in(!self.used_xmms & REGS).map(|r| XMM::from_repr(r).unwrap())
+        static REGS: &[XMM] = &[XMM0, XMM1, XMM2];
+        for r in REGS {
+            if !self.used_xmms.contains(r) {
+                return Some(*r);
+            }
+        }
+        None
     }
 
     /// Acquires a temporary XMM register.
     pub(crate) fn acquire_temp_xmm(&mut self) -> Option<XMM> {
         let xmm = self.pick_temp_xmm();
         if let Some(x) = xmm {
-            self.set_xmm_used(x);
+            self.used_xmms.insert(x);
         }
         xmm
     }
 
     /// Releases a temporary XMM register.
     pub(crate) fn release_temp_xmm(&mut self, xmm: XMM) {
-        assert!(self.get_xmm_used(xmm));
-        self.set_xmm_unused(xmm);
-    }
-
-    fn increase_rsp(&mut self, a: &mut impl Emitter, sz: usize) {
-        a.emit_add(
-            Size::S64,
-            Location::Imm32(u32::try_from(sz).unwrap()),
-            Location::GPR(GPR::RSP),
-        );
-        self.stack_offset.0 -= sz;
-    }
-
-    fn decrease_rsp(&mut self, a: &mut impl Emitter, sz: usize) {
-        a.emit_sub(
-            Size::S64,
-            Location::Imm32(u32::try_from(sz).unwrap()),
-            Location::GPR(GPR::RSP),
-        );
-        self.stack_offset.0 += sz;
+        assert_eq!(self.used_xmms.remove(&xmm), true);
     }
 
     /// Acquires locations from the machine state.
@@ -226,22 +162,24 @@ impl Machine {
             let loc = if let Some(x) = loc {
                 x
             } else {
+                self.stack_offset.0 += 8;
                 delta_stack_offset += 8;
-                Location::Memory(
-                    GPR::RBP,
-                    -((self.stack_offset.0 + delta_stack_offset) as i32),
-                )
+                Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32))
             };
             if let Location::GPR(x) = loc {
-                self.set_gpr_used(x);
+                self.used_gprs.insert(x);
             } else if let Location::XMM(x) = loc {
-                self.set_xmm_used(x);
+                self.used_xmms.insert(x);
             }
             ret.push(loc);
         }
 
         if delta_stack_offset != 0 {
-            self.decrease_rsp(assembler, delta_stack_offset);
+            assembler.emit_sub(
+                Size::S64,
+                Location::Imm32(delta_stack_offset as u32),
+                Location::GPR(GPR::RSP),
+            );
         }
         if zeroed {
             for i in 0..tys.len() {
@@ -257,22 +195,21 @@ impl Machine {
 
         for loc in locs.iter().rev() {
             match *loc {
-                Location::GPR(x) => {
-                    assert!(self.get_gpr_used(x));
-                    self.set_gpr_unused(x);
+                Location::GPR(ref x) => {
+                    assert_eq!(self.used_gprs.remove(x), true);
                 }
-                Location::XMM(x) => {
-                    assert!(self.get_xmm_used(x));
-                    self.set_xmm_unused(x);
+                Location::XMM(ref x) => {
+                    assert_eq!(self.used_xmms.remove(x), true);
                 }
                 Location::Memory(GPR::RBP, x) => {
                     if x >= 0 {
                         unreachable!();
                     }
                     let offset = (-x) as usize;
-                    if offset != self.stack_offset.0 - delta_stack_offset {
+                    if offset != self.stack_offset.0 {
                         unreachable!();
                     }
+                    self.stack_offset.0 -= 8;
                     delta_stack_offset += 8;
                 }
                 _ => {}
@@ -280,20 +217,22 @@ impl Machine {
         }
 
         if delta_stack_offset != 0 {
-            self.increase_rsp(assembler, delta_stack_offset);
+            assembler.emit_add(
+                Size::S64,
+                Location::Imm32(delta_stack_offset as u32),
+                Location::GPR(GPR::RSP),
+            );
         }
     }
 
     pub(crate) fn release_locations_only_regs(&mut self, locs: &[Location]) {
         for loc in locs.iter().rev() {
             match *loc {
-                Location::GPR(x) => {
-                    assert!(self.get_gpr_used(x));
-                    self.set_gpr_unused(x);
+                Location::GPR(ref x) => {
+                    assert_eq!(self.used_gprs.remove(x), true);
                 }
-                Location::XMM(x) => {
-                    assert!(self.get_xmm_used(x));
-                    self.set_xmm_unused(x);
+                Location::XMM(ref x) => {
+                    assert_eq!(self.used_xmms.remove(x), true);
                 }
                 _ => {}
             }
@@ -313,15 +252,20 @@ impl Machine {
                     unreachable!();
                 }
                 let offset = (-x) as usize;
-                if offset != self.stack_offset.0 - delta_stack_offset {
+                if offset != self.stack_offset.0 {
                     unreachable!();
                 }
+                self.stack_offset.0 -= 8;
                 delta_stack_offset += 8;
             }
         }
 
         if delta_stack_offset != 0 {
-            self.increase_rsp(assembler, delta_stack_offset);
+            assembler.emit_add(
+                Size::S64,
+                Location::Imm32(delta_stack_offset as u32),
+                Location::GPR(GPR::RSP),
+            );
         }
     }
 
@@ -331,6 +275,7 @@ impl Machine {
         locs: &[Location],
     ) {
         let mut delta_stack_offset: usize = 0;
+        let mut stack_offset = self.stack_offset.0;
 
         for loc in locs.iter().rev() {
             if let Location::Memory(GPR::RBP, x) = *loc {
@@ -338,15 +283,15 @@ impl Machine {
                     unreachable!();
                 }
                 let offset = (-x) as usize;
-                if offset != self.stack_offset.0 - delta_stack_offset {
+                if offset != stack_offset {
                     unreachable!();
                 }
+                stack_offset -= 8;
                 delta_stack_offset += 8;
             }
         }
 
         if delta_stack_offset != 0 {
-            // DO NOT use increase_rsp, as we don’t want to change stack_offset
             assembler.emit_add(
                 Size::S64,
                 Location::Imm32(delta_stack_offset as u32),
@@ -355,127 +300,128 @@ impl Machine {
         }
     }
 
-    const LOCAL_REGISTERS: &'static [GPR] = &[GPR::R12, GPR::R13, GPR::R14, GPR::RBX];
-
-    pub(crate) fn get_local_location(&self, idx: u32) -> Location {
-        // NB: This calculation cannot reasonably overflow. `self.locals_offset` will typically be
-        // small (< 32), and `idx` is bounded to `51000` due to limits imposed by the wasmparser
-        // validator. We introduce a debug_assert here to ensure that `idx` never really exceeds
-        // some incredibly large value.
-        debug_assert!(
-            idx <= 999_999,
-            "this runtime can't deal with unreasonable number of locals"
-        );
-        Self::LOCAL_REGISTERS
-            .get(idx as usize)
-            .map(|r| Location::GPR(*r))
-            .unwrap_or_else(|| {
-                let local_offset = idx
-                    .checked_sub(Self::LOCAL_REGISTERS.len() as u32)
-                    .unwrap()
-                    .wrapping_mul(8);
-                Location::Memory(
-                    GPR::RBP,
-                    (local_offset.wrapping_add(self.locals_offset.0 as u32) as i32).wrapping_neg(),
-                )
-            })
-    }
-
-    // `setup_registers`, `init_locals`, `finalize_locals` and `restore_registers` work together,
-    // the first two making up the function prologue (with a stack check and gas charge in-between),
-    // and the second two making up the function epilogue (with the stack height reset in-between).
-    //
-    // Together, they build the following stack, with `N = min(n, LOCAL_REGISTERS.len())`:
-    // +-------------------+--------+
-    // |  Return Pointer   |   8B   |
-    // |     Saved RBP     |   8B   |  <-  RBP
-    // | LOCAL_REGISTERS 0 |   8B   |
-    // |        ...        |        |
-    // | LOCAL_REGISTERS N |   8B   |
-    // |     Saved R15     |   8B   |
-    // |  (Win FastC) RDI  |   8B   |
-    // |  (Win FastC) RSI  |   8B   |  <-  save_area_offset
-    // |      Local 0      |   8B   |  <-  locals_offset
-    // |        ...        |        |
-    // |      Local n      |   8B   |  <-  RSP, stack_offset (at end of init_locals, will keep moving during fn codegen)
-    // +-------------------+--------+
-    pub(crate) fn setup_registers<E: Emitter>(
+    pub(crate) fn init_locals<E: Emitter>(
         &mut self,
         a: &mut E,
-        n: u32,
-        n_params: u32,
+        n: usize,
+        n_params: usize,
         calling_convention: CallingConvention,
-    ) {
+    ) -> Vec<Location> {
+        // Determine whether a local should be allocated on the stack.
+        fn is_local_on_stack(idx: usize) -> bool {
+            idx > 3
+        }
+
+        // Determine a local's location.
+        fn get_local_location(idx: usize, callee_saved_regs_size: usize) -> Location {
+            // Use callee-saved registers for the first locals.
+            match idx {
+                0 => Location::GPR(GPR::R12),
+                1 => Location::GPR(GPR::R13),
+                2 => Location::GPR(GPR::R14),
+                3 => Location::GPR(GPR::RBX),
+                _ => Location::Memory(GPR::RBP, -(((idx - 3) * 8 + callee_saved_regs_size) as i32)),
+            }
+        }
+
+        // How many machine stack slots will all the locals use?
+        let num_mem_slots = (0..n).filter(|&x| is_local_on_stack(x)).count();
+
         // Total size (in bytes) of the pre-allocated "static area" for this function's
         // locals and callee-saved registers.
         let mut static_area_size: usize = 0;
 
-        // Space to clobber registers used for locals.
-        static_area_size += 8 * std::cmp::min(Self::LOCAL_REGISTERS.len(), n as usize);
+        // Callee-saved registers used for locals.
+        // Keep this consistent with the "Save callee-saved registers" code below.
+        for i in 0..n {
+            // If a local is not stored on stack, then it is allocated to a callee-saved register.
+            if !is_local_on_stack(i) {
+                static_area_size += 8;
+            }
+        }
 
         // Callee-saved R15 for vmctx.
         static_area_size += 8;
 
-        // Allocate the stack
-        self.decrease_rsp(a, static_area_size);
+        // For Windows ABI, save RDI and RSI
+        if calling_convention == CallingConvention::WindowsFastcall {
+            static_area_size += 8 * 2;
+        }
 
-        // Save callee-saved registers
-        for (i, local_reg) in Self::LOCAL_REGISTERS.iter().take(n as usize).enumerate() {
-            a.emit_mov(
-                Size::S64,
-                Location::GPR(*local_reg),
-                Location::Memory(GPR::RBP, -((i + 1) as i32) * 8),
-            );
+        // Total size of callee saved registers.
+        let callee_saved_regs_size = static_area_size;
+
+        // Now we can determine concrete locations for locals.
+        let locations: Vec<Location> = (0..n)
+            .map(|i| get_local_location(i, callee_saved_regs_size))
+            .collect();
+
+        // Add size of locals on stack.
+        static_area_size += num_mem_slots * 8;
+
+        // Allocate save area, without actually writing to it.
+        a.emit_sub(
+            Size::S64,
+            Location::Imm32(static_area_size as _),
+            Location::GPR(GPR::RSP),
+        );
+
+        // Save callee-saved registers.
+        for loc in locations.iter() {
+            if let Location::GPR(_) = *loc {
+                self.stack_offset.0 += 8;
+                a.emit_mov(
+                    Size::S64,
+                    *loc,
+                    Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
+                );
+            }
         }
 
         // Save R15 for vmctx use.
+        self.stack_offset.0 += 8;
         a.emit_mov(
             Size::S64,
             Location::GPR(GPR::R15),
-            Location::Memory(GPR::RSP, 0),
+            Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
         );
 
-        // For Windows ABI, save RDI and RSI
         if calling_convention == CallingConvention::WindowsFastcall {
-            self.decrease_rsp(a, 8 * 2);
-            for (i, reg) in [GPR::RSI, GPR::RDI].iter().enumerate() {
-                a.emit_mov(
-                    Size::S64,
-                    Location::GPR(*reg),
-                    Location::Memory(GPR::RSP, i as i32 * 8),
-                );
-            }
+            // Save RDI
+            self.stack_offset.0 += 8;
+            a.emit_mov(
+                Size::S64,
+                Location::GPR(GPR::RDI),
+                Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
+            );
+            // Save RSI
+            self.stack_offset.0 += 8;
+            a.emit_mov(
+                Size::S64,
+                Location::GPR(GPR::RSI),
+                Location::Memory(GPR::RBP, -(self.stack_offset.0 as i32)),
+            );
         }
 
         // Save the offset of register save area.
         self.save_area_offset = Some(MachineStackOffset(self.stack_offset.0));
 
-        // Load in-register parameters into the allocated locations for register parameters.
+        // Load in-register parameters into the allocated locations.
         // Locals are allocated on the stack from higher address to lower address,
         // so we won't skip the stack guard page here.
-        self.locals_offset = MachineStackOffset(self.stack_offset.0 + 8); // + 8 because locals_offset is supposed to point to 1st local
-        let params_size = (n_params as usize)
-            .saturating_sub(Self::LOCAL_REGISTERS.len())
-            .checked_mul(8)
-            .unwrap();
-        self.decrease_rsp(a, params_size);
         for i in 0..n_params {
-            // NB: the 0th parameter is used for passing around the internal VM data (vmctx).
-            let loc = Self::get_param_location((i + 1) as usize, calling_convention);
-            let local_loc = self.get_local_location(i);
+            let loc = Self::get_param_location(i + 1, calling_convention);
             match loc {
                 Location::GPR(_) => {
-                    a.emit_mov(Size::S64, loc, local_loc);
+                    a.emit_mov(Size::S64, loc, locations[i]);
                 }
-                // TODO: move Location::Memory args init into init_locals down below so it happens after instrumentation
-                // Registers *must* stay here because we’re using registers between setup_registers and init_locals
-                Location::Memory(_, _) => match local_loc {
+                Location::Memory(_, _) => match locations[i] {
                     Location::GPR(_) => {
-                        a.emit_mov(Size::S64, loc, local_loc);
+                        a.emit_mov(Size::S64, loc, locations[i]);
                     }
                     Location::Memory(_, _) => {
                         a.emit_mov(Size::S64, loc, Location::GPR(GPR::RAX));
-                        a.emit_mov(Size::S64, Location::GPR(GPR::RAX), local_loc);
+                        a.emit_mov(Size::S64, Location::GPR(GPR::RAX), locations[i]);
                     }
                     _ => unreachable!(),
                 },
@@ -489,69 +435,54 @@ impl Machine {
             Self::get_param_location(0, calling_convention),
             Location::GPR(GPR::R15),
         );
-    }
-
-    pub(crate) fn init_locals<E: Emitter>(
-        &mut self,
-        a: &mut E,
-        n: u32,
-        n_params: u32,
-        _calling_convention: CallingConvention,
-    ) {
-        let registers_remaining_for_locals = Self::LOCAL_REGISTERS
-            .len()
-            .saturating_sub(n_params as usize);
-        let locals_to_init = (n - n_params) as usize;
-        let locals_size = locals_to_init
-            .saturating_sub(registers_remaining_for_locals)
-            .checked_mul(8)
-            .unwrap();
-
-        // Allocate the stack, without actually writing to it.
-        self.decrease_rsp(a, locals_size);
 
         // Stack probe.
         //
         // `rep stosq` writes data from low address to high address and may skip the stack guard page.
         // so here we probe it explicitly when needed.
         for i in (n_params..n).step_by(NATIVE_PAGE_SIZE / 8).skip(1) {
-            a.emit_mov(Size::S64, Location::Imm32(0), self.get_local_location(i));
+            a.emit_mov(Size::S64, Location::Imm32(0), locations[i]);
         }
 
-        // Initialize all remaining locals to zero.
-        //
-        // This is a little tricky, as we want to initialize all stack local slots, except for
-        // those that were already populated with function argument data. The complication is in
-        // the fact that we allocate some registers to the first couple local slots.
-        //
-        // First: handle the locals that are allocated to registers...
-        for local_reg_idx in Self::LOCAL_REGISTERS
-            .iter()
-            .skip(n_params as usize)
-            .take((n_params..n).len())
-        {
-            a.emit_mov(Size::S64, Location::Imm32(0), Location::GPR(*local_reg_idx));
+        // Initialize all normal locals to zero.
+        let mut init_stack_loc_cnt = 0;
+        let mut last_stack_loc = Location::Memory(GPR::RBP, i32::MAX);
+        for i in n_params..n {
+            match locations[i] {
+                Location::Memory(_, _) => {
+                    init_stack_loc_cnt += 1;
+                    last_stack_loc = cmp::min(last_stack_loc, locations[i]);
+                }
+                Location::GPR(_) => {
+                    a.emit_mov(Size::S64, Location::Imm32(0), locations[i]);
+                }
+                _ => unreachable!(),
+            }
         }
-        // Second: handle the locals that are allocated to the stack.
-        let stack_loc_idxs = std::cmp::max(Self::LOCAL_REGISTERS.len() as u32, n_params)..n;
-        if stack_loc_idxs.len() > 0 {
+        if init_stack_loc_cnt > 0 {
             // Since these assemblies take up to 24 bytes, if more than 2 slots are initialized, then they are smaller.
             a.emit_mov(
                 Size::S64,
-                Location::Imm64(stack_loc_idxs.len() as u64),
+                Location::Imm64(init_stack_loc_cnt as u64),
                 Location::GPR(GPR::RCX),
             );
             a.emit_xor(Size::S64, Location::GPR(GPR::RAX), Location::GPR(GPR::RAX));
-            a.emit_lea(
-                Size::S64,
-                self.get_local_location(n - 1),
-                Location::GPR(GPR::RDI),
-            );
+            a.emit_lea(Size::S64, last_stack_loc, Location::GPR(GPR::RDI));
             a.emit_rep_stosq();
         }
+
+        // Add the size of all locals allocated to stack.
+        self.stack_offset.0 += static_area_size - callee_saved_regs_size;
+
+        locations
     }
 
-    pub(crate) fn finalize_locals<E: Emitter>(&mut self, a: &mut E) {
+    pub(crate) fn finalize_locals<E: Emitter>(
+        &mut self,
+        a: &mut E,
+        locations: &[Location],
+        calling_convention: CallingConvention,
+    ) {
         // Unwind stack to the "save area".
         a.emit_lea(
             Size::S64,
@@ -561,14 +492,7 @@ impl Machine {
             ),
             Location::GPR(GPR::RSP),
         );
-    }
 
-    pub(crate) fn restore_registers<E: Emitter>(
-        &mut self,
-        a: &mut E,
-        calling_convention: CallingConvention,
-        local_count: u32,
-    ) {
         if calling_convention == CallingConvention::WindowsFastcall {
             // Restore RSI and RDI
             a.emit_pop(Size::S64, Location::GPR(GPR::RSI));
@@ -577,13 +501,11 @@ impl Machine {
         // Restore R15 used by vmctx.
         a.emit_pop(Size::S64, Location::GPR(GPR::R15));
 
-        // Restore callee-saved registers that we used for locals.
-        for reg in Self::LOCAL_REGISTERS
-            .iter()
-            .take(local_count as usize)
-            .rev()
-        {
-            a.emit_pop(Size::S64, Location::GPR(*reg));
+        // Restore callee-saved registers.
+        for loc in locations.iter().rev() {
+            if let Location::GPR(_) = *loc {
+                a.emit_pop(Size::S64, *loc);
+            }
         }
     }
 

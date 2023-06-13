@@ -252,6 +252,7 @@ impl ExternRef {
         }
     }
 
+    #[cfg(feature = "experimental-reference-types-extern-ref")]
     /// Make a new extern reference
     pub fn new<T>(value: T) -> Self
     where
@@ -260,6 +261,21 @@ impl ExternRef {
         Self {
             inner: VMExternRef::new(value),
         }
+    }
+
+    #[cfg(feature = "experimental-reference-types-extern-ref")]
+    /// Try to downcast to the given value
+    pub fn downcast<T>(&self) -> Option<&T>
+    where
+        T: Any + Send + Sync + 'static + Sized,
+    {
+        self.inner.downcast::<T>()
+    }
+
+    #[cfg(feature = "experimental-reference-types-extern-ref")]
+    /// Get the number of strong references to this data.
+    pub fn strong_count(&self) -> usize {
+        self.inner.strong_count()
     }
 }
 

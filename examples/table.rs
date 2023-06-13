@@ -1,9 +1,8 @@
 use wasmer::{
     imports, wat2wasm, Function, Instance, Module, NativeFunc, Store, TableType, Type, Value,
 };
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
 use wasmer_engine_universal::Universal;
-use wasmer_vm::TableElement;
 
 /// A function we'll call through a table.
 fn host_callback(arg1: i32, arg2: i32) -> i32 {
@@ -30,14 +29,14 @@ fn main() -> anyhow::Result<()> {
   (func $call_callback (type $call_callback_t) (param $idx i32)
                                                (param $arg1 i32) (param $arg2 i32)
                                                (result i32)
-    (call_indirect (type $callback_t)
+    (call_indirect (type $callback_t) 
                    (local.get $arg1) (local.get $arg2)
                    (local.get $idx)))
 
   ;; A default function that we'll pad the table with.
   ;; This function doubles both its inputs and then sums them.
   (func $default_fn (type $callback_t) (param $a i32) (param $b i32) (result i32)
-     (i32.add
+     (i32.add 
        (i32.mul (local.get $a) (i32.const 2))
        (i32.mul (local.get $b) (i32.const 2))))
 
@@ -52,7 +51,7 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     // We set up our store with an engine and a compiler.
-    let store = Store::new(&Universal::new(Singlepass::default()).engine());
+    let store = Store::new(&Universal::new(Cranelift::default()).engine());
     // Then compile our Wasm.
     let module = Module::new(&store, wasm_bytes)?;
     let import_object = imports! {};
@@ -62,10 +61,8 @@ fn main() -> anyhow::Result<()> {
     // We get our function that calls (i32, i32) -> i32 functions via table.
     // The first argument is the table index and the next 2 are the 2 arguments
     // to be passed to the function found in the table.
-    let call_via_table: NativeFunc<(i32, i32, i32), i32> = instance
-        .lookup_function("call_callback")
-        .ok_or(anyhow::anyhow!("could not find `call_callback` export"))?
-        .native()?;
+    let call_via_table: NativeFunc<(i32, i32, i32), i32> =
+        instance.exports.get_native_function("call_callback")?;
 
     // And then call it with table index 1 and arguments 2 and 7.
     let result = call_via_table.call(1, 2, 7)?;
@@ -74,26 +71,17 @@ fn main() -> anyhow::Result<()> {
     assert_eq!(result, 18);
 
     // We then get the table from the instance.
-    let export = instance
-        .lookup("__indirect_function_table")
-        .ok_or(anyhow::anyhow!(
-            "could not find `__indirect_function_table` export"
-        ))?;
-    let guest_table = if let wasmer::Export::Table(guest_table) = export {
-        // And demonstrate that it has the properties that we set in the Wasm.
-        assert_eq!(guest_table.from.size(), 3);
-        assert_eq!(
-            guest_table.ty(),
-            &TableType {
-                ty: Type::FuncRef,
-                minimum: 3,
-                maximum: Some(6)
-            }
-        );
-        guest_table
-    } else {
-        anyhow::bail!("`__indirect_function_table` is not a table")
-    };
+    let guest_table = instance.exports.get_table("__indirect_function_table")?;
+    // And demonstrate that it has the properties that we set in the Wasm.
+    assert_eq!(guest_table.size(), 3);
+    assert_eq!(
+        guest_table.ty(),
+        &TableType {
+            ty: Type::FuncRef,
+            minimum: 3,
+            maximum: Some(6)
+        }
+    );
 
     // == Setting elements in a table ==
 
@@ -101,10 +89,7 @@ fn main() -> anyhow::Result<()> {
     let func = Function::new_native(&store, host_callback);
 
     // And set table index 1 of that table to the host_callback `Function`.
-    guest_table
-        .from
-        .set(1, func.into())
-        .map_err(|t| anyhow::anyhow!(format!("trap: {:?}", t)))?;
+    guest_table.set(1, func.into())?;
 
     // We then repeat the call from before but this time it will find the host function
     // that we put at table index 1.
@@ -119,13 +104,10 @@ fn main() -> anyhow::Result<()> {
 
     // And grow the table by 3 elements, filling in our host_callback in all the
     // new elements of the table.
-    let previous_size = guest_table
-        .from
-        .grow(3, func.into())
-        .ok_or(anyhow::anyhow!("could not grow the table"))?;
+    let previous_size = guest_table.grow(3, func.into())?;
     assert_eq!(previous_size, 3);
 
-    assert_eq!(guest_table.from.size(), 6);
+    assert_eq!(guest_table.size(), 6);
     assert_eq!(
         guest_table.ty(),
         &TableType {
@@ -136,13 +118,9 @@ fn main() -> anyhow::Result<()> {
     );
     // Now demonstrate that the function we grew the table with is actually in the table.
     for table_index in 3..6 {
-        if let Some(TableElement::FuncRef(f)) = guest_table.from.get(table_index as _) {
-            unsafe {
-                let result = Function::from_vm_funcref(&store, f)
-                    .expect("funcref should not be null")
-                    .call(&[Value::I32(1), Value::I32(9)])?;
-                assert_eq!(result[0], Value::I32(10));
-            }
+        if let Value::FuncRef(Some(f)) = guest_table.get(table_index as _).unwrap() {
+            let result = f.call(&[Value::I32(1), Value::I32(9)])?;
+            assert_eq!(result[0], Value::I32(10));
         } else {
             panic!("expected to find funcref in table!");
         }
@@ -154,10 +132,7 @@ fn main() -> anyhow::Result<()> {
 
     // Now overwrite index 0 with our host_callback.
     let func = Function::new_native(&store, host_callback);
-    guest_table
-        .from
-        .set(0, func.into())
-        .map_err(|e| anyhow::anyhow!(format!("trap: {:?}", e)))?;
+    guest_table.set(0, func.into())?;
     // And verify that it does what we expect.
     let result = call_via_table.call(0, 2, 7)?;
     assert_eq!(result, 9);
@@ -165,13 +140,9 @@ fn main() -> anyhow::Result<()> {
     // Now demonstrate that the host and guest see the same table and that both
     // get the same result.
     for table_index in 3..6 {
-        if let Some(TableElement::FuncRef(f)) = guest_table.from.get(table_index as _) {
-            unsafe {
-                let result = Function::from_vm_funcref(&store, f)
-                    .expect("funcref should not be null")
-                    .call(&[Value::I32(1), Value::I32(9)])?;
-                assert_eq!(result[0], Value::I32(10));
-            }
+        if let Value::FuncRef(Some(f)) = guest_table.get(table_index as _).unwrap() {
+            let result = f.call(&[Value::I32(1), Value::I32(9)])?;
+            assert_eq!(result[0], Value::I32(10));
         } else {
             panic!("expected to find funcref in table!");
         }

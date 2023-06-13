@@ -81,6 +81,7 @@ pub trait Compiler: Send {
         features: &Features,
         data: &'data [u8],
     ) -> Result<(), CompileError> {
+        let mut validator = Validator::new();
         let wasm_features = WasmFeatures {
             bulk_memory: features.bulk_memory,
             threads: features.threads,
@@ -88,19 +89,13 @@ pub trait Compiler: Send {
             multi_value: features.multi_value,
             simd: features.simd,
             tail_call: features.tail_call,
+            module_linking: features.module_linking,
             multi_memory: features.multi_memory,
             memory64: features.memory64,
             exceptions: features.exceptions,
-            floats: true,
-            component_model: false,
-            extended_const: false,
-            mutable_global: features.mutable_global,
-            relaxed_simd: false,
-            saturating_float_to_int: features.saturating_float_to_int,
-            sign_extension: features.sign_extension,
-            memory_control: false,
+            deterministic_only: false,
         };
-        let mut validator = Validator::new_with_features(wasm_features);
+        validator.wasm_features(wasm_features);
         validator
             .validate_all(data)
             .map_err(|e| CompileError::Validate(format!("{}", e)))?;
@@ -117,8 +112,6 @@ pub trait Compiler: Send {
         module_translation: &ModuleTranslationState,
         // The list of function bodies
         function_body_inputs: PrimaryMap<LocalFunctionIndex, FunctionBodyData<'data>>,
-        tunables: &dyn wasmer_vm::Tunables,
-        instrumentation: &finite_wasm::AnalysisOutcome,
     ) -> Result<Compilation, CompileError>;
 
     /// Compiles a module into a native object file.

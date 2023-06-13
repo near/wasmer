@@ -1,4 +1,5 @@
-use crate::sys::exports::Exportable;
+use crate::sys::exports::{ExportError, Exportable};
+use crate::sys::externals::Extern;
 use crate::sys::store::Store;
 use crate::sys::types::{Val, ValFuncRef};
 use crate::sys::FunctionType;
@@ -13,7 +14,7 @@ use std::fmt;
 use std::sync::Arc;
 use wasmer_vm::{
     raise_user_trap, resume_panic, wasmer_call_trampoline, Export, ExportFunction,
-    ExportFunctionMetadata, ImportInitializerFuncPtr, TableElement, VMCallerCheckedAnyfunc,
+    ExportFunctionMetadata, ImportInitializerFuncPtr, VMCallerCheckedAnyfunc,
     VMDynamicFunctionContext, VMFuncRef, VMFunction, VMFunctionBody, VMFunctionEnvironment,
     VMFunctionKind, VMTrampoline,
 };
@@ -62,49 +63,6 @@ impl wasmer_types::WasmValueType for Function {
             Val::FuncRef(None) => panic!("Null funcref found in `Function::read_value_from`!"),
             other => panic!("Invalid value in `Function::read_value_from`: {:?}", other),
         }
-    }
-}
-
-impl Function {
-    /// Convert a `VMFuncRef` into a `Function`.
-    ///
-    /// Returns `None` if the funcref is null.
-    ///
-    /// # Safety
-    ///
-    /// Must ensure that the returned Function does not outlive the containing instance.
-    pub unsafe fn from_vm_funcref(store: &Store, func_ref: VMFuncRef) -> Option<Self> {
-        if func_ref.is_null() {
-            return None;
-        }
-        let wasmer_vm::VMCallerCheckedAnyfunc {
-            func_ptr: address,
-            type_index: signature,
-            vmctx,
-        } = **func_ref;
-        let export = wasmer_vm::ExportFunction {
-            // TODO:
-            // figure out if we ever need a value here: need testing with complicated import patterns
-            metadata: None,
-            vm_function: wasmer_vm::VMFunction {
-                address,
-                signature,
-                // TODO: review this comment (unclear if it's still correct):
-                // All functions in tables are already Static (as dynamic functions
-                // are converted to use the trampolines with static signatures).
-                kind: wasmer_vm::VMFunctionKind::Static,
-                vmctx,
-                call_trampoline: None,
-                instance_ref: None,
-            },
-        };
-        Some(Function::from_vm_export(store, export))
-    }
-}
-
-impl From<Function> for TableElement {
-    fn from(f: Function) -> Self {
-        TableElement::FuncRef(f.vm_funcref())
     }
 }
 
@@ -207,11 +165,10 @@ impl Function {
     /// # use wasmer::{Function, FunctionType, Type, Store, Value, WasmerEnv};
     /// # let store = Store::default();
     /// #
-    /// #[derive(Clone)]
+    /// #[derive(WasmerEnv, Clone)]
     /// struct Env {
     ///   multiplier: i32,
     /// };
-    /// impl WasmerEnv for Env {}
     /// let env = Env { multiplier: 2 };
     ///
     /// let signature = FunctionType::new(vec![Type::I32, Type::I32], vec![Type::I32]);
@@ -229,11 +186,10 @@ impl Function {
     /// # let store = Store::default();
     /// const I32_I32_TO_I32: ([Type; 2], [Type; 1]) = ([Type::I32, Type::I32], [Type::I32]);
     ///
-    /// #[derive(Clone)]
+    /// #[derive(WasmerEnv, Clone)]
     /// struct Env {
     ///   multiplier: i32,
     /// };
-    /// impl WasmerEnv for Env {}
     /// let env = Env { multiplier: 2 };
     ///
     /// let f = Function::new_with_env(&store, I32_I32_TO_I32, env, |env, args| {
@@ -275,7 +231,7 @@ impl Function {
         let signature = store
             .engine()
             // TODO(0-copy):
-            .register_signature(ty);
+            .register_signature((&ty).into());
 
         Self {
             store: store.clone(),
@@ -328,7 +284,7 @@ impl Function {
         let signature = store
             .engine()
             // TODO(0-copy):
-            .register_signature(function.ty());
+            .register_signature((&function.ty()).into());
 
         Self {
             store: store.clone(),
@@ -359,11 +315,10 @@ impl Function {
     /// # use wasmer::{Store, Function, WasmerEnv};
     /// # let store = Store::default();
     /// #
-    /// #[derive(Clone)]
+    /// #[derive(WasmerEnv, Clone)]
     /// struct Env {
     ///     multiplier: i32,
     /// };
-    /// impl WasmerEnv for Env {}
     /// let env = Env { multiplier: 2 };
     ///
     /// fn sum_and_multiply(env: &Env, a: i32, b: i32) -> i32 {
@@ -389,7 +344,7 @@ impl Function {
             build_export_function_metadata::<Env>(env, Env::init_with_instance);
 
         let vmctx = VMFunctionEnvironment { host_env };
-        let signature = store.engine().register_signature(function.ty());
+        let signature = store.engine().register_signature((&function.ty()).into());
         Self {
             store: store.clone(),
             exported: ExportFunction {
@@ -740,6 +695,21 @@ impl<'a> Exportable<'a> for Function {
     fn to_export(&self) -> Export {
         self.exported.clone().into()
     }
+
+    fn get_self_from_extern(_extern: Extern) -> Result<Self, ExportError> {
+        match _extern {
+            Extern::Function(func) => Ok(func),
+            _ => Err(ExportError::IncompatibleType),
+        }
+    }
+
+    fn into_weak_instance_ref(&mut self) {
+        self.exported
+            .vm_function
+            .instance_ref
+            .as_mut()
+            .map(|v| *v = v.downgrade());
+    }
 }
 
 impl Clone for Function {
@@ -877,6 +847,9 @@ mod inner {
     use std::error::Error;
     use std::marker::PhantomData;
     use std::panic::{self, AssertUnwindSafe};
+
+    #[cfg(feature = "experimental-reference-types-extern-ref")]
+    pub use wasmer_types::{ExternRef, VMExternRef};
     use wasmer_types::{FunctionType, NativeWasmType, Type};
     use wasmer_vm::{raise_user_trap, resume_panic, VMFunctionBody};
 
@@ -968,6 +941,18 @@ mod inner {
         f32 => f32,
         f64 => f64
     );
+
+    #[cfg(feature = "experimental-reference-types-extern-ref")]
+    unsafe impl FromToNativeWasmType for ExternRef {
+        type Native = VMExternRef;
+
+        fn to_native(self) -> Self::Native {
+            self.into()
+        }
+        fn from_native(n: Self::Native) -> Self {
+            n.into()
+        }
+    }
 
     #[cfg(test)]
     mod test_from_to_native_wasm_type {

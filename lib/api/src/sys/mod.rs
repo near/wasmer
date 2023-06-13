@@ -10,6 +10,12 @@ mod ptr;
 mod store;
 mod tunables;
 mod types;
+mod utils;
+
+/// Implement [`WasmerEnv`] for your type with `#[derive(WasmerEnv)]`.
+///
+/// See the [`WasmerEnv`] trait for more information.
+pub use wasmer_derive::WasmerEnv;
 
 #[doc(hidden)]
 pub mod internals {
@@ -23,7 +29,7 @@ pub mod internals {
 
 pub use crate::sys::cell::WasmCell;
 pub use crate::sys::env::{HostEnvInitError, LazyInit, WasmerEnv};
-pub use crate::sys::exports::{ExportError, Exportable, Exports};
+pub use crate::sys::exports::{ExportError, Exportable, Exports, ExportsIterator};
 pub use crate::sys::externals::{
     Extern, FromToNativeWasmType, Function, Global, HostFunction, Memory, Table, WasmTypeList,
 };
@@ -39,6 +45,7 @@ pub use crate::sys::types::{
     ValType,
 };
 pub use crate::sys::types::{Val as Value, ValType as Type};
+pub use crate::sys::utils::is_wasm;
 pub use target_lexicon::{Architecture, CallingConvention, OperatingSystem, Triple, HOST};
 #[cfg(feature = "compiler")]
 pub use wasmer_compiler::{wasmparser, CompilerConfig};
@@ -46,9 +53,11 @@ pub use wasmer_compiler::{
     CompileError, CpuFeature, Features, ParseCpuFeatureError, Target, WasmError, WasmResult,
 };
 pub use wasmer_engine::{DeserializeError, Engine, FrameInfo, LinkError, RuntimeError};
+#[cfg(feature = "experimental-reference-types-extern-ref")]
+pub use wasmer_types::ExternRef;
 pub use wasmer_types::{
-    Atomically, Bytes, ExportIndex, ExternRef, GlobalInit, LocalFunctionIndex, MemoryView, Pages,
-    ValueType, WASM_MAX_PAGES, WASM_MIN_PAGES, WASM_PAGE_SIZE,
+    Atomically, Bytes, ExportIndex, GlobalInit, LocalFunctionIndex, MemoryView, Pages, ValueType,
+    WASM_MAX_PAGES, WASM_MIN_PAGES, WASM_PAGE_SIZE,
 };
 pub use wasmer_vm::{
     ChainableNamedResolver, Export, NamedResolver, NamedResolverChain, Resolver, Tunables,
@@ -68,8 +77,34 @@ pub mod vm {
 #[cfg(feature = "wat")]
 pub use wat::parse_bytes as wat2wasm;
 
+// The compilers are mutually exclusive
+#[cfg(any(
+    all(
+        feature = "default-llvm",
+        any(feature = "default-cranelift", feature = "default-singlepass")
+    ),
+    all(feature = "default-cranelift", feature = "default-singlepass")
+))]
+compile_error!(
+    r#"The `default-singlepass`, `default-cranelift` and `default-llvm` features are mutually exclusive.
+If you wish to use more than one compiler, you can simply create the own store. Eg.:
+
+```
+use wasmer::{Store, Universal, Singlepass};
+
+let engine = Universal::new(Singlepass::default()).engine();
+let store = Store::new(&engine);
+```"#
+);
+
 #[cfg(feature = "singlepass")]
 pub use wasmer_compiler_singlepass::Singlepass;
+
+#[cfg(feature = "cranelift")]
+pub use wasmer_compiler_cranelift::{Cranelift, CraneliftOptLevel};
+
+#[cfg(feature = "llvm")]
+pub use wasmer_compiler_llvm::{LLVMOptLevel, LLVM};
 
 #[cfg(feature = "universal")]
 pub use wasmer_engine_universal::{Universal, UniversalArtifact, UniversalEngine};

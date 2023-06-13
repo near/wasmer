@@ -5,7 +5,7 @@
 
 * Wasmer provides several compilers and the `Makefile` autodetects
   when compilers can be compiled and/or installed. Set the environment
-  variables `ENABLE_SINGLEPASS=1` to force compiler
+  variables `ENABLE_{CRANELIFT,LLVM,SINGLEPASS}=1` to force compiler
   to be build or to fail trying, e.g:
 
   ```sh
@@ -23,7 +23,7 @@
 
 * In case you must build/install directly with `cargo`, make sure to
   enable at least one compiler feature, like e.g. `--features
-  singlepass`,
+  cranelift`,
 
   * Beware that compiling with `cargo build --workspace --features …`
     will not enable features on the subcrates in the workspace and
@@ -37,7 +37,7 @@
   * The `wasmer-headless` CLI contains a subset of the `wasmer`'s functionalities
     and should only be packaged when splitting — it must be built
     explicitly with:
-
+    
     ```sh
     $ make build-wasmer-headless-minimal install-wasmer-headless-minimal
     ```

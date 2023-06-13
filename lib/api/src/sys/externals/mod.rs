@@ -11,8 +11,9 @@ pub use self::global::Global;
 pub use self::memory::Memory;
 pub use self::table::Table;
 
-use crate::sys::exports::Exportable;
+use crate::sys::exports::{ExportError, Exportable};
 use crate::sys::store::{Store, StoreObject};
+use crate::sys::ExternType;
 use std::fmt;
 use wasmer_vm::Export;
 
@@ -33,6 +34,16 @@ pub enum Extern {
 }
 
 impl Extern {
+    /// Return the underlying type of the inner `Extern`.
+    pub fn ty(&self) -> ExternType {
+        match self {
+            Self::Function(ft) => ExternType::Function(ft.ty().clone()),
+            Self::Memory(ft) => ExternType::Memory(ft.ty()),
+            Self::Table(tt) => ExternType::Table(*tt.ty()),
+            Self::Global(gt) => ExternType::Global(*gt.ty()),
+        }
+    }
+
     /// Create an `Extern` from an `wasmer_engine::Export`.
     pub fn from_vm_export(store: &Store, export: Export) -> Self {
         match export {
@@ -51,6 +62,20 @@ impl<'a> Exportable<'a> for Extern {
             Self::Global(g) => g.to_export(),
             Self::Memory(m) => m.to_export(),
             Self::Table(t) => t.to_export(),
+        }
+    }
+
+    fn get_self_from_extern(_extern: Self) -> Result<Self, ExportError> {
+        // Since this is already an extern, we can just return it.
+        Ok(_extern)
+    }
+
+    fn into_weak_instance_ref(&mut self) {
+        match self {
+            Self::Function(f) => f.into_weak_instance_ref(),
+            Self::Global(g) => g.into_weak_instance_ref(),
+            Self::Memory(m) => m.into_weak_instance_ref(),
+            Self::Table(t) => t.into_weak_instance_ref(),
         }
     }
 }
