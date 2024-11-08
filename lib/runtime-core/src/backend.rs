@@ -217,6 +217,7 @@ impl ExceptionTable {
     BorshSerialize,
     BorshDeserialize,
 )]
+#[borsh(use_discriminant=true)]
 pub enum ExceptionCode {
     /// An `unreachable` opcode was executed.
     Unreachable = 0,

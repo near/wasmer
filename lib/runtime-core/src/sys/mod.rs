@@ -93,9 +93,9 @@ impl<'de> Deserialize<'de> for Memory {
 }
 
 impl BorshDeserialize for Memory {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        let original_protection: Protect = BorshDeserialize::deserialize(buf)?;
-        let bytes: Vec<u8> = BorshDeserialize::deserialize(buf)?;
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let original_protection: Protect = BorshDeserialize::deserialize_reader(reader)?;
+        let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
         let mut memory = Memory::with_size_protect(bytes.len(), Protect::ReadWrite)
             .expect("Could not create a memory");
 

@@ -145,34 +145,35 @@ impl BorshSerialize for MachineValue {
 }
 
 impl BorshDeserialize for MachineValue {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        let variant: u8 = BorshDeserialize::deserialize(buf)?;
+    fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let variant: u8 = BorshDeserialize::deserialize_reader(reader)?;
         Ok(match variant {
             0 => MachineValue::Undefined,
             1 => MachineValue::Vmctx,
             2 => {
-                let v: Vec<usize> = BorshDeserialize::deserialize(buf)?;
+                let v: Vec<usize> = BorshDeserialize::deserialize_reader(reader)?;
                 MachineValue::VmctxDeref(v)
             }
             3 => {
-                let r: RegisterIndex = BorshDeserialize::deserialize(buf)?;
+                let r: RegisterIndex = BorshDeserialize::deserialize_reader(reader)?;
                 MachineValue::PreserveRegister(r)
             }
             4 => {
-                let i: i32 = BorshDeserialize::deserialize(buf)?;
+                let i: i32 = BorshDeserialize::deserialize_reader(reader)?;
                 MachineValue::CopyStackBPRelative(i)
             }
             5 => MachineValue::ExplicitShadow,
             6 => {
-                let u: usize = BorshDeserialize::deserialize(buf)?;
+                let u: usize = BorshDeserialize::deserialize_reader(reader)?;
                 MachineValue::WasmStack(u)
             }
             7 => {
-                let u: usize = BorshDeserialize::deserialize(buf)?;
+                let u: usize = BorshDeserialize::deserialize_reader(reader)?;
                 MachineValue::WasmLocal(u)
             }
             8 => {
-                let b: Box<(MachineValue, MachineValue)> = BorshDeserialize::deserialize(buf)?;
+                let b: Box<(MachineValue, MachineValue)> =
+                    BorshDeserialize::deserialize_reader(reader)?;
                 MachineValue::TwoHalves(b)
             }
             _ => {
