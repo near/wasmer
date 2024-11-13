@@ -103,7 +103,7 @@ pub struct ModuleInfo {
 
     #[cfg(feature = "generate-debug-information")]
     #[serde(skip)]
-    #[borsh_skip]
+    #[borsh(skip)]
     /// Resource manager of debug information being used by a debugger.
     pub(crate) debug_info_manager: jit_debug::JitCodeDebugInfoManager,
 }
@@ -122,14 +122,14 @@ impl BorshSerialize for ExportsMap {
 }
 
 impl BorshDeserialize for ExportsMap {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        let len = u32::deserialize(buf)?;
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let len = u32::deserialize_reader(reader)?;
         // TODO(16): return capacity allocation when we can safely do that.
         let mut result = IndexMap::with_capacity(len as usize);
 
         for _ in 0..len {
-            let key = String::deserialize(buf)?;
-            let value = ExportIndex::deserialize(buf)?;
+            let key = String::deserialize_reader(reader)?;
+            let value = ExportIndex::deserialize_reader(reader)?;
             result.insert(key, value);
         }
         Ok(ExportsMap { map: result })

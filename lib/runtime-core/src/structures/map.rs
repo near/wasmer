@@ -15,7 +15,7 @@ where
     K: TypedIndex,
 {
     elems: Vec<V>,
-    #[borsh_skip]
+    #[borsh(skip)]
     _marker: PhantomData<K>,
 }
 

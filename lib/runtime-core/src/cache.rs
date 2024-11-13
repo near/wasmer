@@ -212,10 +212,8 @@ impl Artifact {
 
         let mut buffer = cache_header.as_slice().to_vec();
 
-        let mut encoded = self
-            .inner
-            .try_to_vec()
-            .map_err(|e| Error::SerializeError(e.to_string()))?;
+        let mut encoded =
+            borsh::to_vec(&self.inner).map_err(|e| Error::SerializeError(e.to_string()))?;
         buffer.append(&mut encoded);
 
         let data_len = (buffer.len() - mem::size_of::<ArtifactHeader>()) as u64;
