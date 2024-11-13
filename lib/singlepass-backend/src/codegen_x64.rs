@@ -398,7 +398,7 @@ pub struct CacheImage {
     msm: ModuleStateMap,
 
     /// An exception table that maps instruction offsets to exception codes.
-    #[borsh_skip]
+    #[borsh(skip)]
     exception_table: ExceptionTable,
 }
 
@@ -980,7 +980,7 @@ impl ModuleCodeGenerator<X64FunctionCode, X64ExecutionContext, CodegenError>
         };
 
         let cache = SinglepassCache {
-            buffer: Arc::from(cache_image.try_to_vec().unwrap().into_boxed_slice()),
+            buffer: Arc::from(borsh::to_vec(&cache_image).unwrap().into_boxed_slice()),
         };
 
         Ok((
@@ -7170,7 +7170,7 @@ impl FunctionCodeGenerator<CodegenError> for X64FunctionCode {
                 a.emit_jmp(Condition::Equal, label_else);
             }
             Operator::Else => {
-                let mut frame = self.control_stack.last_mut().unwrap();
+                let frame = self.control_stack.last_mut().unwrap();
 
                 if !was_unreachable && frame.returns.len() > 0 {
                     let loc = *self.value_stack.last().unwrap();
