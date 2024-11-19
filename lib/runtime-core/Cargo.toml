@@ -25,8 +25,8 @@ target-lexicon = "0.10"
 borsh = { version = "1.0.0", features = ["derive"] }
 
 [dependencies.indexmap]
-version = "1.2"
-features = ["serde-1"]
+version = "2"
+features = ["serde"]
 
 # Dependencies for caching.
 [dependencies.serde]
